@@ -89,6 +89,7 @@ Rectangle {
                     setupIndicator:     false
                     exclusiveGroup:     setupButtonGroup
                     text:               modelData.title
+                    //visible:            modelData.title !== "qrc:/qml/LogDownloadPage.qml" && modelData.url !== "qrc:/qml/MavlinkConsolePage.qml" && modelData.url !== "qrc:/qml/VibrationPage.qml"
 
                     onClicked: {
                         panelLoader.source  = modelData.url

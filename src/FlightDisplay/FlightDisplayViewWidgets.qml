@@ -23,9 +23,19 @@ import QGroundControl.Vehicle       1.0
 import QGroundControl.FlightMap     1.0
 
 Loader {
+    id: loader
+
+    //signal minimizeRequested() // define signal
+
     width:  parent.width
     source: QGroundControl.settingsManager.flyViewSettings.alternateInstrumentPanel.rawValue ?
                 "qrc:/qml/QGCInstrumentWidgetAlternate.qml" : "qrc:/qml/QGCInstrumentWidget.qml"
 
     property var missionController
+
+//    onLoaded: {
+//        if (loader.item && loader.item.hasOwnProperty("minimizeRequested")) {
+//            loader.item.minimizeRequested.connect(minimizeRequested)
+//        }
+//    }
 }

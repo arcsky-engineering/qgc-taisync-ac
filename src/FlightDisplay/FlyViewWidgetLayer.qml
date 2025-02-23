@@ -48,6 +48,9 @@ Item {
     property real   _rightPanelWidth:       ScreenTools.defaultFontPixelWidth * 30
     property alias  _gripperMenu:           gripperOptions
 
+    property bool   isInstrumentPanelMinimized: false
+    property bool   isPhotoVideoMinimized: false
+
     QGCToolInsets {
         id:                     _totalToolInsets
         leftEdgeTopInset:       toolStrip.leftEdgeTopInset
@@ -122,11 +125,52 @@ Item {
         anchors.right:              parent.right
         width:                      _rightPanelWidth
         spacing:                    _toolsMargin
-        visible:                    QGroundControl.corePlugin.options.flyView.showInstrumentPanel && multiVehiclePanelSelector.showSingleVehiclePanel
+        visible:                    !_root.isInstrumentPanelMinimized//QGroundControl.corePlugin.options.flyView.showInstrumentPanel && multiVehiclePanelSelector.showSingleVehiclePanel
         availableHeight:            parent.height - y - _toolsMargin
 
         property real rightEdgeTopInset: visible ? parent.width - x : 0
         property real topEdgeRightInset: visible ? y + height : 0
+
+        //onMinimizeRequested: _root.isInstrumentPanelMinimized = true
+        Image {
+            id:             minimizeButton
+            source:         "/qmlimages/pipHide.svg"
+            mipmap:         true
+            rotation:       180
+            fillMode:       Image.PreserveAspectFit
+            anchors.right:  parent.right
+            anchors.top:    parent.top
+            visible:        !_root.isInstrumentPanelMinimized // only when minimized
+            //visible:        _isExpanded && (ScreenTools.isMobile || pipMouseArea.containsMouse)
+            height:         ScreenTools.defaultFontPixelHeight * 2.0
+            width:          ScreenTools.defaultFontPixelHeight * 2.0
+            opacity:        0.5
+            sourceSize.height:  height
+            MouseArea {
+                anchors.fill:   parent
+                onClicked:      _root.isInstrumentPanelMinimized = true
+            }
+        }
+    }
+
+    // add a button to restore it
+    Image {
+        id:             instRestoreButton
+        source:         "/qmlimages/pipHide.svg"
+        mipmap:         true
+        fillMode:       Image.PreserveAspectFit
+        anchors.right:  parent.right
+        anchors.top:    parent.top
+        visible:        _root.isInstrumentPanelMinimized // only when minimized
+        //visible:        _isExpanded && (ScreenTools.isMobile || pipMouseArea.containsMouse)
+        height:         ScreenTools.defaultFontPixelHeight * 2.0
+        width:          ScreenTools.defaultFontPixelHeight * 2.0
+        opacity:        0.5
+        sourceSize.height:  height
+        MouseArea {
+            anchors.fill:   parent
+            onClicked:      _root.isInstrumentPanelMinimized = false
+        }
     }
 
     PhotoVideoControl {
@@ -134,6 +178,7 @@ Item {
         anchors.margins:        _toolsMargin
         anchors.right:          parent.right
         width:                  _rightPanelWidth
+        visible:                !_root.isPhotoVideoMinimized
 
         property real rightEdgeCenterInset: visible ? parent.width - x : 0
 
@@ -158,6 +203,46 @@ Item {
         ]
 
         property bool _verticalCenter: !QGroundControl.settingsManager.flyViewSettings.alternateInstrumentPanel.rawValue
+
+        Image {
+            id:             photoMinimizeButton
+            source:         "/qmlimages/pipHide.svg"
+            mipmap:         true
+            rotation:       180
+            fillMode:       Image.PreserveAspectFit
+            anchors.right:  parent.right
+            anchors.bottom:    parent.bottom
+            visible:        !_root.isPhotoVideoMinimized // only when minimized
+            //visible:        _isExpanded && (ScreenTools.isMobile || pipMouseArea.containsMouse)
+            height:         ScreenTools.defaultFontPixelHeight * 2.0
+            width:          ScreenTools.defaultFontPixelHeight * 2.0
+            opacity:        0.5
+            sourceSize.height:  height
+            MouseArea {
+                anchors.fill:   parent
+                onClicked:      _root.isPhotoVideoMinimized = true
+            }
+        }
+    } // PhotoVideoControl
+
+    // add a button to restore it
+    Image {
+        id:             photoVideoRestoreButton
+        source:         "/qmlimages/pipHide.svg"
+        mipmap:         true
+        fillMode:       Image.PreserveAspectFit
+        anchors.right:  photoVideoControl.right
+        anchors.bottom:    photoVideoControl.bottom
+        visible:        _root.isPhotoVideoMinimized // only when minimized
+        //visible:        _isExpanded && (ScreenTools.isMobile || pipMouseArea.containsMouse)
+        height:         ScreenTools.defaultFontPixelHeight * 2.0
+        width:          ScreenTools.defaultFontPixelHeight * 2.0
+        opacity:        0.5
+        sourceSize.height:  height
+        MouseArea {
+            anchors.fill:   parent
+            onClicked:      _root.isPhotoVideoMinimized = false
+        }
     }
 
     TelemetryValuesBar {
@@ -240,8 +325,8 @@ Item {
                 // Anchor to left edge
                 return parentToolInsets.leftEdgeBottomInset + _toolsMargin
             }
-        }
-    }
+        } // end of recalcXPosition
+    } // end of telemetry values bar
 
     property bool _paramBoxShowEnable: (typeof taisyncRemoteHandler !== "undefined" && taisyncRemoteHandler.showFlyParam)
                                        && QGroundControl.settingsManager.appSettings.taisyncFlyViewShow.value
@@ -522,7 +607,7 @@ Item {
         anchors.top:            parent.top
         z:                      QGroundControl.zOrderWidgets
         maxHeight:              parent.height - y - parentToolInsets.bottomEdgeLeftInset - _toolsMargin
-        visible:                !QGroundControl.videoManager.fullScreen
+        visible:                false //!QGroundControl.videoManager.fullScreen
 
         onDisplayPreFlightChecklist: preFlightChecklistPopup.createObject(mainWindow).open()
 

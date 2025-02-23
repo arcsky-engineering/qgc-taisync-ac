@@ -46,12 +46,29 @@ Rectangle {
         _showSummaryPanel()
     }
 
+//    function _showSummaryPanel() {
+//        if (_fullParameterVehicleAvailable) {
+//            if (QGroundControl.multiVehicleManager.activeVehicle.autopilot.vehicleComponents.length === 0) {
+//                panelLoader.setSourceComponent(noComponentsVehicleSummaryComponent)
+//            } else {
+//                panelLoader.setSource("VehicleSummary.qml")
+//            }
+//        } else if (QGroundControl.multiVehicleManager.parameterReadyVehicleAvailable) {
+//            panelLoader.setSourceComponent(missingParametersVehicleSummaryComponent)
+//        } else {
+//            panelLoader.setSourceComponent(disconnectedVehicleSummaryComponent)
+//        }
+//        summaryButton.checked = true
+//    }
+
+
     function _showSummaryPanel() {
         if (_fullParameterVehicleAvailable) {
             if (QGroundControl.multiVehicleManager.activeVehicle.autopilot.vehicleComponents.length === 0) {
                 panelLoader.setSourceComponent(noComponentsVehicleSummaryComponent)
             } else {
-                panelLoader.setSource("VehicleSummary.qml")
+                panelLoader.setSourceComponent(newEntryVehicleComponent)
+                //panelLoader.setSource("VehicleSummary.qml")
             }
         } else if (QGroundControl.multiVehicleManager.parameterReadyVehicleAvailable) {
             panelLoader.setSourceComponent(missingParametersVehicleSummaryComponent)
@@ -131,6 +148,23 @@ Rectangle {
                 font.pointSize:         ScreenTools.mediumFontPointSize
                 text:                   qsTr("%1 does not currently support setup of your vehicle type. ").arg(QGroundControl.appName) +
                                         "If your vehicle is already configured you can still Fly."
+                onLinkActivated: Qt.openUrlExternally(link)
+            }
+        }
+    }
+
+    Component {
+        id: newEntryVehicleComponent
+        Rectangle{
+            color: qgcPal.windowShade
+            QGCLabel {
+                anchors.margins:        _defaultTextWidth * 2
+                anchors.fill:           parent
+                verticalAlignment:      Text.AlignVCenter
+                horizontalAlignment:    Text.AlignHCenter
+                wrapMode:               Text.WordWrap
+                font.pointSize:         ScreenTools.mediumFontPointSize
+                text:                   "Select a Component to Set Up with the Menu on the Left."
                 onLinkActivated: Qt.openUrlExternally(link)
             }
         }
@@ -230,6 +264,7 @@ Rectangle {
                 exclusiveGroup:     setupButtonGroup
                 text:               qsTr("Summary")
                 Layout.fillWidth:   true
+                visible:            false
 
                 onClicked: showSummaryPanel()
             }
@@ -262,7 +297,7 @@ Rectangle {
                 setupIndicator:     true
                 setupComplete:      _activeJoystick ? _activeJoystick.calibrated || _buttonsOnly : false
                 exclusiveGroup:     setupButtonGroup
-                visible:            _fullParameterVehicleAvailable && joystickManager.joysticks.length !== 0
+                visible:            false//_fullParameterVehicleAvailable && joystickManager.joysticks.length !== 0
                 text:               _forcedToButtonsOnly ? qsTr("Buttons") : qsTr("Joystick")
                 Layout.fillWidth:   true
                 onClicked:          showPanel(this, "JoystickConfig.qml")
@@ -282,7 +317,7 @@ Rectangle {
                     setupComplete:      modelData.setupComplete
                     exclusiveGroup:     setupButtonGroup
                     text:               modelData.name
-                    visible:            modelData.setupSource.toString() !== ""
+                    visible:            modelData.name !== "Motors" && modelData.name !== "Tuning" && modelData.name !== "Remote Support" && modelData.name !== "Frame" && modelData.name !== "Camera"
                     Layout.fillWidth:   true
                     onClicked:          showVehicleComponentPanel(modelData)
                 }

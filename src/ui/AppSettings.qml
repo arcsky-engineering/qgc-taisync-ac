@@ -69,7 +69,7 @@ Rectangle {
                     text:               modelData.title
                     autoExclusive:      true
                     Layout.fillWidth:   true
-                    visible:            modelData.url != "qrc:/qml/RemoteIDSettings.qml" ? true : QGroundControl.settingsManager.remoteIDSettings.enable.rawValue
+                    visible:            modelData.url !== "qrc:/qml/HelpSettings.qml"// modelData.url !== "qrc:/qml/RemoteIDSettings.qml" ? true : QGroundControl.settingsManager.remoteIDSettings.enable.rawValue
 
                     onClicked: {
                         if (mainWindow.preventViewSwitch()) {
@@ -92,15 +92,36 @@ Rectangle {
                         if (_commingFromRIDSettings) {
                             checked = false
                             _commingFromRIDSettings = false
-                            if (modelData.url == "qrc:/qml/RemoteIDSettings.qml") {
+                            if (modelData.url === "qrc:/qml/RemoteIDSettings.qml") {
                                 checked = true
                             }
                         }
                     }
                 }
-            }
-        }
-    }
+            } // repeater
+            Repeater {
+                id:     buttonRepeater
+                model:  QGroundControl.corePlugin ? QGroundControl.corePlugin.analyzePages : []
+
+                QGCButton {
+                    height:             _buttonHeight
+                    text:               modelData.title
+                    autoExclusive:      true
+                    Layout.fillWidth:   true
+
+                    onClicked: {
+                        if (mainWindow.preventViewSwitch()) {
+                            return
+                        }
+                        if (__rightPanel.source !== modelData.url) {
+                            __rightPanel.source = modelData.url
+                        }
+                        checked = true
+                    } // on clicked
+                } // QGCButton
+            } // second repeater
+        } //  column layout
+    } // qgc flickable
 
     Rectangle {
         id:                     divider

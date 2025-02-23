@@ -14,16 +14,26 @@ import QGroundControl.Controls      1.0
 import QGroundControl.ScreenTools   1.0
 
 // This control contains the instruments as well and the instrument pages which include values, camera, ...
+
+
 Column {
     id:         _root
     spacing:    _toolsMargin
     z:          QGroundControl.zOrderWidgets
 
     property real availableHeight
+    property bool isMinimized
 
     FlightDisplayViewWidgets {
         id:                 flightDisplayViewWidgets
         width:              parent.width
         missionController:  _missionController
+
+//        onMinimizeRequested: {
+//            root.isMinimized = true
+//            root.minimizeRequested()
+//        }
     }
 }
+
+

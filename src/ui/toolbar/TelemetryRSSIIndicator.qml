@@ -79,7 +79,7 @@ Item {
         anchors.bottom:     parent.bottom
         width:              height
         sourceSize.height:  height
-        source:             "/qmlimages/TelemRSSI.svg"
+        source:             "/qmlimages/RC.svg"
         fillMode:           Image.PreserveAspectFit
         color:              qgcPal.buttonText
     }

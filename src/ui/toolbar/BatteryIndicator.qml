@@ -28,6 +28,7 @@ Item {
     property bool showIndicator: true
 
     property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
+    property var _generator: QGroundControl.multiVehicleManager.activeVehicle.generator
 
     Row {
         id:             batteryIndicatorRow
@@ -77,16 +78,40 @@ Item {
             }
 
             function getBatteryPercentageText() {
-                if (!isNaN(battery.percentRemaining.rawValue)) {
-                    if (battery.percentRemaining.rawValue > 98.9) {
-                        return qsTr("100%")
-                    } else {
-                        return battery.percentRemaining.valueString + battery.percentRemaining.units
+                if (_activeVehicle.generator.runtime.rawValue !== null)
+                {
+                    //console.log("generator fact exists")
+                     if (_activeVehicle.generator.busVoltage.rawValue > 0){
+                         //console.log("gen runtime more than 0")
+                         if (!isNaN(battery.percentRemaining.rawValue)) {
+                            if (battery.percentRemaining.rawValue > 98.9) {
+                                return qsTr("100%")
+                            } else {
+                                return battery.percentRemaining.valueString + battery.percentRemaining.units
+                            }
+                        }
                     }
-                } else if (!isNaN(battery.voltage.rawValue)) {
-                    return battery.voltage.valueString + battery.voltage.units
-                } else if (battery.chargeState.rawValue !== MAVLink.MAV_BATTERY_CHARGE_STATE_UNDEFINED) {
-                    return battery.chargeState.enumStringValue
+                    if (!isNaN(battery.voltage.rawValue)) {
+                        return battery.voltage.valueString + battery.voltage.units
+                    }
+                }
+                else
+                {
+                    //console.log("generator null")
+//                    if (!isNaN(battery.percentRemaining.rawValue)) {
+//                        if (battery.percentRemaining.rawValue > 98.9) {
+//                            return qsTr("100%")
+//                        } else {
+//                            return battery.percentRemaining.valueString + battery.percentRemaining.units
+//                        }
+//                    } else if (!isNaN(battery.voltage.rawValue)) {
+//                        return battery.voltage.valueString + battery.voltage.units
+//                    } else if (battery.chargeState.rawValue !== MAVLink.MAV_BATTERY_CHARGE_STATE_UNDEFINED) {
+//                        return battery.chargeState.enumStringValue
+//                    }
+                    if (!isNaN(battery.voltage.rawValue)) {
+                        return battery.voltage.valueString + battery.voltage.units
+                    }
                 }
                 return ""
             }
@@ -96,7 +121,7 @@ Item {
                 anchors.bottom:     parent.bottom
                 width:              height
                 sourceSize.width:   width
-                source:             "/qmlimages/Battery.svg"
+                source:             (_activeVehicle.generator.busVoltage.rawValue > 0) && (_activeVehicle.generator._timeout < 1) ? "/qmlimages/FuelTank.svg" : "/qmlimages/Battery.svg"
                 fillMode:           Image.PreserveAspectFit
                 color:              getBatteryColor()
             }
@@ -142,7 +167,7 @@ Item {
 
                 QGCLabel {
                     Layout.alignment:   Qt.AlignCenter
-                    text:               qsTr("Battery Status")
+                    text:               (_activeVehicle.generator.busVoltage.rawValue > 0) && (_activeVehicle.generator._timeout < 1) ? qsTr("Generator Status") : qsTr("Battery Status")
                     font.family:        ScreenTools.demiboldFontFamily
                 }
 
@@ -165,7 +190,7 @@ Item {
                                     property var battery: object
                                 }
 
-                                QGCLabel { text: qsTr("Battery %1").arg(object.id.rawValue) }
+                                QGCLabel { text: qsTr("Bat/Gen %1").arg(object.id.rawValue) }
                                 QGCLabel { text: qsTr("Charge State");                          visible: batteryValuesAvailable.chargeStateAvailable }
                                 QGCLabel { text: qsTr("Remaining");                             visible: batteryValuesAvailable.timeRemainingAvailable }
                                 QGCLabel { text: qsTr("Remaining") }

@@ -312,21 +312,21 @@ ApplicationWindow {
                         }
                     }
 
-                    SubMenuButton {
-                        id:                 analyzeButton
-                        height:             toolSelectDialog._toolButtonHeight
-                        Layout.fillWidth:   true
-                        text:               qsTr("Analyze Tools")
-                        imageResource:      "/qmlimages/Analyze.svg"
-                        imageColor:         qgcPal.text
-                        visible:            QGroundControl.corePlugin.showAdvancedUI
-                        onClicked: {
-                            if (!mainWindow.preventViewSwitch()) {
-                                toolSelectDialog.close()
-                                mainWindow.showAnalyzeTool()
-                            }
-                        }
-                    }
+//                    SubMenuButton {
+//                        id:                 analyzeButton
+//                        height:             toolSelectDialog._toolButtonHeight
+//                        Layout.fillWidth:   true
+//                        text:               qsTr("Analyze Tools")
+//                        imageResource:      "/qmlimages/Analyze.svg"
+//                        imageColor:         qgcPal.text
+//                        visible:            QGroundControl.corePlugin.showAdvancedUI
+//                        onClicked: {
+//                            if (!mainWindow.preventViewSwitch()) {
+//                                toolSelectDialog.close()
+//                                mainWindow.showAnalyzeTool()
+//                            }
+//                        }
+//                    }
 
                     SubMenuButton {
                         id:                 settingsButton
@@ -344,82 +344,82 @@ ApplicationWindow {
                         }
                     }
 
-                    ColumnLayout {
-                        width:                  innerLayout.width
-                        spacing:                0
-                        Layout.alignment:       Qt.AlignHCenter
+//                    ColumnLayout {
+//                        width:                  innerLayout.width
+//                        spacing:                0
+//                        Layout.alignment:       Qt.AlignHCenter
 
-                        QGCLabel {
-                            id:                     versionLabel
-                            text:                   qsTr("%1 Version").arg(QGroundControl.appName)
-                            font.pointSize:         ScreenTools.smallFontPointSize
-                            wrapMode:               QGCLabel.WordWrap
-                            Layout.maximumWidth:    parent.width
-                            Layout.alignment:       Qt.AlignHCenter
-                        }
+//                        QGCLabel {
+//                            id:                     versionLabel
+//                            text:                   qsTr("%1 Version").arg(QGroundControl.appName)
+//                            font.pointSize:         ScreenTools.smallFontPointSize
+//                            wrapMode:               QGCLabel.WordWrap
+//                            Layout.maximumWidth:    parent.width
+//                            Layout.alignment:       Qt.AlignHCenter
+//                        }
 
-                        QGCLabel {
-                            text:                   QGroundControl.qgcVersion
-                            font.pointSize:         ScreenTools.smallFontPointSize
-                            wrapMode:               QGCLabel.WrapAnywhere
-                            Layout.maximumWidth:    parent.width
-                            Layout.alignment:       Qt.AlignHCenter
+//                        QGCLabel {
+//                            text:                   QGroundControl.qgcVersion
+//                            font.pointSize:         ScreenTools.smallFontPointSize
+//                            wrapMode:               QGCLabel.WrapAnywhere
+//                            Layout.maximumWidth:    parent.width
+//                            Layout.alignment:       Qt.AlignHCenter
 
-                            QGCMouseArea {
-                                id:                 easterEggMouseArea
-                                anchors.topMargin:  -versionLabel.height
-                                anchors.fill:       parent
+//                            QGCMouseArea {
+//                                id:                 easterEggMouseArea
+//                                anchors.topMargin:  -versionLabel.height
+//                                anchors.fill:       parent
 
-                                onClicked: {
-                                    if (mouse.modifiers & Qt.ControlModifier) {
-                                        QGroundControl.corePlugin.showTouchAreas = !QGroundControl.corePlugin.showTouchAreas
-                                        showTouchAreasNotification.open()
-                                    } else if (ScreenTools.isMobile || mouse.modifiers & Qt.ShiftModifier) {
-                                        if(!QGroundControl.corePlugin.showAdvancedUI) {
-                                            advancedModeOnConfirmation.open()
-                                        } else {
-                                            advancedModeOffConfirmation.open()
-                                        }
-                                    }
-                                }
+//                                onClicked: {
+//                                    if (mouse.modifiers & Qt.ControlModifier) {
+//                                        QGroundControl.corePlugin.showTouchAreas = !QGroundControl.corePlugin.showTouchAreas
+//                                        showTouchAreasNotification.open()
+//                                    } else if (ScreenTools.isMobile || mouse.modifiers & Qt.ShiftModifier) {
+//                                        if(!QGroundControl.corePlugin.showAdvancedUI) {
+//                                            advancedModeOnConfirmation.open()
+//                                        } else {
+//                                            advancedModeOffConfirmation.open()
+//                                        }
+//                                    }
+//                                }
 
-                                // This allows you to change this on mobile
-                                onPressAndHold: {
-                                    QGroundControl.corePlugin.showTouchAreas = !QGroundControl.corePlugin.showTouchAreas
-                                    showTouchAreasNotification.open()
-                                }
+//                                // This allows you to change this on mobile
+//                                onPressAndHold: {
+//                                    QGroundControl.corePlugin.showTouchAreas = !QGroundControl.corePlugin.showTouchAreas
+//                                    showTouchAreasNotification.open()
+//                                }
 
-                                MessageDialog {
-                                    id:                 showTouchAreasNotification
-                                    title:              qsTr("Debug Touch Areas")
-                                    text:               qsTr("Touch Area display toggled")
-                                    standardButtons:    StandardButton.Ok
-                                }
+//                                MessageDialog {
+//                                    id:                 showTouchAreasNotification
+//                                    title:              qsTr("Debug Touch Areas")
+//                                    text:               qsTr("Touch Area display toggled")
+//                                    standardButtons:    StandardButton.Ok
+//                                }
 
-                                MessageDialog {
-                                    id:                 advancedModeOnConfirmation
-                                    title:              qsTr("Advanced Mode")
-                                    text:               QGroundControl.corePlugin.showAdvancedUIMessage
-                                    standardButtons:    StandardButton.Yes | StandardButton.No
-                                    onYes: {
-                                        QGroundControl.corePlugin.showAdvancedUI = true
-                                        advancedModeOnConfirmation.close()
-                                    }
-                                }
+//                                MessageDialog {
+//                                    id:                 advancedModeOnConfirmation
+//                                    title:              qsTr("Advanced Mode")
+//                                    text:               QGroundControl.corePlugin.showAdvancedUIMessage
+//                                    standardButtons:    StandardButton.Yes | StandardButton.No
+//                                    onYes: {
+//                                        QGroundControl.corePlugin.showAdvancedUI = true
+//                                        advancedModeOnConfirmation.close()
+//                                    }
+//                                }
 
-                                MessageDialog {
-                                    id:                 advancedModeOffConfirmation
-                                    title:              qsTr("Advanced Mode")
-                                    text:               qsTr("Turn off Advanced Mode?")
-                                    standardButtons:    StandardButton.Yes | StandardButton.No
-                                    onYes: {
-                                        QGroundControl.corePlugin.showAdvancedUI = false
-                                        advancedModeOffConfirmation.close()
-                                    }
-                                }
-                            }
-                        }
-                    }
+//                                MessageDialog {
+//                                    id:                 advancedModeOffConfirmation
+//                                    title:              qsTr("Advanced Mode")
+//                                    text:               qsTr("Turn off Advanced Mode?")
+//                                    standardButtons:    StandardButton.Yes | StandardButton.No
+//                                    onYes: {
+//                                        QGroundControl.corePlugin.showAdvancedUI = false
+//                                        advancedModeOffConfirmation.close()
+//                                    }
+//                                }
+//                            }
+//                        }
+//                    }
                 }
             }
         }

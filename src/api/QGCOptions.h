@@ -30,7 +30,7 @@ public:
     Q_PROPERTY(bool                     guidedBarShowROI                READ guidedBarShowROI               NOTIFY guidedBarShowROIChanged)
 
 protected:
-    virtual bool    showMultiVehicleList        () const { return true; }
+    virtual bool    showMultiVehicleList        () const { return false; }
     virtual bool    showMapScale                () const { return true; }
     virtual bool    showInstrumentPanel         () const { return true; }
     virtual bool    guidedBarShowEmergencyStop  () const { return true; }
@@ -109,22 +109,22 @@ public:
     virtual QColor  toolbarBackgroundDark           () const;
     /// By returning false you can hide the following sensor calibration pages
     virtual bool    showSensorCalibrationCompass    () const { return true; }
-    virtual bool    showSensorCalibrationGyro       () const { return true; }
+    virtual bool    showSensorCalibrationGyro       () const { return false; }
     virtual bool    showSensorCalibrationAccel      () const { return true; }
     virtual bool    showSensorCalibrationLevel      () const { return true; }
-    virtual bool    showSensorCalibrationAirspeed   () const { return true; }
+    virtual bool    showSensorCalibrationAirspeed   () const { return false; }
     virtual bool    wifiReliableForCalibration      () const { return false; }
     virtual bool    sensorsHaveFixedOrientation     () const { return false; }
-    virtual bool    showFirmwareUpgrade             () const { return true; }
+    virtual bool    showFirmwareUpgrade             () const { return false; }
     virtual bool    missionWaypointsOnly            () const { return false; }  ///< true: Only allow waypoints and complex items in Plan
-    virtual bool    multiVehicleEnabled             () const { return true; }   ///< false: multi vehicle support is disabled
+    virtual bool    multiVehicleEnabled             () const { return false; }   ///< false: multi vehicle support is disabled
     virtual bool    guidedActionsRequireRCRSSI      () const { return false; }  ///< true: Guided actions will be disabled is there is no RC RSSI
     virtual bool    showOfflineMapExport            () const { return true; }
     virtual bool    showOfflineMapImport            () const { return true; }
     virtual bool    showMissionAbsoluteAltitude     () const { return true; }
     virtual bool    showSimpleMissionStart          () const { return false; }
     virtual bool    disableVehicleConnection        () const { return false; }  ///< true: vehicle connection is disabled
-    virtual bool    checkFirmwareVersion            () const { return true; }
+    virtual bool    checkFirmwareVersion            () const { return false; }
     virtual bool    showMavlinkLogOptions           () const { return true; }
     virtual bool    allowJoystickSelection          () const { return true; }   ///< false: custom build has automatically enabled a specific joystick
     /// Desktop builds save the main application size and position on close (and restore it on open)

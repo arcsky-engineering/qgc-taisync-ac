@@ -20,8 +20,9 @@ Rectangle {
     id:                 telemetryPanel
     height:             telemetryLayout.height + (_toolsMargin * 2)
     width:              telemetryLayout.width + (_toolsMargin * 2)
-    color:              qgcPal.window
+    color:              Qt.rgba(0,0,0,0.5)
     radius:             ScreenTools.defaultFontPixelWidth / 2
+    //opacity:            0.7
 
     property bool       bottomMode: true
 
@@ -44,7 +45,7 @@ Rectangle {
                 sourceSize.width:   width
                 color:              qgcPal.text
                 fillMode:           Image.PreserveAspectFit
-                visible:            !bottomMode
+                visible:            false//!bottomMode
 
                 QGCMouseArea {
                     fillItem:   parent
@@ -60,7 +61,7 @@ Rectangle {
                 sourceSize.width:   width
                 color:              qgcPal.text
                 fillMode:           Image.PreserveAspectFit
-                visible:            bottomMode
+                visible:            false//bottomMode
 
                 QGCMouseArea {
                     fillItem:   parent

@@ -446,150 +446,150 @@ SetupPage {
                         }
                     }
 
-                    Column {
-                        width:      40 * ScreenTools.defaultFontPixelWidth
-                        spacing:    ScreenTools.defaultFontPixelHeight
+//                    Column {
+//                        width:      40 * ScreenTools.defaultFontPixelWidth
+//                        spacing:    ScreenTools.defaultFontPixelHeight
 
-                        QGCLabel {
-                            width:      parent.width
-                            wrapMode:   Text.WordWrap
-                            text:       _orientationDialogHelp
-                        }
+//                        QGCLabel {
+//                            width:      parent.width
+//                            wrapMode:   Text.WordWrap
+//                            text:       _orientationDialogHelp
+//                        }
 
-                        Column {
-                            QGCLabel { text: qsTr("Autopilot Rotation:") }
+//                        Column {
+//                            QGCLabel { text: qsTr("Autopilot Rotation:") }
 
-                            FactComboBox {
-                                width:      rotationColumnWidth
-                                indexModel: false
-                                fact:       boardRot
-                            }
-                        }
+//                            FactComboBox {
+//                                width:      rotationColumnWidth
+//                                indexModel: false
+//                                fact:       boardRot
+//                            }
+//                        }
 
-                        Column {
+//                        Column {
 
-                            visible: _orientationDialogCalType == _calTypeAccel
-                            spacing: ScreenTools.defaultFontPixelHeight
+//                            visible: _orientationDialogCalType == _calTypeAccel
+//                            spacing: ScreenTools.defaultFontPixelHeight
 
-                            QGCLabel {
-                                width:      parent.width
-                                wrapMode:   Text.WordWrap
-                                text: qsTr("Simple accelerometer calibration is less precise but allows calibrating without rotating the vehicle. Check this if you have a large/heavy vehicle.")
-                            }
+//                            QGCLabel {
+//                                width:      parent.width
+//                                wrapMode:   Text.WordWrap
+//                                text: qsTr("Simple accelerometer calibration is less precise but allows calibrating without rotating the vehicle. Check this if you have a large/heavy vehicle.")
+//                            }
 
-                            QGCCheckBox {
-                                text: "Simple Accelerometer Calibration"
-                                onClicked: _doSimpleAccelCal = this.checked
-                            }
-                        }
+//                            QGCCheckBox {
+//                                text: "Simple Accelerometer Calibration"
+//                                onClicked: _doSimpleAccelCal = this.checked
+//                            }
+//                        }
 
-                        Repeater {
-                            model:      _orientationsDialogShowCompass ? 3 : 0
-                            delegate:   singleCompassSettingsComponent
-                        }
+//                        Repeater {
+//                            model:      _orientationsDialogShowCompass ? 3 : 0
+//                            delegate:   singleCompassSettingsComponent
+//                        }
 
-                        QGCLabel {
-                            id:         magneticDeclinationLabel
-                            width:      parent.width
-                            visible:    globals.activeVehicle.sub && _orientationsDialogShowCompass
-                            text:       qsTr("Magnetic Declination")
-                        }
+//                        QGCLabel {
+//                            id:         magneticDeclinationLabel
+//                            width:      parent.width
+//                            visible:    globals.activeVehicle.sub && _orientationsDialogShowCompass
+//                            text:       qsTr("Magnetic Declination")
+//                        }
 
-                        Column {
-                            visible:            magneticDeclinationLabel.visible
-                            anchors.margins:    ScreenTools.defaultFontPixelWidth
-                            anchors.left:       parent.left
-                            anchors.right:      parent.right
-                            spacing:            ScreenTools.defaultFontPixelHeight
+//                        Column {
+//                            visible:            magneticDeclinationLabel.visible
+//                            anchors.margins:    ScreenTools.defaultFontPixelWidth
+//                            anchors.left:       parent.left
+//                            anchors.right:      parent.right
+//                            spacing:            ScreenTools.defaultFontPixelHeight
 
-                            QGCCheckBox {
-                                id:                           manualMagneticDeclinationCheckBox
-                                text:                         qsTr("Manual Magnetic Declination")
-                                property Fact autoDecFact:    controller.getParameterFact(-1, "COMPASS_AUTODEC")
-                                property int manual:          0
-                                property int automatic:       1
+//                            QGCCheckBox {
+//                                id:                           manualMagneticDeclinationCheckBox
+//                                text:                         qsTr("Manual Magnetic Declination")
+//                                property Fact autoDecFact:    controller.getParameterFact(-1, "COMPASS_AUTODEC")
+//                                property int manual:          0
+//                                property int automatic:       1
 
-                                checked:    autoDecFact.rawValue === manual
-                                onClicked:  autoDecFact.value = (checked ? manual : automatic)
-                            }
+//                                checked:    autoDecFact.rawValue === manual
+//                                onClicked:  autoDecFact.value = (checked ? manual : automatic)
+//                            }
 
-                            FactTextField {
-                                fact:       sensorParams.declinationFact
-                                enabled:    manualMagneticDeclinationCheckBox.checked
-                            }
-                        }
+//                            FactTextField {
+//                                fact:       sensorParams.declinationFact
+//                                enabled:    manualMagneticDeclinationCheckBox.checked
+//                            }
+//                        }
 
-                        Item { height: ScreenTools.defaultFontPixelHeight; width: 10 } // spacer
+//                        Item { height: ScreenTools.defaultFontPixelHeight; width: 10 } // spacer
 
-                        QGCLabel {
-                            id:         northCalibrationLabel
-                            width:      parent.width
-                            visible:    _orientationsDialogShowCompass
-                            wrapMode:   Text.WordWrap
-                            text:       qsTr("Fast compass calibration given vehicle position and yaw. This ") +
-                                        qsTr("results in zero diagonal and off-diagonal elements, so is only ") +
-                                        qsTr("suitable for vehicles where the field is close to spherical. It is ") +
-                                        qsTr("useful for large vehicles where moving the vehicle to calibrate it ") +
-                                        qsTr("is difficult. Point the vehicle North before using it.")
-                        }
+//                        QGCLabel {
+//                            id:         northCalibrationLabel
+//                            width:      parent.width
+//                            visible:    _orientationsDialogShowCompass
+//                            wrapMode:   Text.WordWrap
+//                            text:       qsTr("Fast compass calibration given vehicle position and yaw. This ") +
+//                                        qsTr("results in zero diagonal and off-diagonal elements, so is only ") +
+//                                        qsTr("suitable for vehicles where the field is close to spherical. It is ") +
+//                                        qsTr("useful for large vehicles where moving the vehicle to calibrate it ") +
+//                                        qsTr("is difficult. Point the vehicle North before using it.")
+//                        }
 
-                        Column {
-                            visible:            northCalibrationLabel.visible
-                            anchors.margins:    ScreenTools.defaultFontPixelWidth
-                            anchors.left:       parent.left
-                            anchors.right:      parent.right
-                            spacing:            ScreenTools.defaultFontPixelHeight
+//                        Column {
+//                            visible:            northCalibrationLabel.visible
+//                            anchors.margins:    ScreenTools.defaultFontPixelWidth
+//                            anchors.left:       parent.left
+//                            anchors.right:      parent.right
+//                            spacing:            ScreenTools.defaultFontPixelHeight
 
-                            QGCCheckBox {
-                                id:             northCalibrationCheckBox
-                                visible:        northCalibrationLabel.visible
-                                text:           qsTr("Fast Calibration")
-                            }
+//                            QGCCheckBox {
+//                                id:             northCalibrationCheckBox
+//                                visible:        northCalibrationLabel.visible
+//                                text:           qsTr("Fast Calibration")
+//                            }
 
-                            QGCLabel {
-                                id:         northCalibrationManualPosition
-                                width:      parent.width
-                                visible:    northCalibrationCheckBox.checked && !globals.activeVehicle.coordinate.isValid
-                                wrapMode:   Text.WordWrap
-                                text:       qsTr("Vehicle has no Valid positon, please provide it")
-                            }
+//                            QGCLabel {
+//                                id:         northCalibrationManualPosition
+//                                width:      parent.width
+//                                visible:    northCalibrationCheckBox.checked && !globals.activeVehicle.coordinate.isValid
+//                                wrapMode:   Text.WordWrap
+//                                text:       qsTr("Vehicle has no Valid positon, please provide it")
+//                            }
 
-                            QGCCheckBox {
-                                visible:    northCalibrationManualPosition.visible && _gcsPosition.isValid
-                                id:         useGcsPositionCheckbox
-                                text:       qsTr("Use GCS position instead")
-                                checked:    _gcsPosition.isValid
-                            }
-                            QGCCheckBox {
-                                visible:    northCalibrationManualPosition.visible && !_gcsPosition.isValid
-                                id:         useMapPositionCheckbox
-                                text:       qsTr("Use current map position instead")
-                            }
+//                            QGCCheckBox {
+//                                visible:    northCalibrationManualPosition.visible && _gcsPosition.isValid
+//                                id:         useGcsPositionCheckbox
+//                                text:       qsTr("Use GCS position instead")
+//                                checked:    _gcsPosition.isValid
+//                            }
+//                            QGCCheckBox {
+//                                visible:    northCalibrationManualPosition.visible && !_gcsPosition.isValid
+//                                id:         useMapPositionCheckbox
+//                                text:       qsTr("Use current map position instead")
+//                            }
 
-                            QGCLabel {
-                                width:      parent.width
-                                visible:    useMapPositionCheckbox.checked
-                                wrapMode:   Text.WordWrap
-                                text:       qsTr(`Lat: ${_mapPosition.latitude.toFixed(4)} Lon: ${_mapPosition.longitude.toFixed(4)}`)
-                            }
+//                            QGCLabel {
+//                                width:      parent.width
+//                                visible:    useMapPositionCheckbox.checked
+//                                wrapMode:   Text.WordWrap
+//                                text:       qsTr(`Lat: ${_mapPosition.latitude.toFixed(4)} Lon: ${_mapPosition.longitude.toFixed(4)}`)
+//                            }
 
-                            FactTextField {
-                                id:         northCalLat
-                                visible:    !useGcsPositionCheckbox.checked && !useMapPositionCheckbox.checked && northCalibrationCheckBox.checked
-                                text:       "0.00"
-                                textColor:  isNaN(parseFloat(text)) ? qgcPal.warningText: qgcPal.textFieldText
-                                enabled:    !useGcsPositionCheckbox.checked
-                            }
-                            FactTextField {
-                                id:         northCalLon
-                                visible:    !useGcsPositionCheckbox.checked && !useMapPositionCheckbox.checked && northCalibrationCheckBox.checked
-                                text:       "0.00"
-                                textColor:  isNaN(parseFloat(text)) ? qgcPal.warningText: qgcPal.textFieldText
-                                enabled:    !useGcsPositionCheckbox.checked
-                            }
+//                            FactTextField {
+//                                id:         northCalLat
+//                                visible:    !useGcsPositionCheckbox.checked && !useMapPositionCheckbox.checked && northCalibrationCheckBox.checked
+//                                text:       "0.00"
+//                                textColor:  isNaN(parseFloat(text)) ? qgcPal.warningText: qgcPal.textFieldText
+//                                enabled:    !useGcsPositionCheckbox.checked
+//                            }
+//                            FactTextField {
+//                                id:         northCalLon
+//                                visible:    !useGcsPositionCheckbox.checked && !useMapPositionCheckbox.checked && northCalibrationCheckBox.checked
+//                                text:       "0.00"
+//                                textColor:  isNaN(parseFloat(text)) ? qgcPal.warningText: qgcPal.textFieldText
+//                                enabled:    !useGcsPositionCheckbox.checked
+//                            }
 
-                        }
-                    }
+//                        }
+//                    }
                 }
             }
 
@@ -687,59 +687,59 @@ SetupPage {
                         }
                     }
 
-                    QGCButton {
-                        width:  _buttonWidth
-                        text:   _levelHorizonText
+//                    QGCButton {
+//                        width:  _buttonWidth
+//                        text:   _levelHorizonText
 
-                        readonly property string _levelHorizonText: qsTr("Level Horizon")
+//                        readonly property string _levelHorizonText: qsTr("Level Horizon")
 
-                        onClicked: {
-                            if (controller.accelSetupNeeded) {
-                                mainWindow.showMessageDialog(_levelHorizonText, qsTr("Accelerometer must be calibrated prior to Level Horizon."))
-                            } else {
-                                mainWindow.showMessageDialog(_levelHorizonText,
-                                                             qsTr("To level the horizon you need to place the vehicle in its level flight position and press Ok."),
-                                                             StandardButton.Cancel | StandardButton.Ok,
-                                                             function() { controller.levelHorizon() })
-                            }
-                        }
-                    }
+//                        onClicked: {
+//                            if (controller.accelSetupNeeded) {
+//                                mainWindow.showMessageDialog(_levelHorizonText, qsTr("Accelerometer must be calibrated prior to Level Horizon."))
+//                            } else {
+//                                mainWindow.showMessageDialog(_levelHorizonText,
+//                                                             qsTr("To level the horizon you need to place the vehicle in its level flight position and press Ok."),
+//                                                             StandardButton.Cancel | StandardButton.Ok,
+//                                                             function() { controller.levelHorizon() })
+//                            }
+//                        }
+//                    }
 
-                    QGCButton {
-                        width:      _buttonWidth
-                        text:       qsTr("Gyro")
-                        visible:    globals.activeVehicle && (globals.activeVehicle.multiRotor | globals.activeVehicle.rover | globals.activeVehicle.sub)
-                        onClicked:  mainWindow.showMessageDialog(qsTr("Calibrate Gyro"),
-                                                                 qsTr("For Gyroscope calibration you will need to place your vehicle on a surface and leave it still.\n\nClick Ok to start calibration."),
-                                                                 StandardButton.Cancel | StandardButton.Ok,
-                                                                 function() { controller.calibrateGyro() })
-                    }
+//                    QGCButton {
+//                        width:      _buttonWidth
+//                        text:       qsTr("Gyro")
+//                        visible:    globals.activeVehicle && (globals.activeVehicle.multiRotor | globals.activeVehicle.rover | globals.activeVehicle.sub)
+//                        onClicked:  mainWindow.showMessageDialog(qsTr("Calibrate Gyro"),
+//                                                                 qsTr("For Gyroscope calibration you will need to place your vehicle on a surface and leave it still.\n\nClick Ok to start calibration."),
+//                                                                 StandardButton.Cancel | StandardButton.Ok,
+//                                                                 function() { controller.calibrateGyro() })
+//                    }
 
-                    QGCButton {
-                        width:      _buttonWidth
-                        text:       _calibratePressureText
-                        onClicked:  mainWindow.showMessageDialog(_calibratePressureText,
-                                                                 qsTr("Pressure calibration will set the %1 to zero at the current pressure reading. %2").arg(_altText).arg(_helpTextFW),
-                                                                 StandardButton.Cancel | StandardButton.Ok,
-                                                                 function() { controller.calibratePressure() })
+//                    QGCButton {
+//                        width:      _buttonWidth
+//                        text:       _calibratePressureText
+//                        onClicked:  mainWindow.showMessageDialog(_calibratePressureText,
+//                                                                 qsTr("Pressure calibration will set the %1 to zero at the current pressure reading. %2").arg(_altText).arg(_helpTextFW),
+//                                                                 StandardButton.Cancel | StandardButton.Ok,
+//                                                                 function() { controller.calibratePressure() })
 
-                        readonly property string _altText:                  globals.activeVehicle.sub ? qsTr("depth") : qsTr("altitude")
-                        readonly property string _helpTextFW:               globals.activeVehicle.fixedWing ? qsTr("To calibrate the airspeed sensor shield it from the wind. Do not touch the sensor or obstruct any holes during the calibration.") : ""
-                        readonly property string _calibratePressureText:    globals.activeVehicle.fixedWing ? qsTr("Baro/Airspeed") : qsTr("Pressure")
-                    }
+//                        readonly property string _altText:                  globals.activeVehicle.sub ? qsTr("depth") : qsTr("altitude")
+//                        readonly property string _helpTextFW:               globals.activeVehicle.fixedWing ? qsTr("To calibrate the airspeed sensor shield it from the wind. Do not touch the sensor or obstruct any holes during the calibration.") : ""
+//                        readonly property string _calibratePressureText:    globals.activeVehicle.fixedWing ? qsTr("Baro/Airspeed") : qsTr("Pressure")
+//                    }
 
-                    QGCButton {
-                        width:      _buttonWidth
-                        text:       qsTr("CompassMot")
-                        visible:    globals.activeVehicle ? globals.activeVehicle.supportsMotorInterference : false
-                        onClicked:  compassMotDialogComponent.createObject(mainWindow).open()
-                    }
+//                    QGCButton {
+//                        width:      _buttonWidth
+//                        text:       qsTr("CompassMot")
+//                        visible:    globals.activeVehicle ? globals.activeVehicle.supportsMotorInterference : false
+//                        onClicked:  compassMotDialogComponent.createObject(mainWindow).open()
+//                    }
 
-                    QGCButton {
-                        width:      _buttonWidth
-                        text:       qsTr("Sensor Settings")
-                        onClicked:  showOrientationsDialog(_calTypeSet)
-                    }
+//                    QGCButton {
+//                        width:      _buttonWidth
+//                        text:       qsTr("Sensor Settings")
+//                        onClicked:  showOrientationsDialog(_calTypeSet)
+//                    }
                 } // Column - Cal Buttons
 
                 Column {

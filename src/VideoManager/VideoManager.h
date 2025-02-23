@@ -56,6 +56,7 @@ public:
     Q_PROPERTY(bool             decoding                READ    decoding                                    NOTIFY decodingChanged)
     Q_PROPERTY(bool             recording               READ    recording                                   NOTIFY recordingChanged)
     Q_PROPERTY(QSize            videoSize               READ    videoSize                                   NOTIFY videoSizeChanged)
+    Q_PROPERTY(QString          currentStream           READ    currentStream                               NOTIFY streamChanged)
 
     virtual bool        hasVideo            ();
     virtual bool        isGStreamer         ();
@@ -70,6 +71,18 @@ public:
     virtual bool        autoStreamConfigured();
     virtual bool        hasThermal          ();
     virtual QString     imageFile           ();
+
+    QString currentStream(){
+        //qDebug() << "Stream" << _currentStream;
+        if(_currentStream == 1)
+        {
+            return "1";
+        }
+        else
+        {
+            return "2";
+        }
+    }
 
     bool streaming(void) {
         return _streaming;
@@ -113,6 +126,8 @@ public:
 
     Q_INVOKABLE void grabImage(const QString& imageFile = QString());
 
+    Q_INVOKABLE void switchRTSPStream();
+
 signals:
     void hasVideoChanged            ();
     void isGStreamerChanged         ();
@@ -129,6 +144,7 @@ signals:
     void recordingChanged           ();
     void recordingStarted           ();
     void videoSizeChanged           ();
+    void streamChanged              ();
 
 protected slots:
     void _videoSourceChanged        ();
@@ -152,6 +168,7 @@ protected:
     void _restartVideo              (unsigned id);
     void _startReceiver             (unsigned id);
     void _stopReceiver              (unsigned id);
+   // void _switchRTSPStream          ();
 
 protected:
     QString                 _videoFile;
@@ -178,6 +195,8 @@ protected:
     Vehicle*                _activeVehicle          = nullptr;
     QString                 _forwardHost;
     bool                    _forwardVideo;
+private:
+    uint8_t _currentStream = 1; // 1 or 2
 };
 
 #endif

@@ -82,6 +82,7 @@ VideoManager::~VideoManager()
         }
 #endif
     }
+    //_currentStream = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -736,7 +737,18 @@ VideoManager::_updateSettings(unsigned id)
     else if (source == VideoSettings::videoSourceMPEGTS)
         settingsChanged |= _updateVideoUri(0, QStringLiteral("mpegts://0.0.0.0:%1").arg(_videoSettings->udpPort()->rawValue().toInt()));
     else if (source == VideoSettings::videoSourceRTSP)
-        settingsChanged |= _updateVideoUri(0, _videoSettings->rtspUrl()->rawValue().toString());
+    {
+        //qDebug() << "Settings Stream: " << _currentStream << ":" << _videoSettings->rtspUrl()->rawValue().toString();
+        // check for flag
+        if (_currentStream == 1)
+        {
+            settingsChanged |= _updateVideoUri(0, _videoSettings->rtspUrl()->rawValue().toString());
+        }
+        else if (_currentStream == 2)
+        {
+            settingsChanged |= _updateVideoUri(0, _videoSettings->rtspUrl2()->rawValue().toString());
+        }
+    }
     else if (source == VideoSettings::videoSourceTCP)
         settingsChanged |= _updateVideoUri(0, QStringLiteral("tcp://%1").arg(_videoSettings->tcpUrl()->rawValue().toString()));
     else if (source == VideoSettings::videoSource3DRSolo)
@@ -795,6 +807,7 @@ VideoManager::_updateVideoUri(unsigned id, const QString& uri)
 void
 VideoManager::_restartVideo(unsigned id)
 {
+    //qDebug() << "restarting video: " << _videoUri[id];
 #if !defined(QGC_GST_STREAMING)
     Q_UNUSED(id);
 #endif
@@ -919,4 +932,55 @@ void
 VideoManager::_aspectRatioChanged()
 {
     emit aspectRatioChanged();
+}
+
+void
+VideoManager::switchRTSPStream()
+{
+
+    //VideoSettings* videoSettings = qgcApp()->toolbox()->settingsManager()->videoSettings();
+
+//    static bool useStream1 = true;
+//    useStream1 = !useStream1;
+
+    if(_currentStream == 1)
+    {
+        _currentStream = 2;
+    }
+    else
+    {
+        _currentStream = 1;
+    }
+
+    //_currentStream = useStream1 ? videoSettings->rtspUrl()->rawValue().toString() : videoSettings->rtspUrl2()->rawValue().toString();
+
+    // switch rtspUrl and rtspUrl2
+
+    //QString tempStream;
+    //tempStream = videoSettings->rtspUrl()->rawValue().toString();
+    //videoSettings->rtspUrl()->setRawValue(videoSettings->rtspUrl2()->rawValue().toString());
+    //videoSettings->rtspUrl2()->setRawValue(tempStream);
+
+    //qDebug() << "rtspUrl:" << videoSettings->rtspUrl()->rawValue().toString();
+    //qDebug() << "rtspUrl2:" << videoSettings->rtspUrl2()->rawValue().toString();
+
+    //qDebug() << "Updating Stream: " << _currentStream;
+    //_updateSettings(0);
+
+    emit streamChanged();
+
+    //_updateSettings
+
+    _restartAllVideos();
+
+//    if (_currentStreamIndex == 1)
+//    {
+//        _currentStreamIndex = 0;
+//    }
+//    else
+//    {
+//        _currentStreamIndex = 1;
+//    }
+
+    // call function to update settings?
 }

@@ -51,6 +51,10 @@ public:
     static const char* _runtimeFactName;
     static const char* _timeMaintenanceFactName;
 
+    uint8_t _msgReceived;
+    uint8_t _timeoutCntStarted;
+    uint8_t _timeout;
+
 signals:
     void flagsListGeneratorChanged();
 

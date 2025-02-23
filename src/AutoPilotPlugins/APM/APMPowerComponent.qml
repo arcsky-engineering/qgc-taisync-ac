@@ -124,161 +124,161 @@ SetupPage {
                         sourceComponent:    _batt1FullSettings.visible ? powerSetupComponent : undefined
 
                         property Fact armVoltMin:       controller.getParameterFact(-1, "r.BATT_ARM_VOLT", false /* reportMissing */)
-                        property Fact battAmpPerVolt:   controller.getParameterFact(-1, "r.BATT_AMP_PERVLT", false /* reportMissing */)
-                        property Fact battAmpOffset:    controller.getParameterFact(-1, "BATT_AMP_OFFSET", false /* reportMissing */)
+                        //property Fact battAmpPerVolt:   controller.getParameterFact(-1, "r.BATT_AMP_PERVLT", false /* reportMissing */)
+                        //property Fact battAmpOffset:    controller.getParameterFact(-1, "BATT_AMP_OFFSET", false /* reportMissing */)
                         property Fact battCapacity:     controller.getParameterFact(-1, "BATT_CAPACITY", false /* reportMissing */)
-                        property Fact battCurrPin:      controller.getParameterFact(-1, "BATT_CURR_PIN", false /* reportMissing */)
-                        property Fact battMonitor:      controller.getParameterFact(-1, "BATT_MONITOR", false /* reportMissing */)
-                        property Fact battVoltMult:     controller.getParameterFact(-1, "BATT_VOLT_MULT", false /* reportMissing */)
-                        property Fact battVoltPin:      controller.getParameterFact(-1, "BATT_VOLT_PIN", false /* reportMissing */)
+                        //property Fact battCurrPin:      controller.getParameterFact(-1, "BATT_CURR_PIN", false /* reportMissing */)
+                        //property Fact battMonitor:      controller.getParameterFact(-1, "BATT_MONITOR", false /* reportMissing */)
+                        //property Fact battVoltMult:     controller.getParameterFact(-1, "BATT_VOLT_MULT", false /* reportMissing */)
+                        //property Fact battVoltPin:      controller.getParameterFact(-1, "BATT_VOLT_PIN", false /* reportMissing */)
                         property FactGroup  _batteryFactGroup:  _batt1FullSettings.visible ? controller.vehicle.getFactGroup("battery0") : null
-                        property Fact vehicleVoltage:   _batteryFactGroup ? _batteryFactGroup.voltage : null
-                        property Fact vehicleCurrent:   _batteryFactGroup ? _batteryFactGroup.current : null
+                        //property Fact vehicleVoltage:   _batteryFactGroup ? _batteryFactGroup.voltage : null
+                        //property Fact vehicleCurrent:   _batteryFactGroup ? _batteryFactGroup.current : null
                     }
                 }
             }
 
             // Battery2 Monitor settings only - used when only monitor param is available
-            Column {
-                spacing: _margins / 2
-                visible: !_batt2MonitorEnabled || !_batt2ParamsAvailable
+//            Column {
+//                spacing: _margins / 2
+//                visible: !_batt2MonitorEnabled || !_batt2ParamsAvailable
 
-                QGCLabel {
-                    text:       qsTr("Battery 2")
-                    font.family: ScreenTools.demiboldFontFamily
-                }
+//                QGCLabel {
+//                    text:       qsTr("Battery 2")
+//                    font.family: ScreenTools.demiboldFontFamily
+//                }
 
-                Rectangle {
-                    width:  batt2Column.x + batt2Column.width + _margins
-                    height: batt2Column.y + batt2Column.height + _margins
-                    color:  ggcPal.windowShade
+//                Rectangle {
+//                    width:  batt2Column.x + batt2Column.width + _margins
+//                    height: batt2Column.y + batt2Column.height + _margins
+//                    color:  ggcPal.windowShade
 
-                    ColumnLayout {
-                        id:                 batt2Column
-                        anchors.margins:    _margins
-                        anchors.top:        parent.top
-                        anchors.left:       parent.left
-                        spacing:            ScreenTools.defaultFontPixelWidth
+//                    ColumnLayout {
+//                        id:                 batt2Column
+//                        anchors.margins:    _margins
+//                        anchors.top:        parent.top
+//                        anchors.left:       parent.left
+//                        spacing:            ScreenTools.defaultFontPixelWidth
 
-                        RowLayout {
-                            id:                 batt2MonitorRow
-                            spacing:            ScreenTools.defaultFontPixelWidth
+//                        RowLayout {
+//                            id:                 batt2MonitorRow
+//                            spacing:            ScreenTools.defaultFontPixelWidth
 
-                            QGCLabel { text: qsTr("Battery2 monitor:") }
-                            FactComboBox {
-                                id:         monitor2Combo
-                                fact:       _batt2Monitor
-                                indexModel: false
-                                sizeToContents: true
-                            }
-                        }
+//                            QGCLabel { text: qsTr("Battery2 monitor:") }
+//                            FactComboBox {
+//                                id:         monitor2Combo
+//                                fact:       _batt2Monitor
+//                                indexModel: false
+//                                sizeToContents: true
+//                            }
+//                        }
 
-                        QGCLabel {
-                            text:       _restartRequired
-                            visible:    _showBatt2Reboot
-                        }
+//                        QGCLabel {
+//                            text:       _restartRequired
+//                            visible:    _showBatt2Reboot
+//                        }
 
-                        QGCButton {
-                            text:       qsTr("Reboot vehicle")
-                            visible:    _showBatt2Reboot
-                            onClicked:  controller.vehicle.rebootVehicle()
-                        }
-                    }
-                }
-            }
+//                        QGCButton {
+//                            text:       qsTr("Reboot vehicle")
+//                            visible:    _showBatt2Reboot
+//                            onClicked:  controller.vehicle.rebootVehicle()
+//                        }
+//                    }
+//                }
+//            }
 
-            // Battery 2 settings - Used when full params are available
-            Column {
-                id:         batt2FullSettings
-                spacing:    _margins / 2
-                visible:    _batt2MonitorEnabled && _batt2ParamsAvailable
+//            // Battery 2 settings - Used when full params are available
+//            Column {
+//                id:         batt2FullSettings
+//                spacing:    _margins / 2
+//                visible:    _batt2MonitorEnabled && _batt2ParamsAvailable
 
-                QGCLabel {
-                    text:       qsTr("Battery 2")
-                    font.family: ScreenTools.demiboldFontFamily
-                }
+//                QGCLabel {
+//                    text:       qsTr("Battery 2")
+//                    font.family: ScreenTools.demiboldFontFamily
+//                }
 
-                Rectangle {
-                    width:  battery2Loader.x + battery2Loader.width + _margins
-                    height: battery2Loader.y + battery2Loader.height + _margins
-                    color:  ggcPal.windowShade
+//                Rectangle {
+//                    width:  battery2Loader.x + battery2Loader.width + _margins
+//                    height: battery2Loader.y + battery2Loader.height + _margins
+//                    color:  ggcPal.windowShade
 
-                    Loader {
-                        id:                 battery2Loader
-                        anchors.margins:    _margins
-                        anchors.top:        parent.top
-                        anchors.left:       parent.left
-                        sourceComponent:    batt2FullSettings.visible ? powerSetupComponent : undefined
+//                    Loader {
+//                        id:                 battery2Loader
+//                        anchors.margins:    _margins
+//                        anchors.top:        parent.top
+//                        anchors.left:       parent.left
+//                        sourceComponent:    batt2FullSettings.visible ? powerSetupComponent : undefined
 
-                        property Fact armVoltMin:       controller.getParameterFact(-1, "r.BATT2_ARM_VOLT", false /* reportMissing */)
-                        property Fact battAmpPerVolt:   controller.getParameterFact(-1, "r.BATT2_AMP_PERVLT", false /* reportMissing */)
-                        property Fact battAmpOffset:    controller.getParameterFact(-1, "BATT2_AMP_OFFSET", false /* reportMissing */)
-                        property Fact battCapacity:     controller.getParameterFact(-1, "BATT2_CAPACITY", false /* reportMissing */)
-                        property Fact battCurrPin:      controller.getParameterFact(-1, "BATT2_CURR_PIN", false /* reportMissing */)
-                        property Fact battMonitor:      controller.getParameterFact(-1, "BATT2_MONITOR", false /* reportMissing */)
-                        property Fact battVoltMult:     controller.getParameterFact(-1, "BATT2_VOLT_MULT", false /* reportMissing */)
-                        property Fact battVoltPin:      controller.getParameterFact(-1, "BATT2_VOLT_PIN", false /* reportMissing */)
-                        property FactGroup  _batteryFactGroup:  batt2FullSettings.visible ? controller.vehicle.getFactGroup("battery1") : null
-                        property Fact vehicleVoltage:   _batteryFactGroup ? _batteryFactGroup.voltage : null
-                        property Fact vehicleCurrent:   _batteryFactGroup ? _batteryFactGroup.current : null
-                    }
-                }
-            }
+//                        property Fact armVoltMin:       controller.getParameterFact(-1, "r.BATT2_ARM_VOLT", false /* reportMissing */)
+//                        property Fact battAmpPerVolt:   controller.getParameterFact(-1, "r.BATT2_AMP_PERVLT", false /* reportMissing */)
+//                        property Fact battAmpOffset:    controller.getParameterFact(-1, "BATT2_AMP_OFFSET", false /* reportMissing */)
+//                        property Fact battCapacity:     controller.getParameterFact(-1, "BATT2_CAPACITY", false /* reportMissing */)
+//                        property Fact battCurrPin:      controller.getParameterFact(-1, "BATT2_CURR_PIN", false /* reportMissing */)
+//                        property Fact battMonitor:      controller.getParameterFact(-1, "BATT2_MONITOR", false /* reportMissing */)
+//                        property Fact battVoltMult:     controller.getParameterFact(-1, "BATT2_VOLT_MULT", false /* reportMissing */)
+//                        property Fact battVoltPin:      controller.getParameterFact(-1, "BATT2_VOLT_PIN", false /* reportMissing */)
+//                        property FactGroup  _batteryFactGroup:  batt2FullSettings.visible ? controller.vehicle.getFactGroup("battery1") : null
+//                        property Fact vehicleVoltage:   _batteryFactGroup ? _batteryFactGroup.voltage : null
+//                        property Fact vehicleCurrent:   _batteryFactGroup ? _batteryFactGroup.current : null
+//                    }
+//                }
+//            }
 
-            Column {
-                spacing:    _margins / 2
-                visible:    _escCalibrationAvailable
+//            Column {
+//                spacing:    _margins / 2
+//                visible:    _escCalibrationAvailable
 
-                QGCLabel {
-                    text:       qsTr("ESC Calibration")
-                    font.family: ScreenTools.demiboldFontFamily
-                }
+//                QGCLabel {
+//                    text:       qsTr("ESC Calibration")
+//                    font.family: ScreenTools.demiboldFontFamily
+//                }
 
-                Rectangle {
-                    width:  escCalibrationHolder.x + escCalibrationHolder.width + _margins
-                    height: escCalibrationHolder.y + escCalibrationHolder.height + _margins
-                    color:  ggcPal.windowShade
+//                Rectangle {
+//                    width:  escCalibrationHolder.x + escCalibrationHolder.width + _margins
+//                    height: escCalibrationHolder.y + escCalibrationHolder.height + _margins
+//                    color:  ggcPal.windowShade
 
-                    Column {
-                        id:         escCalibrationHolder
-                        x:          _margins
-                        y:          _margins
-                        spacing:    _margins
+//                    Column {
+//                        id:         escCalibrationHolder
+//                        x:          _margins
+//                        y:          _margins
+//                        spacing:    _margins
 
-                        Column {
-                            spacing: _margins
+//                        Column {
+//                            spacing: _margins
 
-                            QGCLabel {
-                                text:   qsTr("WARNING: Remove props prior to calibration!")
-                                color:  qgcPal.warningText
-                            }
+//                            QGCLabel {
+//                                text:   qsTr("WARNING: Remove props prior to calibration!")
+//                                color:  qgcPal.warningText
+//                            }
 
-                            Row {
-                                spacing: _margins
+//                            Row {
+//                                spacing: _margins
 
-                                QGCButton {
-                                    text: qsTr("Calibrate")
-                                    enabled:    _escCalibration && _escCalibration.rawValue === 0
-                                    onClicked:  if(_escCalibration) _escCalibration.rawValue = 3
-                                }
+//                                QGCButton {
+//                                    text: qsTr("Calibrate")
+//                                    enabled:    _escCalibration && _escCalibration.rawValue === 0
+//                                    onClicked:  if(_escCalibration) _escCalibration.rawValue = 3
+//                                }
 
-                                Column {
-                                    enabled: _escCalibration && _escCalibration.rawValue === 3
-                                    QGCLabel { text:   _escCalibration ? (_escCalibration.rawValue === 3 ? qsTr("Now perform these steps:") : qsTr("Click Calibrate to start, then:")) : "" }
-                                    QGCLabel { text:   qsTr("- Disconnect USB and battery so flight controller powers down") }
-                                    QGCLabel { text:   qsTr("- Connect the battery") }
-                                    QGCLabel { text:   qsTr("- The arming tone will be played (if the vehicle has a buzzer attached)") }
-                                    QGCLabel { text:   qsTr("- If using a flight controller with a safety button press it until it displays solid red") }
-                                    QGCLabel { text:   qsTr("- You will hear a musical tone then two beeps") }
-                                    QGCLabel { text:   qsTr("- A few seconds later you should hear a number of beeps (one for each battery cell you're using)") }
-                                    QGCLabel { text:   qsTr("- And finally a single long beep indicating the end points have been set and the ESC is calibrated") }
-                                    QGCLabel { text:   qsTr("- Disconnect the battery and power up again normally") }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+//                                Column {
+//                                    enabled: _escCalibration && _escCalibration.rawValue === 3
+//                                    QGCLabel { text:   _escCalibration ? (_escCalibration.rawValue === 3 ? qsTr("Now perform these steps:") : qsTr("Click Calibrate to start, then:")) : "" }
+//                                    QGCLabel { text:   qsTr("- Disconnect USB and battery so flight controller powers down") }
+//                                    QGCLabel { text:   qsTr("- Connect the battery") }
+//                                    QGCLabel { text:   qsTr("- The arming tone will be played (if the vehicle has a buzzer attached)") }
+//                                    QGCLabel { text:   qsTr("- If using a flight controller with a safety button press it until it displays solid red") }
+//                                    QGCLabel { text:   qsTr("- You will hear a musical tone then two beeps") }
+//                                    QGCLabel { text:   qsTr("- A few seconds later you should hear a number of beeps (one for each battery cell you're using)") }
+//                                    QGCLabel { text:   qsTr("- And finally a single long beep indicating the end points have been set and the ESC is calibrated") }
+//                                    QGCLabel { text:   qsTr("- Disconnect the battery and power up again normally") }
+//                                }
+//                            }
+//                        }
+//                    }
+//                }
+//            }
         } // Flow
     } // Component - powerPageComponent
 
@@ -289,24 +289,24 @@ SetupPage {
             spacing: _margins
 
             property real _margins:         ScreenTools.defaultFontPixelHeight / 2
-            property bool _showAdvanced:    sensorCombo.currentIndex === sensorModel.count - 1
+            property bool _showAdvanced:    false // sensorCombo.currentIndex === sensorModel.count - 1
             property real _fieldWidth:      ScreenTools.defaultFontPixelWidth * 25
 
-            Component.onCompleted: calcSensor()
+//            Component.onCompleted: calcSensor()
 
-            function calcSensor() {
-                for (var i=0; i<sensorModel.count - 1; i++) {
-                    if (sensorModel.get(i).voltPin === battVoltPin.value &&
-                            sensorModel.get(i).currPin === battCurrPin.value &&
-                            Math.abs(sensorModel.get(i).voltMult - battVoltMult.value) < 0.001 &&
-                            Math.abs(sensorModel.get(i).ampPerVolt - battAmpPerVolt.value) < 0.0001 &&
-                            Math.abs(sensorModel.get(i).ampOffset - battAmpOffset.value) < 0.0001) {
-                        sensorCombo.currentIndex = i
-                        return
-                    }
-                }
-                sensorCombo.currentIndex = sensorModel.count - 1
-            }
+//            function calcSensor() {
+//                for (var i=0; i<sensorModel.count - 1; i++) {
+//                    if (sensorModel.get(i).voltPin === battVoltPin.value &&
+//                            sensorModel.get(i).currPin === battCurrPin.value &&
+//                            Math.abs(sensorModel.get(i).voltMult - battVoltMult.value) < 0.001 &&
+//                            Math.abs(sensorModel.get(i).ampPerVolt - battAmpPerVolt.value) < 0.0001 &&
+//                            Math.abs(sensorModel.get(i).ampOffset - battAmpOffset.value) < 0.0001) {
+//                        sensorCombo.currentIndex = i
+//                        return
+//                    }
+//                }
+//                sensorCombo.currentIndex = sensorModel.count - 1
+//            }
 
             QGCPalette { id: palette; colorGroupEnabled: true }
 
@@ -369,14 +369,14 @@ SetupPage {
                 rowSpacing:     _margins
                 columnSpacing:  _margins
 
-                QGCLabel { text: qsTr("Battery monitor:") }
+                //QGCLabel { text: qsTr("Battery monitor:") }
 
-                FactComboBox {
-                    id:         monitorCombo
-                    fact:       battMonitor
-                    indexModel: false
-                    sizeToContents: true
-                }
+//                FactComboBox {
+//                    id:         monitorCombo
+//                    fact:       battMonitor
+//                    indexModel: false
+//                    sizeToContents: true
+//                }
 
                 QGCLabel {
                     Layout.row:     1
@@ -402,88 +402,88 @@ SetupPage {
                     fact:   armVoltMin
                 }
 
-                QGCLabel {
-                    Layout.row:     3
-                    Layout.column:  0
-                    text:           qsTr("Power sensor:")
-                }
+//                QGCLabel {
+//                    Layout.row:     3
+//                    Layout.column:  0
+//                    text:           qsTr("Power sensor:")
+//                }
 
-                QGCComboBox {
-                    id:                     sensorCombo
-                    Layout.minimumWidth:    _fieldWidth
-                    model:                  sensorModel
-                    textRole:               "text"
+//                QGCComboBox {
+//                    id:                     sensorCombo
+//                    Layout.minimumWidth:    _fieldWidth
+//                    model:                  sensorModel
+//                    textRole:               "text"
 
-                    onActivated: {
-                        if (index < sensorModel.count - 1) {
-                            battVoltPin.value = sensorModel.get(index).voltPin
-                            battCurrPin.value = sensorModel.get(index).currPin
-                            battVoltMult.value = sensorModel.get(index).voltMult
-                            battAmpPerVolt.value = sensorModel.get(index).ampPerVolt
-                            battAmpOffset.value = sensorModel.get(index).ampOffset
-                        } else {
+//                    onActivated: {
+//                        if (index < sensorModel.count - 1) {
+//                            battVoltPin.value = sensorModel.get(index).voltPin
+//                            battCurrPin.value = sensorModel.get(index).currPin
+//                            battVoltMult.value = sensorModel.get(index).voltMult
+//                            battAmpPerVolt.value = sensorModel.get(index).ampPerVolt
+//                            battAmpOffset.value = sensorModel.get(index).ampOffset
+//                        } else {
 
-                        }
-                    }
-                }
+//                        }
+//                    }
+//                }
 
-                QGCLabel {
-                    Layout.row:     4
-                    Layout.column:  0
-                    text:           qsTr("Current pin:")
-                    visible:        _showAdvanced
-                }
+//                QGCLabel {
+//                    Layout.row:     4
+//                    Layout.column:  0
+//                    text:           qsTr("Current pin:")
+//                    visible:        _showAdvanced
+//                }
 
-                FactComboBox {
-                    Layout.minimumWidth:    _fieldWidth
-                    fact:                   battCurrPin
-                    indexModel:             false
-                    visible:                _showAdvanced
-                    sizeToContents:         true
-                }
+//                FactComboBox {
+//                    Layout.minimumWidth:    _fieldWidth
+//                    fact:                   battCurrPin
+//                    indexModel:             false
+//                    visible:                _showAdvanced
+//                    sizeToContents:         true
+//                }
 
-                QGCLabel {
-                    Layout.row:     5
-                    Layout.column:  0
-                    text:           qsTr("Voltage pin:")
-                    visible:        _showAdvanced
-                }
+//                QGCLabel {
+//                    Layout.row:     5
+//                    Layout.column:  0
+//                    text:           qsTr("Voltage pin:")
+//                    visible:        _showAdvanced
+//                }
 
-                FactComboBox {
-                    Layout.minimumWidth:    _fieldWidth
-                    fact:                   battVoltPin
-                    indexModel:             false
-                    visible:                _showAdvanced
-                    sizeToContents:         true
-                }
+//                FactComboBox {
+//                    Layout.minimumWidth:    _fieldWidth
+//                    fact:                   battVoltPin
+//                    indexModel:             false
+//                    visible:                _showAdvanced
+//                    sizeToContents:         true
+//                }
 
-                QGCLabel {
-                    Layout.row:     6
-                    Layout.column:  0
-                    text:           qsTr("Voltage multiplier:")
-                    visible:        _showAdvanced
-                }
+//                QGCLabel {
+//                    Layout.row:     6
+//                    Layout.column:  0
+//                    text:           qsTr("Voltage multiplier:")
+//                    visible:        _showAdvanced
+//                }
 
-                FactTextField {
-                    width:      _fieldWidth
-                    fact:       battVoltMult
-                    visible:    _showAdvanced
-                }
+//                FactTextField {
+//                    width:      _fieldWidth
+//                    fact:       battVoltMult
+//                    visible:    _showAdvanced
+//                }
 
-                QGCButton {
-                    text:       qsTr("Calculate")
-                    visible:    _showAdvanced
-                    onClicked:  calcVoltageMultiplierDlgComponent.createObject(mainWindow, { vehicleVoltageFact: vehicleVoltage, battVoltMultFact: battVoltMult }).open()
-                }
+//                QGCButton {
+//                    text:       qsTr("Calculate")
+//                    visible:    _showAdvanced
+//                    onClicked:  calcVoltageMultiplierDlgComponent.createObject(mainWindow, { vehicleVoltageFact: vehicleVoltage, battVoltMultFact: battVoltMult }).open()
+//                }
 
-                QGCLabel {
-                    Layout.columnSpan:  3
-                    Layout.fillWidth:   true
-                    font.pointSize:     ScreenTools.smallFontPointSize
-                    wrapMode:           Text.WordWrap
-                    text:               qsTr("If the battery voltage reported by the vehicle is largely different than the voltage read externally using a voltmeter you can adjust the voltage multiplier value to correct this. Click the Calculate button for help with calculating a new value.")
-                    visible:            _showAdvanced
-                }
+//                QGCLabel {
+//                    Layout.columnSpan:  3
+//                    Layout.fillWidth:   true
+//                    font.pointSize:     ScreenTools.smallFontPointSize
+//                    wrapMode:           Text.WordWrap
+//                    text:               qsTr("If the battery voltage reported by the vehicle is largely different than the voltage read externally using a voltmeter you can adjust the voltage multiplier value to correct this. Click the Calculate button for help with calculating a new value.")
+//                    visible:            _showAdvanced
+//                }
 
                 QGCLabel {
                     text:       qsTr("Amps per volt:")

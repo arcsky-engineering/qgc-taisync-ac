@@ -149,6 +149,28 @@ Item {
         visible:            false
     }
 
+
+
+    // Custom Video Switch
+//    Column {
+//        spacing: 10
+//        anchors.top: parent.top
+//        anchors.right: parent.right
+//        anchors.margins: 20
+//        visible: true
+
+//        Button {
+//            text: "Switch Stream"
+//            //onClicked: QGroundControl.videoManager.streamingChanged()
+//        }
+
+//        Text {
+//            text: "Current Stream: " + QGroundControl.videoManager.objectName
+//            color: "white"
+//        }
+//    }
+
+
     FlyViewMap {
         id:                     mapControl
         planMasterController:   _planController
@@ -175,4 +197,58 @@ Item {
         show:                   !QGroundControl.videoManager.fullScreen &&
                                     (videoControl.pipState.state === videoControl.pipState.pipState || mapControl.pipState.state === mapControl.pipState.pipState)
     }
-}
+
+    Button {
+        text: "Stream\n#"
+        onClicked: QGroundControl.videoManager.switchRTSPStream()
+        width: 100
+        height: 100
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        anchors.margins: 20
+        background: Rectangle {
+            color: "#444"
+            radius: 20
+            opacity: 0.6
+        }
+        contentItem: Text {
+            text: "Stream\n" + QGroundControl.videoManager.currentStream
+            color: "white"
+            font.bold: true
+            font.pixelSize: 20
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+//    Text {
+//        text: "Current Stream: "// + //QGroundControl.videoManager._currentStreamIndex
+//        color: "white"
+//    }
+
+    Button {
+        text: "Full\nScreen"
+        onClicked: {
+            //console.log("Full screen button clicked");
+            QGroundControl.videoManager.fullScreen = !QGroundControl.videoManager.fullScreen
+        }
+        width: 50
+        height: 50
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.left: parent.left
+        anchors.margins: 10
+        background: Rectangle {
+            color: "#444"
+            radius: 6
+            opacity: 0.4
+        }
+        contentItem: Text {
+            text: "Full\nScreen"
+            color: "white"
+            font.bold: true
+            font.pixelSize: 10
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    } // Fullscreen button
+
+} // end of item

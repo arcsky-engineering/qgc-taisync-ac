@@ -75,9 +75,31 @@ Rectangle {
             Layout.preferredHeight: viewButtonRow.height
             icon.source:            "/res/QGCLogoFull"
             logo:                   true
-            onClicked:              mainWindow.showToolSelectDialog()
+            onClicked:              mainWindow.showSettingsTool()//mainWindow.showToolSelectDialog()
         }
-
+        QGCToolBarButton {
+            id:                     setupButton
+            Layout.preferredHeight: viewButtonRow.height
+            icon.source:            "/qmlimages/Gears.svg"
+            logo:                   true
+            onClicked:              mainWindow.showSetupTool()
+        }
+        QGCToolBarButton {
+            id:                     flyButton
+            Layout.preferredHeight: viewButtonRow.height
+            icon.source:            "/qmlimages/PaperPlane.svg"
+            logo:                   true
+            onClicked:              mainWindow.showFlyView()
+            visible:                currentToolbar === planViewToolbar
+        }
+        QGCToolBarButton {
+            id:                     planButton
+            Layout.preferredHeight: viewButtonRow.height
+            icon.source:            "/qmlimages/Plan.svg"
+            logo:                   true
+            onClicked:              mainWindow.showPlanView()
+            visible:                currentToolbar === flyViewToolbar
+        }
         MainStatusIndicator {
             Layout.preferredHeight: viewButtonRow.height
             visible:                currentToolbar === flyViewToolbar
@@ -119,10 +141,10 @@ Rectangle {
         anchors.right:          parent.right
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
-        anchors.margins:        ScreenTools.defaultFontPixelHeight * 0.66
-        visible:                currentToolbar !== planViewToolbar && _activeVehicle && !_communicationLost && x > (toolsFlickable.x + toolsFlickable.contentWidth + ScreenTools.defaultFontPixelWidth)
+        anchors.margins:        10 // ScreenTools.defaultFontPixelHeight * 0.1//0.66
+        visible:                currentToolbar !== planViewToolbar && x > (toolsFlickable.x + toolsFlickable.contentWidth + ScreenTools.defaultFontPixelWidth)
         fillMode:               Image.PreserveAspectFit
-        source:                 _outdoorPalette ? _brandImageOutdoor : _brandImageIndoor
+        source:                 "/qmlimages/APM/BrandImage"//_outdoorPalette ? _brandImageOutdoor : _brandImageIndoor
         mipmap:                 true
 
         property bool   _outdoorPalette:        qgcPal.globalTheme === QGCPalette.Light

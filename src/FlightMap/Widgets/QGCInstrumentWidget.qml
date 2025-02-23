@@ -27,6 +27,8 @@ ColumnLayout {
     property real   _spacing:               ScreenTools.defaultFontPixelHeight * 0.33
     property real   _topBottomMargin:       (width * 0.05) / 2
 
+    //signal minimizeRequested() // signal to notify parent
+
     QGCPalette { id: qgcPal }
 
     Rectangle {
@@ -35,6 +37,9 @@ ColumnLayout {
         Layout.fillWidth:   true
         radius:             _outerRadius
         color:              qgcPal.window
+        opacity: 0.7
+        property real globalOpacity: 0.8
+        //property bool isMinimized: false // track minimize state
 
         DeadMouseArea { anchors.fill: parent }
 
@@ -55,6 +60,31 @@ ColumnLayout {
             vehicle:                globals.activeVehicle
             anchors.verticalCenter: parent.verticalCenter
         }
+
+//        Component.onCompleted: {
+//            for (var i = 0; i < children.length; i++) {
+//                if (children[i].hasOwnProperty("opacity")) {
+//                    children[i].opacity = globalOpacity;
+//                }
+//            }
+//        }
+//        Image {
+//            id:             minimizeButton
+//            source:         "/qmlimages/pipHide.svg"
+//            mipmap:         true
+//            rotation:       180
+//            fillMode:       Image.PreserveAspectFit
+//            anchors.right:   parent.right
+//            anchors.top:     parent.top
+//            //visible:        _isExpanded && (ScreenTools.isMobile || pipMouseArea.containsMouse)
+//            height:         ScreenTools.defaultFontPixelHeight * 2.5
+//            width:          ScreenTools.defaultFontPixelHeight * 2.5
+//            sourceSize.height:  height
+//            MouseArea {
+//                anchors.fill:   parent
+//                onClicked:      minimizeRequested() //visualInstrument.isMinimized = !visualInstrument.isMinimized
+//            }
+//        }
     }
 
     TerrainProgress {
