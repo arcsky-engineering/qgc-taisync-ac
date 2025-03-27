@@ -201,8 +201,8 @@ Item {
     Button {
         text: "Stream\n#"
         onClicked: QGroundControl.videoManager.switchRTSPStream()
-        width: 100
-        height: 100
+        width: 180
+        height: 120
         anchors.bottom: parent.bottom
         anchors.right: parent.right
         anchors.margins: 20
@@ -212,10 +212,10 @@ Item {
             opacity: 0.6
         }
         contentItem: Text {
-            text: "Stream\n" + QGroundControl.videoManager.currentStream
+            text: "Stream " + QGroundControl.videoManager.currentStream
             color: "white"
             font.bold: true
-            font.pixelSize: 20
+            font.pixelSize: 28
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
@@ -231,8 +231,8 @@ Item {
             //console.log("Full screen button clicked");
             QGroundControl.videoManager.fullScreen = !QGroundControl.videoManager.fullScreen
         }
-        width: 50
-        height: 50
+        width: 110
+        height: 110
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
         anchors.margins: 10
@@ -245,7 +245,7 @@ Item {
             text: "Full\nScreen"
             color: "white"
             font.bold: true
-            font.pixelSize: 10
+            font.pixelSize: 22
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }

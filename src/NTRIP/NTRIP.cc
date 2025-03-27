@@ -64,7 +64,7 @@ NTRIPTCPLink::NTRIPTCPLink(const QString &hostAddress, int port,
       _whitelist.insert(msg_int);
     }
   }
-  qCDebug(NTRIPLog) << "whitelist: " << _whitelist;
+  //qCDebug(NTRIPLog) << "whitelist: " << _whitelist;
   if (!_rtcm_parsing) {
     _rtcm_parsing = new RTCMParsing();
   }
@@ -166,12 +166,12 @@ void NTRIPTCPLink::_hardwareConnect() {
 }
 
 void NTRIPTCPLink::_parse(const QByteArray &buffer) {
-  qCDebug(NTRIPLog) << "Parsing " << buffer.size() << " bytes";
-  qCDebug(NTRIPLog) << "Buffer: " << QString(buffer);
+  //qCDebug(NTRIPLog) << "Parsing " << buffer.size() << " bytes";
+  //qCDebug(NTRIPLog) << "Buffer: " << QString(buffer);
   for (const uint8_t byte : buffer) {
     if (_state == NTRIPState::waiting_for_rtcm_header) {
       if (byte != RTCM3_PREAMBLE && byte != RTCM2_PREAMBLE) {
-        qCDebug(NTRIPLog) << "NOT RTCM 2/3 preamble, ignoring byte " << byte;
+        //qCDebug(NTRIPLog) << "NOT RTCM 2/3 preamble, ignoring byte " << byte;
         continue;
       }
       _state = NTRIPState::accumulating_rtcm_packet;
@@ -183,26 +183,26 @@ void NTRIPTCPLink::_parse(const QByteArray &buffer) {
                          static_cast<int>(_rtcm_parsing->messageLength()));
       uint16_t id = _rtcm_parsing->messageId();
       uint8_t version = _rtcm_parsing->rtcmVersion();
-      qCDebug(NTRIPLog) << "RTCM version " << version;
-      qCDebug(NTRIPLog) << "RTCM message ID " << id;
-      qCDebug(NTRIPLog) << "RTCM message size " << message.size();
+      //qCDebug(NTRIPLog) << "RTCM version " << version;
+      //qCDebug(NTRIPLog) << "RTCM message ID " << id;
+      //qCDebug(NTRIPLog) << "RTCM message size " << message.size();
 
       if (version == 2) {
-        qCWarning(NTRIPLog) << "RTCM 2 not supported";
+        //qCWarning(NTRIPLog) << "RTCM 2 not supported";
         emit error("Server sent RTCM 2 message. Not supported!");
         continue;
       } else if (version != 3) {
-        qCWarning(NTRIPLog) << "Unknown RTCM version " << version;
+        //qCWarning(NTRIPLog) << "Unknown RTCM version " << version;
         emit error("Server sent unknown RTCM version");
         continue;
       }
 
       if (_whitelist.empty() || _whitelist.contains(id)) {
-        qCDebug(NTRIPLog) << "Sending message ID [" << id << "] of size "
-                          << message.length();
+        //qCDebug(NTRIPLog) << "Sending message ID [" << id << "] of size "
+        //                  << message.length();
         emit RTCMDataUpdate(message);
       } else {
-        qCDebug(NTRIPLog) << "Ignoring " << id;
+        //qCDebug(NTRIPLog) << "Ignoring " << id;
       }
       _rtcm_parsing->reset();
     }
@@ -210,17 +210,17 @@ void NTRIPTCPLink::_parse(const QByteArray &buffer) {
 }
 
 void NTRIPTCPLink::_readBytes(void) {
-  qCDebug(NTRIPLog) << "Reading bytes";
+  //qCDebug(NTRIPLog) << "Reading bytes";
   if (!_socket) {
     return;
   }
   if (_state == NTRIPState::waiting_for_http_response) {
     QString line = _socket->readLine();
-    qCDebug(NTRIPLog) << "Server responded with " << line;
+    //qCDebug(NTRIPLog) << "Server responded with " << line;
     if (line.contains("200")) {
-      qCDebug(NTRIPLog) << "Server responded with " << line;
+      //qCDebug(NTRIPLog) << "Server responded with " << line;
       if (line.contains("SOURCETABLE")) {
-        qCDebug(NTRIPLog) << "Server responded with SOURCETABLE, not supported";
+        //qCDebug(NTRIPLog) << "Server responded with SOURCETABLE, not supported";
         emit error("NTRIP Server responded with SOURCETABLE. Bad mountpoint?");
         _state = NTRIPState::uninitialised;
       } else {
@@ -239,7 +239,7 @@ void NTRIPTCPLink::_readBytes(void) {
   }
 
   if (_state == NTRIPState::uninitialised) {
-    qCDebug(NTRIPLog) << "NTRIP State is uninitialised. Discarding bytes";
+    //qCDebug(NTRIPLog) << "NTRIP State is uninitialised. Discarding bytes";
     _socket->readAll();
     return;
   }
@@ -249,7 +249,7 @@ void NTRIPTCPLink::_readBytes(void) {
 }
 
 void NTRIPTCPLink::_sendNmeaGga() {
-  qCDebug(NTRIPLog) << "Sending NMEA GGA";
+  //qCDebug(NTRIPLog) << "Sending NMEA GGA";
 
   if (!_toolbox->multiVehicleManager()->activeVehicleAvailable()) {
     qCDebug(NTRIPLog) << "No active vehicle";

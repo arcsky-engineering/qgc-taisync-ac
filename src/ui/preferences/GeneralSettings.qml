@@ -1109,7 +1109,7 @@ Rectangle {
                     Item { width: 1; height: _margins; visible: ntripSectionLabel.visible }
                     QGCLabel {
                         id:         ntripSectionLabel
-                        text:       qsTr("NTRIP / RTCM")
+                        text:       qsTr("NTRIP / RTCM (Experimental)")
                         visible:    QGroundControl.settingsManager.ntripSettings.visible
                     }
                     Rectangle {

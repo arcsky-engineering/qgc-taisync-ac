@@ -80,7 +80,7 @@ Item {
             function getBatteryPercentageText() {
                 if (_activeVehicle.generator.runtime.rawValue !== null)
                 {
-                    //console.log("generator fact exists")
+                     //console.log("generator fact exists")
                      if (_activeVehicle.generator.busVoltage.rawValue > 0){
                          //console.log("gen runtime more than 0")
                          if (!isNaN(battery.percentRemaining.rawValue)) {
@@ -94,7 +94,7 @@ Item {
                     if (!isNaN(battery.voltage.rawValue)) {
                         return battery.voltage.valueString + battery.voltage.units
                     }
-                }
+                } // if generator runtime raw value is not null
                 else
                 {
                     //console.log("generator null")
@@ -121,7 +121,7 @@ Item {
                 anchors.bottom:     parent.bottom
                 width:              height
                 sourceSize.width:   width
-                source:             (_activeVehicle.generator.busVoltage.rawValue > 0) && (_activeVehicle.generator._timeout < 1) ? "/qmlimages/FuelTank.svg" : "/qmlimages/Battery.svg"
+                source:             (_activeVehicle.generator.busVoltage.rawValue > 0) ? "/qmlimages/FuelTank.svg" : "/qmlimages/Battery.svg"
                 fillMode:           Image.PreserveAspectFit
                 color:              getBatteryColor()
             }
@@ -167,7 +167,7 @@ Item {
 
                 QGCLabel {
                     Layout.alignment:   Qt.AlignCenter
-                    text:               (_activeVehicle.generator.busVoltage.rawValue > 0) && (_activeVehicle.generator._timeout < 1) ? qsTr("Generator Status") : qsTr("Battery Status")
+                    text:               (_activeVehicle.generator.busVoltage.rawValue > 0) ? qsTr("Generator Status") : qsTr("Battery Status")
                     font.family:        ScreenTools.demiboldFontFamily
                 }
 
