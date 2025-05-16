@@ -24,11 +24,55 @@ NTRIP::NTRIP(QGCApplication *app, QGCToolbox *toolbox)
 void NTRIP::setToolbox(QGCToolbox *toolbox) {
   QGCTool::setToolbox(toolbox);
 
-  NTRIPSettings *settings =
-      qgcApp()->toolbox()->settingsManager()->ntripSettings();
-  if (settings->ntripServerConnectEnabled()->rawValue().toBool()) {
-    qCDebug(NTRIPLog) << settings->ntripEnableVRS()->rawValue().toBool();
-    _rtcmMavlink = new RTCMMavlink(*toolbox);
+//  NTRIPSettings *settings =
+//      qgcApp()->toolbox()->settingsManager()->ntripSettings();
+
+    // NEW STRATEGY - do not check value, but just do this anyway
+
+//    _rtcmMavlink = new RTCMMavlink(*toolbox);
+
+//    _tcpLink = new NTRIPTCPLink(
+//        settings->ntripServerHostAddress()->rawValue().toString(),
+//        settings->ntripServerPort()->rawValue().toInt(),
+//        settings->ntripUsername()->rawValue().toString(),
+//        settings->ntripPassword()->rawValue().toString(),
+//        settings->ntripMountpoint()->rawValue().toString(),
+//        settings->ntripWhitelist()->rawValue().toString(),
+//        settings->ntripEnableVRS()->rawValue().toBool());
+
+//        connect(_tcpLink, &NTRIPTCPLink::error, this, &NTRIP::_tcpError, Qt::QueuedConnection);
+//        connect(_tcpLink, &NTRIPTCPLink::RTCMDataUpdate, _rtcmMavlink, &RTCMMavlink::RTCMDataUpdate);
+
+//        // Forward state changes to QML
+//        connect(_tcpLink, &NTRIPTCPLink::enabledChanged, this, &NTRIP::enabledChanged);
+//        connect(_tcpLink, &NTRIPTCPLink::connectionStatusChanged, this, &NTRIP::connectionStatusChanged);
+
+//  if (settings->ntripServerConnectEnabled()->rawValue().toBool()) {
+//    qCDebug(NTRIPLog) << settings->ntripEnableVRS()->rawValue().toBool();
+//    _rtcmMavlink = new RTCMMavlink(*toolbox);
+
+//    _tcpLink = new NTRIPTCPLink(
+//        settings->ntripServerHostAddress()->rawValue().toString(),
+//        settings->ntripServerPort()->rawValue().toInt(),
+//        settings->ntripUsername()->rawValue().toString(),
+//        settings->ntripPassword()->rawValue().toString(),
+//        settings->ntripMountpoint()->rawValue().toString(),
+//        settings->ntripWhitelist()->rawValue().toString(),
+//        settings->ntripEnableVRS()->rawValue().toBool());
+//    connect(_tcpLink, &NTRIPTCPLink::error, this, &NTRIP::_tcpError,
+//            Qt::QueuedConnection);
+//    connect(_tcpLink, &NTRIPTCPLink::RTCMDataUpdate, _rtcmMavlink,
+//            &RTCMMavlink::RTCMDataUpdate);
+//  } else {
+//    qCDebug(NTRIPLog) << "NTRIP Server is not enabled";
+//  }
+}
+
+void NTRIP::_initLink() {
+    if (_tcpLink || _rtcmMavlink) return; // Already initialized
+
+    NTRIPSettings *settings = qgcApp()->toolbox()->settingsManager()->ntripSettings();
+    _rtcmMavlink = new RTCMMavlink(*_toolbox);
 
     _tcpLink = new NTRIPTCPLink(
         settings->ntripServerHostAddress()->rawValue().toString(),
@@ -37,18 +81,18 @@ void NTRIP::setToolbox(QGCToolbox *toolbox) {
         settings->ntripPassword()->rawValue().toString(),
         settings->ntripMountpoint()->rawValue().toString(),
         settings->ntripWhitelist()->rawValue().toString(),
-        settings->ntripEnableVRS()->rawValue().toBool());
-    connect(_tcpLink, &NTRIPTCPLink::error, this, &NTRIP::_tcpError,
-            Qt::QueuedConnection);
-    connect(_tcpLink, &NTRIPTCPLink::RTCMDataUpdate, _rtcmMavlink,
-            &RTCMMavlink::RTCMDataUpdate);
-  } else {
-    qCDebug(NTRIPLog) << "NTRIP Server is not enabled";
-  }
+        settings->ntripEnableVRS()->rawValue().toBool()
+    );
+
+    connect(_tcpLink, &NTRIPTCPLink::error, this, &NTRIP::_tcpError, Qt::QueuedConnection);
+    connect(_tcpLink, &NTRIPTCPLink::RTCMDataUpdate, _rtcmMavlink, &RTCMMavlink::RTCMDataUpdate);
+    connect(_tcpLink, &NTRIPTCPLink::enabledChanged, this, &NTRIP::enabledChanged);
+    connect(_tcpLink, &NTRIPTCPLink::connectionStatusChanged, this, &NTRIP::connectionStatusChanged);
 }
 
 void NTRIP::_tcpError(const QString errorMsg) {
-  qgcApp()->showAppMessage(tr("NTRIP Server Error: %1").arg(errorMsg));
+  //qgcApp()->showAppMessage(tr("NTRIP Server Error: %1").arg(errorMsg));
+  qWarning() << "NTRIP connection error:" << errorMsg;
 }
 
 NTRIPTCPLink::NTRIPTCPLink(const QString &hostAddress, int port,
@@ -58,6 +102,11 @@ NTRIPTCPLink::NTRIPTCPLink(const QString &hostAddress, int port,
     : QThread(), _hostAddress(hostAddress), _port(port), _username(username),
       _password(password), _mountpoint(mountpoint), _isVRSEnable(enableVRS),
       _toolbox(qgcApp()->toolbox()) {
+
+    _reconnectTimer = new QTimer(this);
+    _reconnectTimer->setSingleShot(true);
+    connect(_reconnectTimer, &QTimer::timeout, this, &NTRIPTCPLink::_retryConnection);
+
   for (const auto &msg : whitelist.split(',')) {
     int msg_int = msg.toInt();
     if (msg_int) {
@@ -102,7 +151,7 @@ NTRIPTCPLink::~NTRIPTCPLink(void) {
 
 void NTRIPTCPLink::run(void) {
   qCDebug(NTRIPLog) << "NTRIP Thread started";
-  _hardwareConnect();
+  //_hardwareConnect();
 
   // Init VRS Timer
   if (_isVRSEnable) {
@@ -125,12 +174,22 @@ void NTRIPTCPLink::_hardwareConnect() {
                    &NTRIPTCPLink::_readBytes);
   _socket->connectToHost(_hostAddress, static_cast<quint16>(_port));
 
+  _setConnectionStatus(NTRIPStatus::Connecting);
+
   // Give the socket a second to connect to the other side otherwise error out
   if (!_socket->waitForConnected(1000)) {
-    qCDebug(NTRIPLog) << "NTRIP Socket failed to connect";
-    emit error(_socket->errorString());
-    delete _socket;
-    _socket = nullptr;
+
+      if (!_reconnectTimer) {
+          _reconnectTimer = new QTimer(this);
+          _reconnectTimer->setSingleShot(true);
+          connect(_reconnectTimer, &QTimer::timeout, this, &NTRIPTCPLink::_retryConnection);
+      }
+      _reconnectTimer->start(2000); // Retry after 2 seconds
+    //qCDebug(NTRIPLog) << "NTRIP Socket failed to connect";
+    //emit error(_socket->errorString());
+      emit error("Ntrip connection failed, retrying.");
+//    delete _socket;
+//    _socket = nullptr;
     return;
   }
 
@@ -166,6 +225,8 @@ void NTRIPTCPLink::_hardwareConnect() {
 }
 
 void NTRIPTCPLink::_parse(const QByteArray &buffer) {
+    _setConnectionStatus(NTRIPStatus::Connected);
+    _retryCount = 0;
   //qCDebug(NTRIPLog) << "Parsing " << buffer.size() << " bytes";
   //qCDebug(NTRIPLog) << "Buffer: " << QString(buffer);
   for (const uint8_t byte : buffer) {
@@ -183,9 +244,9 @@ void NTRIPTCPLink::_parse(const QByteArray &buffer) {
                          static_cast<int>(_rtcm_parsing->messageLength()));
       uint16_t id = _rtcm_parsing->messageId();
       uint8_t version = _rtcm_parsing->rtcmVersion();
-      //qCDebug(NTRIPLog) << "RTCM version " << version;
-      //qCDebug(NTRIPLog) << "RTCM message ID " << id;
-      //qCDebug(NTRIPLog) << "RTCM message size " << message.size();
+      qCDebug(NTRIPLog) << "RTCM version " << version;
+      qCDebug(NTRIPLog) << "RTCM message ID " << id;
+      qCDebug(NTRIPLog) << "RTCM message size " << message.size();
 
       if (version == 2) {
         //qCWarning(NTRIPLog) << "RTCM 2 not supported";
@@ -272,4 +333,92 @@ void NTRIPTCPLink::_sendNmeaGga() {
     _socket->write(gga.toUtf8());
     qCDebug(NTRIPLog) << "NMEA GGA Message : " << gga;
   }
+}
+
+void NTRIPTCPLink::_setConnectionStatus(NTRIPStatus newStatus) {
+    if (_connectionStatus != newStatus) {
+        _connectionStatus = newStatus;
+        emit connectionStatusChanged();
+    }
+}
+
+void NTRIPTCPLink::setEnabled(bool en) {
+    if (_enabled == en) return;
+
+    _enabled = en;
+
+    emit enabledChanged();
+
+    if (_enabled) {
+        _startNTRIP();
+    } else {
+        _stopNTRIP();
+    }
+}
+
+void NTRIPTCPLink::_startNTRIP() {
+    _retryCount = 0;
+    _setConnectionStatus(NTRIPStatus::Connecting);
+    _hardwareConnect();
+}
+
+void NTRIPTCPLink::_stopNTRIP() {
+    if (_socket) {
+        _socket->close();
+        delete _socket;
+        _socket = nullptr;
+    }
+
+    if (_reconnectTimer) {
+        _reconnectTimer->stop();
+    }
+
+    _setConnectionStatus(NTRIPStatus::Off);
+}
+
+void NTRIPTCPLink::_retryConnection() {
+    if (_retryCount < _maxRetries && _enabled) {
+        _retryCount++;
+        _setConnectionStatus(NTRIPStatus::Connecting);
+        _hardwareConnect();
+    } else {
+        _setConnectionStatus(NTRIPStatus::TimedOut);
+    }
+}
+
+bool NTRIP::enabled() const {
+    return _tcpLink && _tcpLink->enabled();
+}
+
+void NTRIP::setEnabled(bool en) {
+    if (en) {
+        _initLink();  // Only init when enabling
+        if (_tcpLink && !_tcpLink->enabled()) {
+            _tcpLink->setEnabled(true);
+            emit enabledChanged();
+        }
+    } else {
+        if (_tcpLink) {
+            _tcpLink->setEnabled(false);
+            delete _tcpLink;
+            _tcpLink = nullptr;
+        }
+        if (_rtcmMavlink) {
+            delete _rtcmMavlink;
+            _rtcmMavlink = nullptr;
+        }
+//        if (_tcpLink && _tcpLink->enabled()) {
+//            _tcpLink->setEnabled(false);
+//            emit enabledChanged();
+//        }
+    }
+}
+
+int NTRIP::connectionStatus() const {
+    return _tcpLink ? static_cast<int>(_tcpLink->connectionStatus()) : 0;
+}
+
+bool NTRIP::masterEnable() const {
+    NTRIPSettings* settings = qgcApp()->toolbox()->settingsManager()->ntripSettings();
+    return settings->ntripServerConnectEnabled()->rawValue().toBool();
 }

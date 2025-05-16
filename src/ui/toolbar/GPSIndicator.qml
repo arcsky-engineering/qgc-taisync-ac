@@ -71,6 +71,27 @@ Item {
                     QGCLabel { text: qsTr("Course Over Ground:") }
                     QGCLabel { text: _activeVehicle ? _activeVehicle.gps.courseOverGround.valueString : qsTr("--.--", "No data to display") }
                 }
+                QGCButton {
+                    id: ntripToggleButton
+                    text: QGroundControl.ntrip.enabled ? qsTr("Disconnect NTRIP") : qsTr("Connect NTRIP")
+                    visible: QGroundControl.ntrip.masterEnable
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    onClicked: {
+                        QGroundControl.ntrip.enabled = !QGroundControl.ntrip.enabled
+                    }
+                }
+                QGCLabel {
+                    text: {
+                        const status = QGroundControl.ntrip.connectionStatus;
+                        return status === 0 ? "NTRIP STATUS: Off"
+                             : status === 1 ? "NTRIP STATUS: Connecting"
+                             : status === 2 ? "NTRIP STATUS: Connected"
+                             : status === 3 ? "NTRIP STATUS: Retrying"
+                             : status === 4 ? "NTRIP STATUS: Timed Out"
+                             : "NTRIP STATUS: Unknown";
+                    }
+                    visible: QGroundControl.ntrip.masterEnable
+                }
             }
         }
     }
@@ -80,7 +101,7 @@ Item {
         width:              height
         anchors.top:        parent.top
         anchors.bottom:     parent.bottom
-        source:             "/qmlimages/Gps.svg"
+        source:             _activeVehicle.gps.lock.rawValue > 4 ? "/qmlimages/RTK.svg" : "/qmlimages/Gps.svg"
         fillMode:           Image.PreserveAspectFit
         sourceSize.height:  height
         opacity:            (_activeVehicle && _activeVehicle.gps.count.value >= 0) ? 1 : 0.5

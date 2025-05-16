@@ -359,7 +359,7 @@ CustomBuild {
         RESOURCES += $$PWD/resources/InstrumentValueIcons/InstrumentValueIcons.qrc
     }
 } else {
-    DEFINES += QGC_APPLICATION_NAME=\"\\\"Arcsky Control\\\"\"
+    DEFINES += QGC_APPLICATION_NAME=\"\\\"ArcskyControl\\\"\"
     DEFINES += QGC_ORG_NAME=\"\\\"www.arcskytech.com\\\"\"
     DEFINES += QGC_ORG_DOMAIN=\"\\\"www.arcskytech.com\\\"\"
     RESOURCES += \

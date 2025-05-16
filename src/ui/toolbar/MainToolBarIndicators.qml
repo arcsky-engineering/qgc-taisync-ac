@@ -10,6 +10,7 @@
 import QtQuick 2.12
 
 import QGroundControl               1.0
+import QGroundControl.Controls      1.0
 import QGroundControl.ScreenTools   1.0
 
 //-------------------------------------------------------------------------
@@ -69,4 +70,16 @@ Row {
             visible:            item.showIndicator
         }
     }
+
+//    Item {
+//        width: 100
+//        height: 40
+
+//        QGCButton {
+//            text: "Speed"
+////            onClicked: {
+////                mainWindow.showDialog("WPNAVSpeedDialog.qml", "Set WPNAV Speed", mainWindow.showDialogDefaultWidth, StandardButton.Cancel)
+////            }
+//        }
+//    }
 }

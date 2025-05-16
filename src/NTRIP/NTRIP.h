@@ -24,7 +24,8 @@ class NTRIPSettings;
 class NTRIPTCPLink : public QThread
 {
     Q_OBJECT
-
+    Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
+    Q_PROPERTY(NTRIPStatus connectionStatus READ connectionStatus NOTIFY connectionStatusChanged)
 public:
     NTRIPTCPLink(const QString& hostAddress,
                  int port,
@@ -35,9 +36,34 @@ public:
                  const bool&    enableVRS);
     ~NTRIPTCPLink();
 
+//    enum class NTRIPStatus {
+//        Disconnected,
+//        Connecting,
+//        Connected,
+//        Retrying,
+//        TimedOut
+//    };
+//    Q_ENUM(NTRIPStatus)
+
+    enum class NTRIPStatus {
+        Off,
+        Connecting,
+        Connected,
+        Retrying,
+        TimedOut
+    };
+    Q_ENUM(NTRIPStatus)
+
+    bool enabled() const {return _enabled;}
+    void setEnabled(bool en);
+
+    NTRIPStatus connectionStatus() const { return _connectionStatus; }
+
 signals:
     void error(const QString errorMsg);
     void RTCMDataUpdate(QByteArray message);
+    void connectionStatusChanged();
+    void enabledChanged();
 
 protected:
     void run() final;
@@ -56,6 +82,12 @@ private:
     void _hardwareConnect(void);
     void _parse(const QByteArray &buffer);
 
+    void _setConnectionStatus(NTRIPStatus newStatus);
+
+    void _startNTRIP();
+    void _stopNTRIP();
+    void _retryConnection();
+
     QTcpSocket*     _socket =   nullptr;
 
     QString         _hostAddress;
@@ -68,6 +100,14 @@ private:
     int             _vrsSendRateMSecs = 3000;
     bool            _ntripForceV1 = false;
 
+    QTimer* _reconnectTimer = nullptr;
+    int _retryCount = 0;
+    const int _maxRetries = 5; // max retry attempts
+
+    bool            _enabled = false;
+
+
+    NTRIPStatus _connectionStatus = NTRIPStatus::Off;
     // QUrl
     QUrl            _ntripURL;
 
@@ -86,12 +126,29 @@ private:
 
 class NTRIP : public QGCTool {
     Q_OBJECT
-
+    Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
+    Q_PROPERTY(int connectionStatus READ connectionStatus NOTIFY connectionStatusChanged)
+    Q_PROPERTY(bool masterEnable READ masterEnable NOTIFY masterEnableChanged)
 public:
     NTRIP(QGCApplication* app, QGCToolbox* toolbox);
 
     // QGCTool overrides
     void setToolbox(QGCToolbox* toolbox) final;
+
+    void _initLink();
+
+    bool enabled() const;
+
+    void setEnabled(bool en);
+
+    int connectionStatus() const; // casted enum
+
+    bool masterEnable() const;
+
+signals:
+    void enabledChanged();
+    void connectionStatusChanged();
+    void masterEnableChanged();
 
 public slots:
     void _tcpError          (const QString errorMsg);

@@ -19,6 +19,7 @@
         <file alias="VTOLModeIndicator.qml">src/ui/toolbar/VTOLModeIndicator.qml</file>
         <file alias="APMSupportForwardingIndicator.qml">src/ui/toolbar/APMSupportForwardingIndicator.qml</file>
         <file alias="GimbalIndicator.qml">src/ui/toolbar/GimbalIndicator.qml</file>
+        <file alias="WPNAVControl.qml">src/ui/toolbar/WPNAVControl.qml</file>
     </qresource>
     <qresource prefix="/checklists">
         <file alias="DefaultChecklist.qml">src/FlightDisplay/DefaultChecklist.qml</file>
@@ -292,7 +293,7 @@
         <file alias="QGroundControl/FlightDisplay/FlyViewInsetViewer.qml">src/FlightDisplay/FlyViewInsetViewer.qml</file>
         <file alias="TtysSettings.qml">src/ui/preferences/TtysSettings.qml</file>
         <file alias="QGroundControl/FlightDisplay/VerticalAlignmentTextColumn.qml">src/FlightDisplay/VerticalAlignmentTextColumn.qml</file>
-		<file alias="MissionDistanceView.qml">src/FlightMap/MapItems/MissionDistanceView.qml</file>
+        <file alias="MissionDistanceView.qml">src/FlightMap/MapItems/MissionDistanceView.qml</file>
     </qresource>
     <qresource prefix="/FirstRunPromptDialogs">
         <file alias="UnitsFirstRunPrompt.qml">src/FirstRunPromptDialogs/UnitsFirstRunPrompt.qml</file>
