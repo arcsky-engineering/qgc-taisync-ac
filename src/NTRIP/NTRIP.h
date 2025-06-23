@@ -69,7 +69,13 @@ protected:
     void run() final;
 
 private slots:
+    //void _retryConnection();
+    void _startNTRIP();
+    void _stopNTRIP();
     void _readBytes();
+    void _onDisconnected();
+    void _onSocketError(QAbstractSocket::SocketError socketError);
+    void _onWatchdogTimeout();
 
 private:
     enum class NTRIPState {
@@ -81,12 +87,14 @@ private:
 
     void _hardwareConnect(void);
     void _parse(const QByteArray &buffer);
+    void _scheduleRetry();
+    void _retryNow();
 
     void _setConnectionStatus(NTRIPStatus newStatus);
 
-    void _startNTRIP();
-    void _stopNTRIP();
-    void _retryConnection();
+    //void _startNTRIP();
+    //void _stopNTRIP();
+    //void _retryConnection();
 
     QTcpSocket*     _socket =   nullptr;
 
@@ -102,9 +110,13 @@ private:
 
     QTimer* _reconnectTimer = nullptr;
     int _retryCount = 0;
-    const int _maxRetries = 5; // max retry attempts
+    const int _maxRetries = 10; // max retry attempts
+    QTimer* _watchdogTimer = nullptr;
+    static constexpr int _watchdogTimeoutMSecs = 15000; // 10s timeout
+
 
     bool            _enabled = false;
+    bool            _isRetryScheduled = false;
 
 
     NTRIPStatus _connectionStatus = NTRIPStatus::Off;
@@ -152,7 +164,7 @@ signals:
 
 public slots:
     void _tcpError          (const QString errorMsg);
-
+    //void applySettings();
 private slots:
 
 private:

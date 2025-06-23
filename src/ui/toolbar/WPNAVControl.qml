@@ -50,7 +50,7 @@ Item {
             }
             else
             {
-                console.log("Not ready")
+                //console.log("Not ready")
             }
         }
     }

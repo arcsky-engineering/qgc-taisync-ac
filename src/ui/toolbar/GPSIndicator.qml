@@ -101,11 +101,34 @@ Item {
         width:              height
         anchors.top:        parent.top
         anchors.bottom:     parent.bottom
-        source:             _activeVehicle.gps.lock.rawValue > 4 ? "/qmlimages/RTK.svg" : "/qmlimages/Gps.svg"
         fillMode:           Image.PreserveAspectFit
         sourceSize.height:  height
         opacity:            (_activeVehicle && _activeVehicle.gps.count.value >= 0) ? 1 : 0.5
-        color:              qgcPal.buttonText
+        source: {
+            const lock = _activeVehicle ? _activeVehicle.gps.lock.rawValue : 0
+            const ntripEnabled = QGroundControl.ntrip.masterEnable && QGroundControl.ntrip.enabled
+            const ntripConnected = QGroundControl.ntrip.connectionStatus === 2
+
+            if (lock === 6) { // RTK Fixed
+                if (!ntripEnabled) return "/qmlimages/RTK-fixed.svg"
+                return ntripConnected ? "/qmlimages/RTK-fixed-ntrip-good.svg" : "/qmlimages/RTK-fixed-ntrip-bad.svg"
+            }
+            if (lock === 5) { // RTK Float
+                if (!ntripEnabled) return "/qmlimages/RTK-float.svg"
+                return ntripConnected ? "/qmlimages/RTK-float-ntrip-good.svg" : "/qmlimages/RTK-float-ntrip-bad.svg"
+            }
+            // Normal GPS (lock != 5,6)
+            if (!ntripEnabled) return "/qmlimages/Gps.svg"
+            return ntripConnected ? "/qmlimages/Gps-ntrip-good.svg" : "/qmlimages/Gps-ntrip-bad.svg"
+        }
+        color: {
+            const ntripEnabled = QGroundControl.ntrip.masterEnable && QGroundControl.ntrip.enabled
+            const ntripConnected = QGroundControl.ntrip.connectionStatus === 2
+            if (ntripEnabled) {
+                return ntripConnected ? "green" : "red"
+            }
+            return qgcPal.buttonText
+        }
     }
 
     Column {

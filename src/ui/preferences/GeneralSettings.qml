@@ -856,49 +856,49 @@ Rectangle {
                         }
                     }
 
-//                    Item { width: 1; height: _margins; visible: autoConnectSectionLabel.visible }
-//                    QGCLabel {
-//                        id:         autoConnectSectionLabel
-//                        text:       qsTr("AutoConnect to the following devices")
-//                        visible:    QGroundControl.settingsManager.autoConnectSettings.visible
-//                    }
-//                    Rectangle {
-//                        Layout.preferredWidth:  autoConnectCol.width + (_margins * 2)
-//                        Layout.preferredHeight: autoConnectCol.height + (_margins * 2)
-//                        color:                  qgcPal.windowShade
-//                        visible:                autoConnectSectionLabel.visible
-//                        Layout.fillWidth:       true
+                    Item { width: 1; height: _margins; visible: autoConnectSectionLabel.visible }
+                    QGCLabel {
+                        id:         autoConnectSectionLabel
+                        text:       qsTr("AutoConnect to the following devices")
+                        visible:    QGroundControl.settingsManager.autoConnectSettings.visible
+                    }
+                    Rectangle {
+                        Layout.preferredWidth:  autoConnectCol.width + (_margins * 2)
+                        Layout.preferredHeight: autoConnectCol.height + (_margins * 2)
+                        color:                  qgcPal.windowShade
+                        visible:                autoConnectSectionLabel.visible
+                        Layout.fillWidth:       true
 
-//                        ColumnLayout {
-//                            id:                 autoConnectCol
-//                            anchors.margins:    _margins
-//                            anchors.left:       parent.left
-//                            anchors.top:        parent.top
-//                            spacing:            _margins
+                        ColumnLayout {
+                            id:                 autoConnectCol
+                            anchors.margins:    _margins
+                            anchors.left:       parent.left
+                            anchors.top:        parent.top
+                            spacing:            _margins
 
-//                            RowLayout {
-//                                spacing: _margins
+                            RowLayout {
+                                spacing: _margins
 
-//                                Repeater {
-//                                    id:     autoConnectRepeater
-//                                    model:  [ QGroundControl.settingsManager.autoConnectSettings.autoConnectPixhawk,
-//                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectSiKRadio,
-//                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectPX4Flow,
-//                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectLibrePilot,
-//                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectUDP,
-//                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectRTKGPS,
-//                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectZeroConf,
-//                                    ]
+                                Repeater {
+                                    id:     autoConnectRepeater
+                                    model:  [ QGroundControl.settingsManager.autoConnectSettings.autoConnectPixhawk,
+                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectSiKRadio,
+                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectPX4Flow,
+                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectLibrePilot,
+                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectUDP,
+                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectRTKGPS,
+                                        QGroundControl.settingsManager.autoConnectSettings.autoConnectZeroConf,
+                                    ]
 
-//                                    property var names: [ qsTr("Pixhawk"), qsTr("SiK Radio"), qsTr("PX4 Flow"), qsTr("LibrePilot"), qsTr("UDP"), qsTr("RTK GPS"), qsTr("Zero-Conf") ]
+                                    property var names: [ qsTr("Pixhawk"), qsTr("SiK Radio"), qsTr("PX4 Flow"), qsTr("LibrePilot"), qsTr("UDP"), qsTr("RTK GPS"), qsTr("Zero-Conf") ]
 
-//                                    FactCheckBox {
-//                                        text:       autoConnectRepeater.names[index]
-//                                        fact:       modelData
-//                                        visible:    modelData.visible
-//                                    }
-//                                }
-//                            }
+                                    FactCheckBox {
+                                        text:       autoConnectRepeater.names[index]
+                                        fact:       modelData
+                                        visible:    modelData.visible
+                                    }
+                                }
+                            }
 
 //                            GridLayout {
 //                                Layout.fillWidth:   false
@@ -969,8 +969,8 @@ Rectangle {
 //                                    fact:                   QGroundControl.settingsManager.autoConnectSettings.nmeaUdpPort
 //                                }
 //                            }
-//                        }
-//                    }
+                        }
+                    }
 
 //                    Item { width: 1; height: _margins; visible: rtkSectionLabel.visible }
 //                    QGCLabel {
@@ -1109,7 +1109,7 @@ Rectangle {
                     Item { width: 1; height: _margins; visible: ntripSectionLabel.visible }
                     QGCLabel {
                         id:         ntripSectionLabel
-                        text:       qsTr("NTRIP / RTCM (Experimental)")
+                        text:       qsTr("NTRIP / RTCM (Experimental) - Must restart app to change")
                         visible:    QGroundControl.settingsManager.ntripSettings.visible
                     }
                     Rectangle {
@@ -1118,6 +1118,7 @@ Rectangle {
                         color:                  qgcPal.windowShade
                         visible:                ntripSectionLabel.visible
                         Layout.fillWidth:       true
+                        enabled:                QGroundControl.ntrip.masterEnable && !QGroundControl.ntrip.enabled
 
                         GridLayout {
                             id:                         ntripGrid
@@ -1202,6 +1203,14 @@ Rectangle {
                                 visible:                ntripGrid.ntripSettings.ntripWhitelist.visible
                                 Layout.fillWidth:       true
                             }
+//                            QGCButton {
+//                                text: qsTr("Apply NTRIP Settings")
+//                                Layout.columnSpan: 2
+//                                //enabled: !QGroundControl.ntrip.enabled
+//                                onClicked: {
+//                                    //QGroundControl.ntrip.applySettings()
+//                                }
+//                            }
                         }
                     } // end of NTRIP
 
