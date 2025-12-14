@@ -364,8 +364,8 @@ const QVariantList& FirmwarePlugin::cameraList(const Vehicle*)
                     tr("ILX-LR1-35mm"),       // model
                     35.81,                        // sensorWidth
                     23.88,                        // sensorHeight
-                    7360,                       // imageWidth
-                    4912,                       // imageHeight
+                    9504,                       // imageWidth
+                    6336,                       // imageHeight
                     35,                        // focalLength
                     true,                       // true: landscape orientation
                     false,                      // true: camera is fixed orientation
@@ -381,8 +381,8 @@ const QVariantList& FirmwarePlugin::cameraList(const Vehicle*)
                     tr("ILX-LR1-21mm"),       // model
                     35.81,                        // sensorWidth
                     23.88,                        // sensorHeight
-                    7360,                       // imageWidth
-                    4912,                       // imageHeight
+                    9504,                       // imageWidth
+                    6336,                       // imageHeight
                     21,                        // focalLength
                     true,                       // true: landscape orientation
                     false,                      // true: camera is fixed orientation
