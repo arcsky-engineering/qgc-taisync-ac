@@ -23,6 +23,7 @@
 #include "TCPServerLink.h"
 #endif
 #include "UDPLink.h"
+#include <QtCore/QDateTime>
 
 #ifdef QGC_ENABLE_BLUETOOTH
 #include "BluetoothLink.h"
@@ -1169,6 +1170,38 @@ bool LinkManager::_isSerialPortConnected() const
     }
 
     return false;
+}
+
+bool LinkManager::mavlinkReceiveEnabled()
+{
+    if (_mavlinkReceiveEnabled) return true;
+    if (_isInBackgroundTimeout) return false;
+    return !_checkIsInBackgroundTimeout();
+}
+
+void LinkManager::setMavlinkReceiveEnabled(bool enable)
+{
+    _mavlinkReceiveEnabled = enable;
+    if (enable) {
+        _isInBackgroundTimeout = false;
+    } else {
+        _resetBackgroundTimestamp();
+    }
+    emit mavlinkReceiveEnabledChanged();
+}
+
+bool LinkManager::_checkIsInBackgroundTimeout()
+{
+    const quint64 currentTimestamp = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
+    bool timeout = currentTimestamp - _inBackgroundTimestamp > _inBackgroundTimeout;
+    if (timeout) _isInBackgroundTimeout = true;
+    return timeout;
+}
+
+void LinkManager::_resetBackgroundTimestamp()
+{
+    _inBackgroundTimestamp = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch());
+    _isInBackgroundTimeout = false;
 }
 
 #endif // QGC_NO_SERIAL_LINK

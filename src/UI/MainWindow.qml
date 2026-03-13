@@ -756,6 +756,8 @@ ApplicationWindow {
     Connections {
         target: Qt.application
         function onActiveChanged() {
+            if (Qt.platform.os === "windows") return;
+
             if (!Qt.application.active) {
                 QGroundControl.linkManager.mavlinkReceiveEnabled = false
                 console.log("mavlink shutdown")

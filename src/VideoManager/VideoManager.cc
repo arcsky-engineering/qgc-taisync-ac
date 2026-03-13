@@ -422,6 +422,13 @@ bool VideoManager::autoStreamConfigured() const
 
 bool VideoManager::_updateAutoStream(VideoReceiver *receiver)
 {
+    // Disabled: video streams are manually configured in this build.
+    // Prevents autopilot camera advertisements (e.g. CAM1_TYPE) from
+    // overwriting the user-configured RTSP/UDP URLs.
+    Q_UNUSED(receiver);
+    return false;
+
+#if 0 // Original auto-stream logic
     const QGCVideoStreamInfo *pInfo = receiver->videoStreamInfo();
     if (!pInfo) {
         return false;
@@ -472,6 +479,7 @@ bool VideoManager::_updateAutoStream(VideoReceiver *receiver)
     }
 
     return settingsChanged;
+#endif // Original auto-stream logic
 }
 
 bool VideoManager::_updateVideoUri(VideoReceiver *receiver, const QString &uri)
