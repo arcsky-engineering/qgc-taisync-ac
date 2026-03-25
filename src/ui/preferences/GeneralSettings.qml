@@ -98,6 +98,14 @@ Rectangle {
                             anchors.horizontalCenter:   parent.horizontalCenter
                             spacing:                    _margins
 
+                            FactCheckBox {
+                                text:       qsTr("Disable Guided Action Auto-Popups")
+                                fact:       _disableGuidedAutoPopups
+                                visible:    _disableGuidedAutoPopups.visible
+
+                                property Fact _disableGuidedAutoPopups: QGroundControl.settingsManager.appSettings.disableGuidedAutoPopups
+                            }
+
 //                            FactCheckBox {
 //                                id:             useCheckList
 //                                text:           qsTr("Use Preflight Checklist")

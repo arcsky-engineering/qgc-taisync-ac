@@ -200,6 +200,7 @@ Item {
 
     Button {
         text: "Stream\n#"
+        visible: QGroundControl.videoManager.hasVideo
         onClicked: QGroundControl.videoManager.switchRTSPStream()
         width: 180
         height: 120
@@ -227,6 +228,7 @@ Item {
 
     Button {
         text: "Full\nScreen"
+        visible: QGroundControl.videoManager.hasVideo
         onClicked: {
             //console.log("Full screen button clicked");
             QGroundControl.videoManager.fullScreen = !QGroundControl.videoManager.fullScreen

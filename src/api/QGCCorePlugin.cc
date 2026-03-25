@@ -229,15 +229,13 @@ bool QGCCorePlugin::adjustSettingMetaData(const QString& settingsGroup, FactMeta
         }
 #endif
 
-        //-- Default Palette
+        //-- Default Palette: Indoor (Dark) color scheme
         if (metaData.name() == AppSettings::indoorPaletteName) {
-            QVariant outdoorPalette;
-#if defined (__mobile__)
-            outdoorPalette = 0;
-#else
-            outdoorPalette = 0;
-#endif
-            metaData.setRawDefaultValue(outdoorPalette);
+            metaData.setRawDefaultValue(1);
+            return true;
+        } else if (metaData.name() == AppSettings::offlineEditingFirmwareClassName) {
+            // Default to ArduPilot (3) instead of PX4 (12)
+            metaData.setRawDefaultValue(3);
             return true;
         }
 
@@ -453,8 +451,8 @@ const QVariantList& QGCCorePlugin::toolBarIndicators(void)
 
 QList<int> QGCCorePlugin::firstRunPromptStdIds(void)
 {
-    QList<int> rgStdIds = { unitsFirstRunPromptId, offlineVehicleFirstRunPromptId };
-    return rgStdIds;
+    // Return empty list to skip first-run prompts - defaults are pre-configured
+    return QList<int>();
 }
 
 QList<int> QGCCorePlugin::firstRunPromptCustomIds(void)

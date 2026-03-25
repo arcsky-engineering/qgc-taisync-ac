@@ -67,6 +67,7 @@ public:
     DEFINE_SETTINGFACT(forwardMavlink)
     DEFINE_SETTINGFACT(forwardMavlinkHostName)
     DEFINE_SETTINGFACT(forwardMavlinkAPMSupportHostName)
+    DEFINE_SETTINGFACT(disableGuidedAutoPopups)
 #ifdef TAISYNC_FLY_CAL
     DEFINE_SETTINGFACT(taisyncFlyViewShow)
     DEFINE_SETTINGFACT(taisyncFlyDataSave)

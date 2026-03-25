@@ -151,6 +151,7 @@ Item {
     property var    _corePlugin:            QGroundControl.corePlugin
     property var    _corePluginOptions:     QGroundControl.corePlugin.options
     property bool   _guidedActionsEnabled:  (!ScreenTools.isDebug && _corePluginOptions.guidedActionsRequireRCRSSI && _activeVehicle) ? _rcRSSIAvailable : _activeVehicle
+    property bool   _disableGuidedAutoPopups: QGroundControl.settingsManager.appSettings.disableGuidedAutoPopups.rawValue
     property string _flightMode:            _activeVehicle ? _activeVehicle.flightMode : ""
     property bool   _missionAvailable:      missionController.containsItems
     property bool   _missionActive:         _activeVehicle ? _vehicleArmed && (_vehicleInLandMode || _vehicleInRTLMode || _vehicleInMissionMode) : false
@@ -250,7 +251,7 @@ Item {
             console.log("showStartMission", showStartMission)
         }
         _outputState()
-        if (showStartMission) {
+        if (showStartMission && !_disableGuidedAutoPopups) {
             confirmAction(actionStartMission)
         }
     }
@@ -259,7 +260,7 @@ Item {
             console.log("showContinueMission", showContinueMission)
         }
         _outputState()
-        if (showContinueMission) {
+        if (showContinueMission && !_disableGuidedAutoPopups) {
             confirmAction(actionContinueMission)
         }
     }
@@ -412,7 +413,7 @@ Item {
             showImmediate = false
             confirmDialog.title = startMissionTitle
             confirmDialog.message = startMissionMessage
-            confirmDialog.hideTrigger = Qt.binding(function() { return !showStartMission })
+            confirmDialog.hideTrigger = Qt.binding(function() { return !showStartMission || _disableGuidedAutoPopups })
             break;
         case actionMVStartMission:
             confirmDialog.title = mvStartMissionTitle
@@ -423,7 +424,7 @@ Item {
             showImmediate = false
             confirmDialog.title = continueMissionTitle
             confirmDialog.message = continueMissionMessage
-            confirmDialog.hideTrigger = Qt.binding(function() { return !showContinueMission })
+            confirmDialog.hideTrigger = Qt.binding(function() { return !showContinueMission || _disableGuidedAutoPopups })
             break;
         case actionResumeMission:
             // Resume Mission is handled in mission end dialog

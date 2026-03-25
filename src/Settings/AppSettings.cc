@@ -176,6 +176,7 @@ DECLARE_SETTINGSFACT(AppSettings, firstRunPromptIdsShown)
 DECLARE_SETTINGSFACT(AppSettings, forwardMavlink)
 DECLARE_SETTINGSFACT(AppSettings, forwardMavlinkHostName)
 DECLARE_SETTINGSFACT(AppSettings, forwardMavlinkAPMSupportHostName)
+DECLARE_SETTINGSFACT(AppSettings, disableGuidedAutoPopups)
 
 #ifdef TAISYNC_FLY_CAL
 DECLARE_SETTINGSFACT(AppSettings, taisyncFlyViewShow)

@@ -11,7 +11,9 @@
 import QtQuick              2.3
 import QtQuick.Controls     1.2
 import QtGraphicalEffects   1.0
+import QtQuick.Layouts      1.2
 
+import QGroundControl               1.0
 import QGroundControl.FactSystem    1.0
 import QGroundControl.FactControls  1.0
 import QGroundControl.Palette       1.0
@@ -43,6 +45,18 @@ SetupPage {
             property Fact _rtlAltFact: controller.getParameterFact(-1, "ALT_HOLD_RTL")
 
             property real _margins: ScreenTools.defaultFontPixelHeight
+
+            property var _unitsConversion: QGroundControl.unitsConversion
+
+            function cmToDisplayUnits(cm) {
+                var meters = cm / 100.0
+                return _unitsConversion.metersToAppSettingsVerticalDistanceUnits(meters)
+            }
+
+            function displayUnitsToCm(displayValue) {
+                var meters = _unitsConversion.appSettingsVerticalDistanceUnitsToMeters(displayValue)
+                return meters * 100.0
+            }
 
             ExclusiveGroup { id: returnAltRadioGroup }
 
@@ -165,21 +179,44 @@ SetupPage {
                         anchors.topMargin:  _margins / 2
                         anchors.left:       returnAtCurrentRadio.left
                         anchors.top:        returnAtCurrentRadio.bottom
-                        text:               qsTr("Return at specified altitude:")
+                        text:               qsTr("Return at specified altitude (%1):").arg(_unitsConversion.appSettingsVerticalDistanceUnitsString)
                         exclusiveGroup:     returnAltRadioGroup
                         checked:            _rtlAltFact.value >= 0
 
                         onClicked: _rtlAltFact.value = 10000
                     }
 
-                    FactTextField {
+                    RowLayout {
                         id:                 rltAltField
                         anchors.leftMargin: _margins
                         anchors.left:       returnAltRadio.right
                         anchors.baseline:   returnAltRadio.baseline
-                        fact:               _rtlAltFact
-                        showUnits:          true
-                        enabled:            returnAltRadio.checked
+                        spacing:            ScreenTools.defaultFontPixelWidth / 2
+
+                        QGCTextField {
+                            id:                 rltAltTextField
+                            text:               _rtlAltFact ? cmToDisplayUnits(_rtlAltFact.value).toFixed(1) : "--"
+                            enabled:            returnAltRadio.checked
+                            inputMethodHints:   Qt.ImhFormattedNumbersOnly
+                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 10
+
+                            onEditingFinished: {
+                                if (!_rtlAltFact) return
+                                var value = parseFloat(text)
+                                if (isNaN(value)) value = 0
+                                _rtlAltFact.value = Math.round(displayUnitsToCm(value))
+                                text = cmToDisplayUnits(_rtlAltFact.value).toFixed(1)
+                            }
+
+                            Connections {
+                                target: _rtlAltFact
+                                onValueChanged: rltAltTextField.text = _rtlAltFact ? cmToDisplayUnits(_rtlAltFact.value).toFixed(1) : "--"
+                            }
+                        }
+
+                        QGCLabel {
+                            text: _unitsConversion.appSettingsVerticalDistanceUnitsString
+                        }
                     }
                 } // Rectangle - RTL Settings
             } // Column - RTL Settings

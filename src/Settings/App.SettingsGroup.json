@@ -9,7 +9,7 @@
     "type":             "uint32",
     "enumStrings":      "ArduPilot,PX4 Pro,Mavlink Generic",
     "enumValues":       "3,12,0",
-    "default":     12
+    "default":     3
 },
 {
     "name":             "offlineEditingVehicleClass",
@@ -246,7 +246,7 @@
     "name":             "defaultFirmwareType",
     "shortDesc": "Default firmware type for flashing",
     "type":             "uint32",
-    "default":     12
+    "default":     3
 },
 {
     "name":             "followTarget",
@@ -340,6 +340,13 @@
     "longDesc":  "Ardupilot Support server to forward mavlink to. i.e: support.ardupilot.org:xxxx",
     "type":      "string",
     "default":   "support.ardupilot.org:xxxx"
+},
+{
+    "name":             "disableGuidedAutoPopups",
+    "shortDesc": "Disable guided action auto-popups",
+    "longDesc":  "When enabled, the guided action confirmation slider (Start Mission, Continue Mission) will not automatically pop up. Waypoint click-to-set still works.",
+    "type":             "bool",
+    "default":     false
 },
 {
     "name":             "taisyncFlyViewShow",

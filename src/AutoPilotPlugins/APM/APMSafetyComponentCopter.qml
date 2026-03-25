@@ -13,6 +13,7 @@ import QtQuick.Controls     1.2
 import QtGraphicalEffects   1.0
 import QtQuick.Layouts      1.2
 
+import QGroundControl               1.0
 import QGroundControl.FactSystem    1.0
 import QGroundControl.FactControls  1.0
 import QGroundControl.Palette       1.0
@@ -72,6 +73,44 @@ SetupPage {
 
             property real _margins:     ScreenTools.defaultFontPixelHeight
             property bool _showIcon:    !ScreenTools.isTinyScreen
+
+            property var _unitsConversion: QGroundControl.unitsConversion
+
+            function cmToDisplayUnits(cm) {
+                var meters = cm / 100.0
+                return _unitsConversion.metersToAppSettingsVerticalDistanceUnits(meters)
+            }
+
+            function displayUnitsToCm(displayValue) {
+                var meters = _unitsConversion.appSettingsVerticalDistanceUnitsToMeters(displayValue)
+                return meters * 100.0
+            }
+
+            function cmPerSecToDisplayUnits(cmPerSec) {
+                var mPerSec = cmPerSec / 100.0
+                return _unitsConversion.metersSecondToAppSettingsSpeedUnits(mPerSec)
+            }
+
+            function displayUnitsToCmPerSec(displayValue) {
+                var mPerSec = _unitsConversion.appSettingsSpeedUnitsToMetersSecond(displayValue)
+                return mPerSec * 100.0
+            }
+
+            function metersToDisplayUnits(meters) {
+                return _unitsConversion.metersToAppSettingsHorizontalDistanceUnits(meters)
+            }
+
+            function displayUnitsToMeters(displayValue) {
+                return _unitsConversion.appSettingsHorizontalDistanceUnitsToMeters(displayValue)
+            }
+
+            function verticalMetersToDisplayUnits(meters) {
+                return _unitsConversion.metersToAppSettingsVerticalDistanceUnits(meters)
+            }
+
+            function displayUnitsToVerticalMeters(displayValue) {
+                return _unitsConversion.appSettingsVerticalDistanceUnitsToMeters(displayValue)
+            }
 
             ExclusiveGroup { id: fenceActionRadioGroup }
             ExclusiveGroup { id: landLoiterRadioGroup }
@@ -363,33 +402,55 @@ SetupPage {
                         id:                 fenceRadiusLabel
                         anchors.left:       circleGeo.left
                         anchors.baseline:   fenceRadiusField.baseline
-                        text:               qsTr("Max radius:")
+                        text:               qsTr("Max radius (%1):").arg(_unitsConversion.appSettingsHorizontalDistanceUnitsString)
                     }
 
-                    FactTextField {
+                    QGCTextField {
                         id:                 fenceRadiusField
                         anchors.topMargin:  _margins
                         anchors.left:       fenceAltMaxField.left
                         anchors.top:        geoRTLRadio.bottom
-                        fact:               _fenceRadius
-                        showUnits:          true
+                        text:               metersToDisplayUnits(_fenceRadius.value).toFixed(1)
+                        inputMethodHints:   Qt.ImhFormattedNumbersOnly
+
+                        onEditingFinished: {
+                            var value = parseFloat(text)
+                            if (isNaN(value)) value = 0
+                            _fenceRadius.value = displayUnitsToMeters(value)
+                        }
+
+                        Connections {
+                            target: _fenceRadius
+                            onValueChanged: fenceRadiusField.text = metersToDisplayUnits(_fenceRadius.value).toFixed(1)
+                        }
                     }
 
                     QGCLabel {
                         id:                 fenceAltMaxLabel
                         anchors.left:       circleGeo.left
                         anchors.baseline:   fenceAltMaxField.baseline
-                        text:               qsTr("Max altitude:")
+                        text:               qsTr("Max altitude (%1):").arg(_unitsConversion.appSettingsVerticalDistanceUnitsString)
                     }
 
-                    FactTextField {
+                    QGCTextField {
                         id:                 fenceAltMaxField
                         anchors.topMargin:  _margins / 2
                         anchors.leftMargin: _margins
                         anchors.left:       fenceAltMaxLabel.right
                         anchors.top:        fenceRadiusField.bottom
-                        fact:               _fenceAltMax
-                        showUnits:          true
+                        text:               verticalMetersToDisplayUnits(_fenceAltMax.value).toFixed(1)
+                        inputMethodHints:   Qt.ImhFormattedNumbersOnly
+
+                        onEditingFinished: {
+                            var value = parseFloat(text)
+                            if (isNaN(value)) value = 0
+                            _fenceAltMax.value = displayUnitsToVerticalMeters(value)
+                        }
+
+                        Connections {
+                            target: _fenceAltMax
+                            onValueChanged: fenceAltMaxField.text = verticalMetersToDisplayUnits(_fenceAltMax.value).toFixed(1)
+                        }
                     }
                 } // Rectangle - GeoFence Settings
             } // Column - GeoFence Settings
@@ -447,21 +508,46 @@ SetupPage {
                         anchors.topMargin:  _margins
                         anchors.left:       returnAtCurrentRadio.left
                         anchors.top:        returnAtCurrentRadio.bottom
-                        text:               qsTr("Return at specified altitude:")
+                        text:               qsTr("Return at specified altitude (%1):").arg(_unitsConversion.appSettingsVerticalDistanceUnitsString)
                         exclusiveGroup:     returnAltRadioGroup
                         checked:            _rtlAltFact.value != 0
 
                         onClicked: _rtlAltFact.value = 1500
                     }
 
-                    FactTextField {
+                    RowLayout {
                         id:                 rltAltField
                         anchors.leftMargin: _margins
                         anchors.left:       returnAltRadio.right
                         anchors.baseline:   returnAltRadio.baseline
-                        fact:               _rtlAltFact
-                        showUnits:          true
-                        enabled:            returnAltRadio.checked
+                        spacing:            ScreenTools.defaultFontPixelWidth / 2
+
+                        QGCTextField {
+                            id:                 rltAltTextField
+                            text:               _rtlAltFact ? cmToDisplayUnits(_rtlAltFact.value).toFixed(1) : "--"
+                            enabled:            returnAltRadio.checked
+                            inputMethodHints:   Qt.ImhFormattedNumbersOnly
+                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 10
+
+                            onEditingFinished: {
+                                if (!_rtlAltFact) return
+                                var value = parseFloat(text)
+                                if (isNaN(value)) value = 0
+                                var maxInDisplayUnits = _unitsConversion.metersToAppSettingsVerticalDistanceUnits(300)
+                                value = Math.max(0, Math.min(maxInDisplayUnits, value))
+                                _rtlAltFact.value = Math.round(displayUnitsToCm(value))
+                                text = value.toFixed(1)
+                            }
+
+                            Connections {
+                                target: _rtlAltFact
+                                onValueChanged: rltAltTextField.text = _rtlAltFact ? cmToDisplayUnits(_rtlAltFact.value).toFixed(1) : "--"
+                            }
+                        }
+
+                        QGCLabel {
+                            text: _unitsConversion.appSettingsVerticalDistanceUnitsString
+                        }
                     }
 
                     QGCCheckBox {
@@ -488,41 +574,84 @@ SetupPage {
                         id:                 landRadio
                         anchors.left:       returnAtCurrentRadio.left
                         anchors.baseline:   landSpeedField.baseline
-                        text:               qsTr("Land with descent speed:")
+                        text:               qsTr("Land with descent speed (%1):").arg(_unitsConversion.appSettingsSpeedUnitsString)
                         checked:            _rtlAltFinalFact.value == 0
                         exclusiveGroup:     landLoiterRadioGroup
 
                         onClicked: _rtlAltFinalFact.value = 0
                     }
 
-                    FactTextField {
+                    RowLayout {
                         id:                 landSpeedField
                         anchors.topMargin:  _margins * 1.5
                         anchors.top:        landDelayField.bottom
                         anchors.left:       rltAltField.left
-                        fact:               _landSpeedFact
-                        showUnits:          true
-                        enabled:            landRadio.checked
+                        spacing:            ScreenTools.defaultFontPixelWidth / 2
+
+                        QGCTextField {
+                            id:                 landSpeedTextField
+                            text:               cmPerSecToDisplayUnits(_landSpeedFact.value).toFixed(1)
+                            enabled:            landRadio.checked
+                            inputMethodHints:   Qt.ImhFormattedNumbersOnly
+                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 10
+
+                            onEditingFinished: {
+                                var value = parseFloat(text)
+                                if (isNaN(value)) value = 0
+                                _landSpeedFact.value = Math.round(displayUnitsToCmPerSec(value))
+                                text = cmPerSecToDisplayUnits(_landSpeedFact.value).toFixed(1)
+                            }
+
+                            Connections {
+                                target: _landSpeedFact
+                                onValueChanged: landSpeedTextField.text = cmPerSecToDisplayUnits(_landSpeedFact.value).toFixed(1)
+                            }
+                        }
+
+                        QGCLabel {
+                            text: _unitsConversion.appSettingsSpeedUnitsString
+                        }
                     }
 
                     QGCRadioButton {
                         id:                 finalLoiterRadio
                         anchors.left:       returnAtCurrentRadio.left
                         anchors.baseline:   rltAltFinalField.baseline
-                        text:               qsTr("Final loiter altitude:")
+                        text:               qsTr("Final loiter altitude (%1):").arg(_unitsConversion.appSettingsVerticalDistanceUnitsString)
                         exclusiveGroup:     landLoiterRadioGroup
 
                         onClicked: _rtlAltFinalFact.value = _rtlAltFact.value
                     }
 
-                    FactTextField {
+                    RowLayout {
                         id:                 rltAltFinalField
                         anchors.topMargin:  _margins / 2
                         anchors.left:       rltAltField.left
                         anchors.top:        landSpeedField.bottom
-                        fact:               _rtlAltFinalFact
-                        enabled:            finalLoiterRadio.checked
-                        showUnits:          true
+                        spacing:            ScreenTools.defaultFontPixelWidth / 2
+
+                        QGCTextField {
+                            id:                 rltAltFinalTextField
+                            text:               cmToDisplayUnits(_rtlAltFinalFact.value).toFixed(1)
+                            enabled:            finalLoiterRadio.checked
+                            inputMethodHints:   Qt.ImhFormattedNumbersOnly
+                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 10
+
+                            onEditingFinished: {
+                                var value = parseFloat(text)
+                                if (isNaN(value)) value = 0
+                                _rtlAltFinalFact.value = Math.round(displayUnitsToCm(value))
+                            }
+
+                            Connections {
+                                target: _rtlAltFinalFact
+                                onValueChanged: rltAltFinalTextField.text = cmToDisplayUnits(_rtlAltFinalFact.value).toFixed(1)
+                            }
+                        }
+
+                        QGCLabel {
+                            text: _unitsConversion.appSettingsVerticalDistanceUnitsString
+                        }
                     }
                 } // Rectangle - RTL Settings
             } // Column - RTL Settings
