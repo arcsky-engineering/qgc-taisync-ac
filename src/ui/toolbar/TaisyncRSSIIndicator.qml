@@ -106,15 +106,25 @@ Item {
         anchors.bottom: parent.bottom
         spacing:        ScreenTools.defaultFontPixelWidth
 
-        QGCColoredImage {
-            width:              height
-            anchors.top:        parent.top
-            anchors.bottom:     parent.bottom
-            sourceSize.height:  height
-            source:             "/qmlimages/RC.svg"
-            fillMode:           Image.PreserveAspectFit
-            opacity:            _taisyncOnline ? 1 : 0.5
-            color:              qgcPal.buttonText
+        Column {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing:                0
+
+            QGCLabel {
+                text:                   _taisyncOnline ? _displayPercent + "%" : "--"
+                font.pointSize:         ScreenTools.smallFontPointSize
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            QGCColoredImage {
+                width:              height
+                height:             rssiRow.height * 0.65
+                sourceSize.height:  height
+                source:             "/qmlimages/RC.svg"
+                fillMode:           Image.PreserveAspectFit
+                opacity:            _taisyncOnline ? 1 : 0.5
+                color:              qgcPal.buttonText
+            }
         }
 
         SignalStrength {
