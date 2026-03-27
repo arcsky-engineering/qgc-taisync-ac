@@ -106,6 +106,14 @@ Rectangle {
                                 property Fact _disableGuidedAutoPopups: QGroundControl.settingsManager.appSettings.disableGuidedAutoPopups
                             }
 
+                            FactCheckBox {
+                                text:       qsTr("Hide Photo/Video Control Panel")
+                                fact:       _hidePhotoVideoControl
+                                visible:    _hidePhotoVideoControl.visible
+
+                                property Fact _hidePhotoVideoControl: QGroundControl.settingsManager.appSettings.hidePhotoVideoControl
+                            }
+
 //                            FactCheckBox {
 //                                id:             useCheckList
 //                                text:           qsTr("Use Preflight Checklist")

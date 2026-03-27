@@ -349,6 +349,13 @@
     "default":     false
 },
 {
+    "name":             "hidePhotoVideoControl",
+    "shortDesc": "Hide photo/video control panel",
+    "longDesc":  "When enabled, the photo/video control panel is hidden from the fly view.",
+    "type":             "bool",
+    "default":     false
+},
+{
     "name":             "taisyncFlyViewShow",
     "shortDesc": "Enable fly data view show",
     "longDesc":  "Enable fly data view show",

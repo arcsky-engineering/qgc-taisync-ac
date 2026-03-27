@@ -178,7 +178,7 @@ Item {
         anchors.margins:        _toolsMargin
         anchors.right:          parent.right
         width:                  _rightPanelWidth
-        visible:                !_root.isPhotoVideoMinimized && QGroundControl.videoManager.hasVideo
+        visible:                !_root.isPhotoVideoMinimized && !QGroundControl.settingsManager.appSettings.hidePhotoVideoControl.rawValue
 
         property real rightEdgeCenterInset: visible ? parent.width - x : 0
 
@@ -233,7 +233,7 @@ Item {
         fillMode:       Image.PreserveAspectFit
         anchors.right:  photoVideoControl.right
         anchors.bottom:    photoVideoControl.bottom
-        visible:        _root.isPhotoVideoMinimized && QGroundControl.videoManager.hasVideo // only when minimized
+        visible:        _root.isPhotoVideoMinimized && !QGroundControl.settingsManager.appSettings.hidePhotoVideoControl.rawValue // only when minimized
         //visible:        _isExpanded && (ScreenTools.isMobile || pipMouseArea.containsMouse)
         height:         ScreenTools.defaultFontPixelHeight * 2.0
         width:          ScreenTools.defaultFontPixelHeight * 2.0

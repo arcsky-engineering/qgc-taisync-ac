@@ -41,7 +41,6 @@ SetupPage {
             property Fact _failsafeBattMah:                 controller.getParameterFact(-1, "r.BATT_LOW_MAH", false /* reportMissing */)
             property Fact _failsafeBattVoltage:             controller.getParameterFact(-1, "r.BATT_LOW_VOLT", false /* reportMissing */)
             property Fact _failsafeThrEnable:               controller.getParameterFact(-1, "FS_THR_ENABLE")
-            property Fact _failsafeThrValue:                controller.getParameterFact(-1, "FS_THR_VALUE")
 
             property Fact _batt1Monitor:                    controller.getParameterFact(-1, "BATT_MONITOR")
             property Fact _batt2Monitor:                    controller.getParameterFact(-1, "BATT2_MONITOR", false /* reportMissing */)
@@ -64,10 +63,8 @@ SetupPage {
             property Fact _fenceRadius: controller.getParameterFact(-1, "FENCE_RADIUS")
             property Fact _fenceType:   controller.getParameterFact(-1, "FENCE_TYPE")
 
-            property Fact _landSpeedFact:   controller.getParameterFact(-1, "LAND_SPEED")
             property Fact _rtlAltFact:      controller.getParameterFact(-1, "RTL_ALT")
             property Fact _rtlLoitTimeFact: controller.getParameterFact(-1, "RTL_LOIT_TIME")
-            property Fact _rtlAltFinalFact: controller.getParameterFact(-1, "RTL_ALT_FINAL")
 
             property Fact _armingCheck: controller.getParameterFact(-1, "ARMING_CHECK")
 
@@ -113,7 +110,6 @@ SetupPage {
             }
 
             ExclusiveGroup { id: fenceActionRadioGroup }
-            ExclusiveGroup { id: landLoiterRadioGroup }
             ExclusiveGroup { id: returnAltRadioGroup }
 
             Column {
@@ -288,7 +284,7 @@ SetupPage {
                                 Layout.fillWidth:   true
                             }
 
-                            QGCLabel { text: qsTr("Throttle failsafe:") }
+                            QGCLabel { text: qsTr("Radio Failsafe Action:") }
                             QGCComboBox {
                                 model:              [qsTr("Disabled"), qsTr("Always RTL"),
                                     qsTr("Continue with Mission in Auto Mode"), qsTr("Always Land")]
@@ -298,12 +294,6 @@ SetupPage {
                                 onActivated: _failsafeThrEnable.value = index
                             }
 
-                            QGCLabel { text: qsTr("PWM threshold:") }
-                            FactTextField {
-                                fact:               _failsafeThrValue
-                                showUnits:          true
-                                Layout.fillWidth:   true
-                            }
                         } // GridLayout
                     } // Column
                 } // Rectangle - Failsafe Settings
@@ -466,8 +456,8 @@ SetupPage {
 
                 Rectangle {
                     id:     rtlSettings
-                    width:  rltAltFinalField.x + rltAltFinalField.width + _margins
-                    height: rltAltFinalField.y + rltAltFinalField.height + _margins
+                    width:  landDelayField.x + landDelayField.width + _margins
+                    height: landDelayField.y + landDelayField.height + _margins
                     color:  ggcPal.windowShade
 
                     Image {
@@ -557,102 +547,41 @@ SetupPage {
                         checked:            _rtlLoitTimeFact.value > 0
                         text:               qsTr("Loiter above Home for:")
 
-                        onClicked: _rtlLoitTimeFact.value = (checked ? 60 : 0)
+                        onClicked: _rtlLoitTimeFact.value = (checked ? 60000 : 0)
                     }
 
-                    FactTextField {
+                    RowLayout {
                         id:                 landDelayField
                         anchors.topMargin:  _margins * 1.5
                         anchors.left:       rltAltField.left
                         anchors.top:        rltAltField.bottom
-                        fact:               _rtlLoitTimeFact
-                        showUnits:          true
-                        enabled:            homeLoiterCheckbox.checked === true
-                    }
-
-                    QGCRadioButton {
-                        id:                 landRadio
-                        anchors.left:       returnAtCurrentRadio.left
-                        anchors.baseline:   landSpeedField.baseline
-                        text:               qsTr("Land with descent speed (%1):").arg(_unitsConversion.appSettingsSpeedUnitsString)
-                        checked:            _rtlAltFinalFact.value == 0
-                        exclusiveGroup:     landLoiterRadioGroup
-
-                        onClicked: _rtlAltFinalFact.value = 0
-                    }
-
-                    RowLayout {
-                        id:                 landSpeedField
-                        anchors.topMargin:  _margins * 1.5
-                        anchors.top:        landDelayField.bottom
-                        anchors.left:       rltAltField.left
                         spacing:            ScreenTools.defaultFontPixelWidth / 2
 
                         QGCTextField {
-                            id:                 landSpeedTextField
-                            text:               cmPerSecToDisplayUnits(_landSpeedFact.value).toFixed(1)
-                            enabled:            landRadio.checked
+                            id:                 loiterTimeTextField
+                            text:               (_rtlLoitTimeFact.value / 1000.0).toFixed(0)
+                            enabled:            homeLoiterCheckbox.checked === true
                             inputMethodHints:   Qt.ImhFormattedNumbersOnly
                             Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 10
 
                             onEditingFinished: {
                                 var value = parseFloat(text)
                                 if (isNaN(value)) value = 0
-                                _landSpeedFact.value = Math.round(displayUnitsToCmPerSec(value))
-                                text = cmPerSecToDisplayUnits(_landSpeedFact.value).toFixed(1)
+                                _rtlLoitTimeFact.value = Math.round(value * 1000)
+                                text = (_rtlLoitTimeFact.value / 1000.0).toFixed(0)
                             }
 
                             Connections {
-                                target: _landSpeedFact
-                                onValueChanged: landSpeedTextField.text = cmPerSecToDisplayUnits(_landSpeedFact.value).toFixed(1)
+                                target: _rtlLoitTimeFact
+                                onValueChanged: loiterTimeTextField.text = (_rtlLoitTimeFact.value / 1000.0).toFixed(0)
                             }
                         }
 
                         QGCLabel {
-                            text: _unitsConversion.appSettingsSpeedUnitsString
+                            text: qsTr("s")
                         }
                     }
 
-                    QGCRadioButton {
-                        id:                 finalLoiterRadio
-                        anchors.left:       returnAtCurrentRadio.left
-                        anchors.baseline:   rltAltFinalField.baseline
-                        text:               qsTr("Final loiter altitude (%1):").arg(_unitsConversion.appSettingsVerticalDistanceUnitsString)
-                        exclusiveGroup:     landLoiterRadioGroup
-
-                        onClicked: _rtlAltFinalFact.value = _rtlAltFact.value
-                    }
-
-                    RowLayout {
-                        id:                 rltAltFinalField
-                        anchors.topMargin:  _margins / 2
-                        anchors.left:       rltAltField.left
-                        anchors.top:        landSpeedField.bottom
-                        spacing:            ScreenTools.defaultFontPixelWidth / 2
-
-                        QGCTextField {
-                            id:                 rltAltFinalTextField
-                            text:               cmToDisplayUnits(_rtlAltFinalFact.value).toFixed(1)
-                            enabled:            finalLoiterRadio.checked
-                            inputMethodHints:   Qt.ImhFormattedNumbersOnly
-                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 10
-
-                            onEditingFinished: {
-                                var value = parseFloat(text)
-                                if (isNaN(value)) value = 0
-                                _rtlAltFinalFact.value = Math.round(displayUnitsToCm(value))
-                            }
-
-                            Connections {
-                                target: _rtlAltFinalFact
-                                onValueChanged: rltAltFinalTextField.text = cmToDisplayUnits(_rtlAltFinalFact.value).toFixed(1)
-                            }
-                        }
-
-                        QGCLabel {
-                            text: _unitsConversion.appSettingsVerticalDistanceUnitsString
-                        }
-                    }
                 } // Rectangle - RTL Settings
             } // Column - RTL Settings
 

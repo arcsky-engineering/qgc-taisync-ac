@@ -30,7 +30,18 @@ Item {
     property bool _taisyncOnline:     _taisyncAvailable ? taisyncRemoteHandler.online : false
     property int  _airLinkQuality:    _taisyncAvailable ? taisyncRemoteHandler.airLinkQuaity : 0
     property int  _gndLinkQuality:    _taisyncAvailable ? taisyncRemoteHandler.gndLinkQuaity : 0
-    property int  _displayPercent:    Math.min(_airLinkQuality, _gndLinkQuality)
+
+    // RSSI-based percentage: values are positive magnitudes (e.g. 26 = -26 dBm strong, 100 = -100 dBm weak)
+    // Lower value = stronger signal. Use best antenna per side, then weakest side.
+    // -20 to -45 dBm = 100%, then linear from 100% at -45 down to 0% at -100
+    readonly property real _rssiFullDbm:  45   // -45 dBm and below = 100%
+    readonly property real _rssiZeroDbm: 100   // -100 dBm = 0%
+    property real _bestAirRssi:     _taisyncAvailable ? Math.min(taisyncRemoteHandler.airRssi0, taisyncRemoteHandler.airRssi1) : _rssiZeroDbm
+    property real _bestGndRssi:     _taisyncAvailable ? Math.min(taisyncRemoteHandler.gndRssi0, taisyncRemoteHandler.gndRssi1) : _rssiZeroDbm
+    property real _weakestLinkRssi: Math.max(_bestAirRssi, _bestGndRssi)
+    property int  _rssiPercent:     _weakestLinkRssi <= _rssiFullDbm ? 100 :
+                                        Math.round(Math.max(0, (_rssiZeroDbm - _weakestLinkRssi) / (_rssiZeroDbm - _rssiFullDbm) * 100))
+    property int  _displayPercent:  _rssiPercent
 
     Component {
         id: taisyncRSSIInfo

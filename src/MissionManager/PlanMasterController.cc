@@ -624,14 +624,8 @@ void PlanMasterController::_updatePlanCreatorsList(void)
             emit planCreatorsChanged(_planCreators);
         }
 
-        if (_managerVehicle->fixedWing()) {
-            if (_planCreators->count() == 4) {
-                _planCreators->removeAt(_planCreators->count() - 1);
-            }
-        } else {
-            if (_planCreators->count() != 4) {
-                _planCreators->append(new StructureScanPlanCreator(this, this));
-            }
+        if (!_managerVehicle->fixedWing()) {
+            // Structure Scan removed from plan creators
         }
     }
 }
