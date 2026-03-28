@@ -202,7 +202,7 @@ ToolIndicatorPage {
             //----------------------------------------------------
             SettingsGroupLayout {
                 heading: "Payload Selection"
-                visible: activeVehicle
+                visible: activeVehicle && !activeVehicle.armed
 
                 ColumnLayout {
                     Layout.fillWidth: true

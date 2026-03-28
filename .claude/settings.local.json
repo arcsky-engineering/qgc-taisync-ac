@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Bash *",
       "Bash(cat:*)",
       "Bash(grep:*)",
       "Bash(dir:*)",
