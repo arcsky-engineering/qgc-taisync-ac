@@ -126,36 +126,120 @@ Item {
         utmspSliderTrigger:         utmspActTrigger
     }
 
-    Button {
-        text: "Stream\n#"
-        onClicked: QGroundControl.videoManager.switchRTSPStream()
-        width: 70
-        height: 70
-        //anchors.left: parent.left
-        anchors.right: parent.right
-        //anchors.leftMargin: 20
-        anchors.rightMargin: 20
+    // ── RTSP Stream Switcher (FPV / Payload) ──
+    Rectangle {
+        id:                 streamSwitcher
+        anchors.right:      parent.right
+        anchors.rightMargin: _toolsMargin
+        y:                  parent.height * 0.6 - height / 2
+        width:              streamRow.width + ScreenTools.defaultFontPixelWidth * 2
+        height:             streamRow.height + ScreenTools.defaultFontPixelHeight
+        radius:             ScreenTools.defaultFontPixelWidth
+        color:              Qt.rgba(0, 0, 0, 0.45)
+        visible:            QGroundControl.videoManager.hasVideo
 
-        // Position roughly 75% up the left side
-        //y: parent.height * 0.25 - height / 2
-        y: parent.height * 0.6 - height / 2
+        property bool _isStream1: QGroundControl.videoManager.currentStream === "1"
 
-        //visible: QGroundControl.videoManager.videoSource === QGroundControl.settingsManager.videoSettings.videoSourceRTSP
-        // Only show when video is enabled and configured
-        visible: QGroundControl.videoManager.hasVideo
+        RowLayout {
+            id:                 streamRow
+            anchors.centerIn:   parent
+            spacing:            2
 
-        background: Rectangle {
-            color: "#444"
-            radius: 15
-            opacity: 0.6
-        }
-        contentItem: Text {
-            text: "Stream\n" + QGroundControl.videoManager.currentStream
-            color: "white"
-            font.bold: true
-            font.pixelSize: 15
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+            // FPV button
+            Rectangle {
+                Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 9
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.5
+                radius:                 ScreenTools.defaultFontPixelWidth * 0.75
+                color:                  streamSwitcher._isStream1 ? "#DE881E" : Qt.rgba(1, 1, 1, 0.08)
+                border.color:           streamSwitcher._isStream1 ? Qt.lighter("#DE881E", 1.3) : Qt.rgba(1, 1, 1, 0.15)
+                border.width:           streamSwitcher._isStream1 ? 2 : 1
+
+                Behavior on color        { ColorAnimation { duration: 200 } }
+                Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                ColumnLayout {
+                    anchors.centerIn:   parent
+                    spacing:            1
+
+                    QGCColoredImage {
+                        Layout.alignment:       Qt.AlignHCenter
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.2
+                        Layout.preferredWidth:  Layout.preferredHeight
+                        source:                 "/qmlimages/camera_video.svg"
+                        fillMode:               Image.PreserveAspectFit
+                        sourceSize.height:      Layout.preferredHeight
+                        color:                  streamSwitcher._isStream1 ? "white" : Qt.rgba(1, 1, 1, 0.6)
+                    }
+
+                    Text {
+                        Layout.alignment:       Qt.AlignHCenter
+                        text:                   "FPV"
+                        font.pixelSize:         ScreenTools.defaultFontPixelSize * 0.7
+                        font.bold:              true
+                        font.letterSpacing:     1.5
+                        color:                  streamSwitcher._isStream1 ? "white" : Qt.rgba(1, 1, 1, 0.6)
+
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill:   parent
+                    cursorShape:    Qt.PointingHandCursor
+                    onClicked: {
+                        if (!streamSwitcher._isStream1)
+                            QGroundControl.videoManager.switchRTSPStream()
+                    }
+                }
+            }
+
+            // Payload button
+            Rectangle {
+                Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 9
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.5
+                radius:                 ScreenTools.defaultFontPixelWidth * 0.75
+                color:                  !streamSwitcher._isStream1 ? "#DE881E" : Qt.rgba(1, 1, 1, 0.08)
+                border.color:           !streamSwitcher._isStream1 ? Qt.lighter("#DE881E", 1.3) : Qt.rgba(1, 1, 1, 0.15)
+                border.width:           !streamSwitcher._isStream1 ? 2 : 1
+
+                Behavior on color        { ColorAnimation { duration: 200 } }
+                Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                ColumnLayout {
+                    anchors.centerIn:   parent
+                    spacing:            1
+
+                    QGCColoredImage {
+                        Layout.alignment:       Qt.AlignHCenter
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.2
+                        Layout.preferredWidth:  Layout.preferredHeight
+                        source:                 "/qmlimages/camera_video.svg"
+                        fillMode:               Image.PreserveAspectFit
+                        sourceSize.height:      Layout.preferredHeight
+                        color:                  !streamSwitcher._isStream1 ? "white" : Qt.rgba(1, 1, 1, 0.6)
+                    }
+
+                    Text {
+                        Layout.alignment:       Qt.AlignHCenter
+                        text:                   "CAM"
+                        font.pixelSize:         ScreenTools.defaultFontPixelSize * 0.7
+                        font.bold:              true
+                        font.letterSpacing:     0.5
+                        color:                  !streamSwitcher._isStream1 ? "white" : Qt.rgba(1, 1, 1, 0.6)
+
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill:   parent
+                    cursorShape:    Qt.PointingHandCursor
+                    onClicked: {
+                        if (streamSwitcher._isStream1)
+                            QGroundControl.videoManager.switchRTSPStream()
+                    }
+                }
+            }
         }
     }
 
