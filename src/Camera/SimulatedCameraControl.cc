@@ -26,9 +26,6 @@ SimulatedCameraControl::SimulatedCameraControl(Vehicle* vehicle, QObject* parent
 
     connect(VideoManager::instance(), &VideoManager::recordingChanged, this, &SimulatedCameraControl::videoCaptureStatusChanged);
 
-    auto flyViewSettings = SettingsManager::instance()->flyViewSettings();
-    connect(flyViewSettings->showSimpleCameraControl(), &Fact::rawValueChanged, this, &SimulatedCameraControl::infoChanged);
-
     _videoRecordTimeUpdateTimer.setInterval(1000);
     connect(&_videoRecordTimeUpdateTimer, &QTimer::timeout, this, &SimulatedCameraControl::recordTimeChanged);
 }
@@ -204,7 +201,7 @@ void SimulatedCameraControl::setPhotoLapse(double)
 
 bool SimulatedCameraControl::capturesPhotos()
 {
-    return SettingsManager::instance()->flyViewSettings()->showSimpleCameraControl()->rawValue().toBool();
+    return true;
 }
 
 bool SimulatedCameraControl::hasVideoStream()
@@ -227,9 +224,5 @@ void SimulatedCameraControl::setPhotoCaptureMode(MavlinkCameraControl::PhotoCapt
 
 bool SimulatedCameraControl::hasModes()
 {
-    if (capturesPhotos() && capturesVideo()) {
-        return true;
-    } else {
-        return false;
-    }
+    return true;
 }

@@ -427,7 +427,7 @@ Rectangle {
                 Layout.fillWidth:       true
                 Layout.fillHeight:      true
                 Layout.preferredHeight: settingsPanelContent.height
-                Layout.maximumHeight:   _root.height - _margins * 2
+                Layout.maximumHeight:   _root.height * 1.5
                 contentHeight:          settingsPanelContent.height
                 clip:                   true
                 flickableDirection:     Flickable.VerticalFlick
@@ -640,66 +640,6 @@ Rectangle {
                                 value:              _camera.thermalOpacity
                                 live:               true
                                 onValueChanged:     _camera.thermalOpacity = value
-                            }
-                        }
-                    }
-
-                    // ── Section: Capture Settings ──
-                    ColumnLayout {
-                        Layout.fillWidth:   true
-                        spacing:            _smallMargins
-                        visible:            _camera.capturesPhotos
-
-                        Rectangle {
-                            Layout.fillWidth:       true
-                            Layout.preferredHeight: 1
-                            color:                  qgcPal.groupBorder
-                        }
-
-                        QGCLabel {
-                            text:               qsTr("CAPTURE")
-                            font.pointSize:     ScreenTools.smallFontPointSize
-                            font.bold:          true
-                            color:              qgcPal.text
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth:   true
-                            spacing:            _smallMargins
-
-                            QGCLabel {
-                                text:           qsTr("Photo Mode")
-                                font.pointSize: ScreenTools.smallFontPointSize
-                            }
-
-                            QGCComboBox {
-                                Layout.fillWidth:   true
-                                sizeToContents:     true
-                                model:              [ qsTr("Single"), qsTr("Time Lapse") ]
-                                currentIndex:       _camera.photoCaptureMode
-                                onActivated:        (index) => { _camera.photoCaptureMode = index }
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth:   true
-                            spacing:            _smallMargins
-                            visible:            _camera.photoCaptureMode === MavlinkCameraControl.PHOTO_CAPTURE_TIMELAPSE
-
-                            QGCLabel {
-                                text:           qsTr("Interval (seconds)")
-                                font.pointSize: ScreenTools.smallFontPointSize
-                            }
-
-                            QGCSlider {
-                                Layout.fillWidth:   true
-                                to:                 60
-                                from:               1
-                                stepSize:           1
-                                value:              _camera.photoLapse
-                                displayValue:       true
-                                live:               true
-                                onValueChanged:     _camera.photoLapse = value
                             }
                         }
                     }

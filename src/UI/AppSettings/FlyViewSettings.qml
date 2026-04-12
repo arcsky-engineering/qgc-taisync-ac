@@ -98,7 +98,7 @@ SettingsPage {
 
         FactCheckBoxSlider {
             Layout.fillWidth:   true
-            text:               qsTr("Show simple camera controls (DIGICAM_CONTROL)")
+            text:               qsTr("Show Camera Control Panel")
             visible:            _showDumbCameraControl.visible
             fact:               _showDumbCameraControl
 
@@ -172,6 +172,47 @@ SettingsPage {
             fact:               _forwardRangefinderRCChannel
             visible:            _forwardRangefinderRCChannel.visible
             property Fact _forwardRangefinderRCChannel: _flyViewSettings.forwardRangefinderRCChannel
+        }
+
+        FactCheckBoxSlider {
+            Layout.fillWidth:   true
+            text:               qsTr("Show Payload/Geotagging Indicator")
+            fact:               _showPayloadIndicator
+            visible:            _showPayloadIndicator.visible
+            property Fact _showPayloadIndicator: _flyViewSettings.showPayloadIndicator
+        }
+
+        LabelledFactComboBox {
+            Layout.fillWidth:   true
+            label:              qsTr("Payload Serial Port")
+            fact:               _payloadSerialPort
+            indexModel:         false
+            visible:            _payloadSerialPort.visible && _flyViewSettings.showPayloadIndicator.value
+            property Fact _payloadSerialPort: _flyViewSettings.payloadSerialPort
+        }
+
+        LabelledFactTextField {
+            Layout.fillWidth:   true
+            label:              qsTr("ILX-LR1 Baud Value")
+            fact:               _payloadIlxBaud
+            visible:            _payloadIlxBaud.visible && _flyViewSettings.showPayloadIndicator.value
+            property Fact _payloadIlxBaud: _flyViewSettings.payloadIlxBaud
+        }
+
+        LabelledFactTextField {
+            Layout.fillWidth:   true
+            label:              qsTr("VIO Baud Value")
+            fact:               _payloadVioBaud
+            visible:            _payloadVioBaud.visible && _flyViewSettings.showPayloadIndicator.value
+            property Fact _payloadVioBaud: _flyViewSettings.payloadVioBaud
+        }
+
+        FactCheckBoxSlider {
+            Layout.fillWidth:   true
+            text:               qsTr("Enable MicROM UV Camera Controller (requires restart)")
+            fact:               _enableMicROM
+            visible:            _enableMicROM.visible
+            property Fact _enableMicROM: _flyViewSettings.enableMicROM
         }
     }
 

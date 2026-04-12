@@ -173,6 +173,7 @@ DECLARE_SETTINGSFACT(AppSettings, taisyncFlyViewShow)
 DECLARE_SETTINGSFACT(AppSettings, taisyncFlyDataSave)
 DECLARE_SETTINGSFACT(AppSettings, disableStartMissionSlider)
 DECLARE_SETTINGSFACT(AppSettings, enableRIDOnConnect)
+DECLARE_SETTINGSFACT(AppSettings, vehicleVariant)
 
 DECLARE_SETTINGSFACT_NO_FUNC(AppSettings, indoorPalette)
 {

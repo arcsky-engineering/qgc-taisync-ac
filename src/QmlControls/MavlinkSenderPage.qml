@@ -20,9 +20,17 @@ ToolIndicatorPage {
     FactPanelController { id: controller }
 
     //--------------------------------------
+    // Configurable payload settings
+    //--------------------------------------
+    property var    _flyViewSettings:   QGroundControl.settingsManager.flyViewSettings
+    property string _serialParamName:   "SERIAL" + _flyViewSettings.payloadSerialPort.value + "_BAUD"
+    property int    _ilxBaud:           _flyViewSettings.payloadIlxBaud.value
+    property int    _vioBaud:           _flyViewSettings.payloadVioBaud.value
+
+    //--------------------------------------
     // Payload-related parameters
     //--------------------------------------
-    property Fact _serial2BaudFact
+    property Fact _serialBaudFact
     property Fact _camTypeFact
     property int payloadType: 0   // 0=unknown, 1=ILX, 2=VIO
 
@@ -30,14 +38,14 @@ ToolIndicatorPage {
     // Detect payload based on parameters
     //--------------------------------------
     function detectPayloadType() {
-        if (!_serial2BaudFact || !_camTypeFact)
+        if (!_serialBaudFact || !_camTypeFact)
             return 0
 
-        const baud = _serial2BaudFact.value
+        const baud = _serialBaudFact.value
         const cam  = _camTypeFact.value
 
-        if (baud === 230 && cam === 5) return 1   // ILX-LR1
-        if (baud === 115 && cam === 6) return 2   // VIO
+        if (baud === _ilxBaud && cam === 5) return 1   // ILX-LR1
+        if (baud === _vioBaud && cam === 6) return 2   // VIO
 
         return 0
     }
@@ -45,34 +53,30 @@ ToolIndicatorPage {
     //--------------------------------------
     // Load parameters when vehicle changes
     //--------------------------------------
-    Connections {
-        target: QGroundControl.multiVehicleManager
-        onActiveVehicleChanged: {
-            if (activeVehicle) {
-                _serial2BaudFact = controller.getParameterFact(-1, "SERIAL2_BAUD", false)
-                _camTypeFact     = controller.getParameterFact(-1, "CAM1_TYPE", false)
-                payloadType = detectPayloadType()
-            } else {
-                _serial2BaudFact = undefined
-                _camTypeFact     = undefined
-                payloadType = 0
-            }
+    function loadPayloadParams() {
+        if (activeVehicle) {
+            _serialBaudFact = controller.getParameterFact(-1, _serialParamName, false)
+            _camTypeFact    = controller.getParameterFact(-1, "CAM1_TYPE", false)
+            payloadType = detectPayloadType()
+        } else {
+            _serialBaudFact = undefined
+            _camTypeFact    = undefined
+            payloadType = 0
         }
     }
 
-    Component.onCompleted: {
-        if (activeVehicle) {
-            _serial2BaudFact = controller.getParameterFact(-1, "SERIAL2_BAUD", false)
-            _camTypeFact     = controller.getParameterFact(-1, "CAM1_TYPE", false)
-            payloadType = detectPayloadType()
-        }
+    Connections {
+        target: QGroundControl.multiVehicleManager
+        onActiveVehicleChanged: loadPayloadParams()
     }
+
+    Component.onCompleted: loadPayloadParams()
 
     //--------------------------------------
     // Update payloadType if params change
     //--------------------------------------
     Connections {
-        target: _serial2BaudFact
+        target: _serialBaudFact
         onValueChanged: payloadType = detectPayloadType()
     }
 
@@ -86,7 +90,7 @@ ToolIndicatorPage {
     //--------------------------------------
     function applyPayloadConfig(baud, camtype) {
 
-        if (!activeVehicle || !_serial2BaudFact || !_camTypeFact) {
+        if (!activeVehicle || !_serialBaudFact || !_camTypeFact) {
             mainWindow.showMessageDialog(
                 "Payload Info",
                 "Payload params not available"
@@ -96,8 +100,8 @@ ToolIndicatorPage {
 
         var changed = false
 
-        if (_serial2BaudFact.value !== baud) {
-            _serial2BaudFact.value = baud
+        if (_serialBaudFact.value !== baud) {
+            _serialBaudFact.value = baud
             changed = true
         }
 
@@ -107,10 +111,10 @@ ToolIndicatorPage {
         }
 
         // Update RTSP automatically (temporary logic)
-        if (baud === 115)
+        if (baud === _vioBaud)
             QGroundControl.settingsManager.videoSettings.rtspUrl2.value =
                 "rtsp://192.168.144.10:8554/vio"
-        else if (baud === 230)
+        else if (baud === _ilxBaud)
             QGroundControl.settingsManager.videoSettings.rtspUrl2.value =
                 "rtsp://192.168.144.121:8554/main.264"
 
@@ -212,14 +216,14 @@ ToolIndicatorPage {
                         text: "VIO Payload"
                         Layout.fillWidth: true
                         backgroundColor: (payloadType === 2) ? "green" : "gray"
-                        onClicked: applyPayloadConfig(115, 6)
+                        onClicked: applyPayloadConfig(_vioBaud, 6)
                     }
 
                     QGCButton {
                         text: "ILX-LR1 Payload"
                         Layout.fillWidth: true
                         backgroundColor: (payloadType === 1) ? "green" : "gray"
-                        onClicked: applyPayloadConfig(230, 5)
+                        onClicked: applyPayloadConfig(_ilxBaud, 5)
                     }
                 }
             }

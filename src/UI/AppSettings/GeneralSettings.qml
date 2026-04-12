@@ -55,6 +55,13 @@ SettingsPage {
             visible:    _appSettings.indoorPalette.visible
         }
 
+        LabelledFactComboBox {
+            label:      qsTr("Vehicle Variant")
+            fact:       _appSettings.vehicleVariant
+            indexModel: false
+            visible:    _appSettings.vehicleVariant.visible
+        }
+
         FactCheckBoxSlider {
             Layout.fillWidth: true
             text:           qsTr("Mute all audio output")

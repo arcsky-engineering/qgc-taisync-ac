@@ -221,6 +221,7 @@ Rectangle {
                         anchors.horizontalCenter:   parent.horizontalCenter
                         sourceComponent:            globals.activeVehicle ? photoVideoControlComponent : undefined
                         visible:                    QGroundControl.videoManager.hasVideo
+                                                    && QGroundControl.settingsManager.flyViewSettings.showSimpleCameraControl.value
                         property real rightEdgeCenterInset: visible ? parent.width - x : 0
 
                         Component {

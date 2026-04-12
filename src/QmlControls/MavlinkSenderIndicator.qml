@@ -14,7 +14,7 @@ Item {
     width: indicatorRow.width
     anchors.top: parent.top
     anchors.bottom: parent.bottom
-    property bool showIndicator: true
+    property bool showIndicator: QGroundControl.settingsManager.flyViewSettings.showPayloadIndicator.value
     property var activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
     property bool savingPopupVisible: false
     property bool savingShown: false

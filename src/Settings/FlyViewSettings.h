@@ -38,4 +38,9 @@ public:
     DEFINE_SETTINGFACT(showDownRangefinder)
     DEFINE_SETTINGFACT(rangefinderRCChannel)
     DEFINE_SETTINGFACT(forwardRangefinderRCChannel)
+    DEFINE_SETTINGFACT(showPayloadIndicator)
+    DEFINE_SETTINGFACT(payloadSerialPort)
+    DEFINE_SETTINGFACT(payloadIlxBaud)
+    DEFINE_SETTINGFACT(payloadVioBaud)
+    DEFINE_SETTINGFACT(enableMicROM)
 };

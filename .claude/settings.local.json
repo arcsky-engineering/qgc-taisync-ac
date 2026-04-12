@@ -13,7 +13,8 @@
       "Bash(/c/ProgramData/anaconda3/python.exe -c \":*)",
       "Bash(python3 -c \":*)",
       "Bash(\"C:/Qt/6.8.3/msvc2022_64/bin/windeployqt6.exe\" --release --qmldir \"C:/q/qgroundcontrol/src\" ArcskyControl.exe)",
-      "Bash(\"C:/Program Files \\(x86\\)/Inno Setup 6/ISCC.exe\" \"C:/q/qgroundcontrol/arcskycontrol.iss\")"
+      "Bash(\"C:/Program Files \\(x86\\)/Inno Setup 6/ISCC.exe\" \"C:/q/qgroundcontrol/arcskycontrol.iss\")",
+      "Bash(git checkout:*)"
     ]
   }
 }

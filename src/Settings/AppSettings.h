@@ -60,6 +60,7 @@ public:
     DEFINE_SETTINGFACT(taisyncFlyDataSave)
     DEFINE_SETTINGFACT(disableStartMissionSlider)
     DEFINE_SETTINGFACT(enableRIDOnConnect)
+    DEFINE_SETTINGFACT(vehicleVariant)
 
     Q_PROPERTY(QString missionSavePath          READ missionSavePath            NOTIFY savePathsChanged)
     Q_PROPERTY(QString parameterSavePath        READ parameterSavePath          NOTIFY savePathsChanged)

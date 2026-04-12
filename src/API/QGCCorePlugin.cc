@@ -28,6 +28,8 @@
 #include "QtMultimediaReceiver.h"
 #endif
 #include "SettingsManager.h"
+#include "FlyViewSettings.h"
+#include "BatteryIndicatorSettings.h"
 #include "UnitsSettings.h"
 #include "VideoReceiver.h"
 
@@ -37,6 +39,7 @@
 
 #include <QtCore/qapplicationstatic.h>
 #include <QtCore/QFile>
+#include <QtCore/QSettings>
 #include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtQml/QQmlContext>
@@ -136,6 +139,42 @@ bool QGCCorePlugin::adjustSettingMetaData(const QString &settingsGroup, FactMeta
             return false;
         }
 #endif
+    }
+
+    // Vehicle variant-aware defaults (read raw setting to avoid circular initialization)
+    // AppSettings group is "" (empty), so key is just "vehicleVariant"
+    const bool isXplorer = QSettings().value("vehicleVariant", 0).toUInt() == 1;
+
+    if (settingsGroup == FlyViewSettings::settingsGroup) {
+        // Rangefinders: default on for Xplorer, off for X55
+        if (metaData.name() == FlyViewSettings::showForwardRangefinderName ||
+            metaData.name() == FlyViewSettings::showDownRangefinderName) {
+            metaData.setRawDefaultValue(isXplorer);
+            return true;
+        }
+        // Camera control: default on for Xplorer, off for X55
+        if (metaData.name() == FlyViewSettings::showSimpleCameraControlName) {
+            metaData.setRawDefaultValue(isXplorer);
+            return true;
+        }
+        // Payload indicator: default on for Xplorer, off for X55
+        if (metaData.name() == FlyViewSettings::showPayloadIndicatorName) {
+            metaData.setRawDefaultValue(isXplorer);
+            return true;
+        }
+        // MicROM: hide setting entirely on Xplorer
+        if (metaData.name() == FlyViewSettings::enableMicROMName) {
+            if (isXplorer) {
+                return false;  // false = setting not visible
+            }
+            return true;
+        }
+    } else if (settingsGroup == BatteryIndicatorSettings::settingsGroup) {
+        // Battery display: Xplorer=Percentage(0), X55=Voltage(1)
+        if (metaData.name() == BatteryIndicatorSettings::valueDisplayName) {
+            metaData.setRawDefaultValue(isXplorer ? 0 : 1);
+            return true;
+        }
     } else if (settingsGroup == UnitsSettings::settingsGroup) {
         // Default to metric units regardless of system locale
         if (metaData.name() == UnitsSettings::horizontalDistanceUnitsName) {

@@ -282,6 +282,16 @@
     "longDesc":  "When enabled, Remote ID messages will be sent immediately on vehicle connection without waiting for the RID device to respond first.",
     "type":             "bool",
     "default":     true
+},
+{
+    "name":             "vehicleVariant",
+    "shortDesc":        "Vehicle Configuration",
+    "longDesc":         "Select vehicle variant to show variant-specific features and defaults. Requires app restart.",
+    "type":             "uint32",
+    "enumStrings":      "X55,Xplorer",
+    "enumValues":       "0,1",
+    "default":          0,
+    "qgcRebootRequired": true
 }
 ]
 }

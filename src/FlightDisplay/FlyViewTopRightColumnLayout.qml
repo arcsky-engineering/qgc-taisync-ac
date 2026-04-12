@@ -41,6 +41,7 @@ ColumnLayout {
         Layout.preferredWidth:  _photoVideoExpanded ? _rightPanelWidth : expandButton.width
         Layout.preferredHeight: _photoVideoExpanded ? photoVideoControlLoader.height : expandButton.height
         visible:                QGroundControl.videoManager.hasVideo && (globals.activeVehicle ? true : false)
+                                && QGroundControl.settingsManager.flyViewSettings.showSimpleCameraControl.value
         clip:                   true
 
         Behavior on Layout.preferredWidth  { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad } }

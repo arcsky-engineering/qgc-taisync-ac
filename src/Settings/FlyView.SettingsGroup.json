@@ -43,7 +43,8 @@
 },
 {
     "name":         "showSimpleCameraControl",
-    "shortDesc":    "Show controls for camera triggering using MAV_CMD_DO_DIGICAM_CONTROL.",
+    "shortDesc":    "Show Camera Control Panel",
+    "longDesc":     "When enabled, the camera control panel with photo/video capture buttons is shown in the fly view.",
     "type":         "bool",
     "default":      true
 },
@@ -134,6 +135,44 @@
     "min":          0,
     "max":          18,
     "default":      0
+},
+{
+    "name":         "showPayloadIndicator",
+    "shortDesc":    "Show Payload/Geotagging Indicator",
+    "longDesc":     "When enabled, the payload indicator with geotagging status and payload selection is shown in the toolbar.",
+    "type":         "bool",
+    "default":      false
+},
+{
+    "name":         "payloadSerialPort",
+    "shortDesc":    "Payload serial port",
+    "longDesc":     "Which ArduPilot serial port the payload is connected to. Used to check SERIALx_BAUD for payload detection.",
+    "type":         "uint32",
+    "enumStrings":  "Serial 2,Serial 3,Serial 4",
+    "enumValues":   "2,3,4",
+    "default":      2
+},
+{
+    "name":         "payloadIlxBaud",
+    "shortDesc":    "ILX-LR1 baud rate parameter value",
+    "longDesc":     "The SERIALx_BAUD parameter value that indicates an ILX-LR1 payload is configured.",
+    "type":         "uint32",
+    "default":      230
+},
+{
+    "name":         "payloadVioBaud",
+    "shortDesc":    "VIO baud rate parameter value",
+    "longDesc":     "The SERIALx_BAUD parameter value that indicates a VIO payload is configured.",
+    "type":         "uint32",
+    "default":      115
+},
+{
+    "name":             "enableMicROM",
+    "shortDesc":        "Enable MicROM UV Camera Controller",
+    "longDesc":         "When enabled, the MicROM UV camera controller and toolbar indicator will be available. Requires app restart.",
+    "type":             "bool",
+    "default":          false,
+    "qgcRebootRequired": true
 }
 ]
 }

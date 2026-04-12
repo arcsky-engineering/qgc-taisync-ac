@@ -131,7 +131,7 @@ Item {
         id:                 streamSwitcher
         anchors.right:      parent.right
         anchors.rightMargin: _toolsMargin
-        y:                  parent.height * 0.6 - height / 2
+        y:                  parent.height * 0.68 - height / 2
         width:              streamRow.width + ScreenTools.defaultFontPixelWidth * 2
         height:             streamRow.height + ScreenTools.defaultFontPixelHeight
         radius:             ScreenTools.defaultFontPixelWidth
