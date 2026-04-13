@@ -119,12 +119,15 @@ private:
 
     void _saveTelemetryLog(const QString &tempLogfile);
     bool _checkTelemetrySavePath();
+    void _rotateLogFile();
+    QGCTemporaryFile *_createNewTempLogFile();
 
-    QGCTemporaryFile * const _tempLogFile = nullptr;
+    QGCTemporaryFile *_tempLogFile = nullptr;
 
     bool _logSuspendError = false;  ///< true: Logging suspended due to error
     bool _logSuspendReplay = false; ///< true: Logging suspended due to replay
     bool _vehicleWasArmed = false;  ///< true: Vehicle was armed during log sequence
+    bool _vehicleIsArmed = false;   ///< true: Vehicle is currently armed (for disarm detection)
 
     uint8_t _lastIndex[256][256]{};                             ///< Store the last received sequence ID for each system/component pair
     QSet<QPair<uint8_t,uint8_t>> _firstMessageSeen;

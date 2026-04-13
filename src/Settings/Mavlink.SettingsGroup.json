@@ -18,6 +18,13 @@
     "default":     false
 },
 {
+    "name":             "telemetryLogOnConnect",
+    "shortDesc": "Start telemetry log on vehicle connect",
+    "longDesc":  "When enabled, telemetry logging begins as soon as the vehicle connects and includes pre-arm data. When disabled, logging only begins when the vehicle is armed.",
+    "type":             "bool",
+    "default":     true
+},
+{
     "name":                 "apmStartMavlinkStreams",
     "shortDesc":     "Request start of MAVLink telemetry streams (ArduPilot only)",
     "type":                 "bool",

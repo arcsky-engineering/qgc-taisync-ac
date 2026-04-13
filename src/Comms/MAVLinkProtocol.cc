@@ -35,7 +35,7 @@ Q_APPLICATION_STATIC(MAVLinkProtocol, _mavlinkProtocolInstance);
 
 MAVLinkProtocol::MAVLinkProtocol(QObject *parent)
     : QObject(parent)
-    , _tempLogFile(new QGCTemporaryFile(QStringLiteral("%2.%3").arg(_tempLogFileTemplate, _logFileExtension), this))
+    , _tempLogFile(_createNewTempLogFile())
 {
     // qCDebug(MAVLinkProtocolLog) << Q_FUNC_INFO << this;
 }
@@ -264,6 +264,21 @@ void MAVLinkProtocol::_forwardToAutopilot(const mavlink_message_t &message)
 
 void MAVLinkProtocol::_logData(LinkInterface *link, const mavlink_message_t &message)
 {
+    // Track arm/disarm state from every heartbeat, even before logging starts
+    if (message.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
+        const bool armed = mavlink_msg_heartbeat_get_base_mode(&message) & MAV_MODE_FLAG_DECODE_POSITION_SAFETY;
+        if (armed && !_vehicleWasArmed) {
+            _vehicleWasArmed = true;
+        }
+        // Detect armed -> disarmed transition: save this flight's log and start a new one
+        if (!armed && _vehicleIsArmed && _vehicleWasArmed && _tempLogFile->isOpen()) {
+            _vehicleIsArmed = false;
+            _rotateLogFile();
+            // Fall through to heartbeat handling below (don't return — need to emit signal)
+        }
+        _vehicleIsArmed = armed;
+    }
+
     if (!_logSuspendError && !_logSuspendReplay && _tempLogFile->isOpen()) {
         const quint64 timestamp = static_cast<quint64>(QDateTime::currentMSecsSinceEpoch() * 1000);
         uint8_t buf[MAVLINK_MAX_PACKET_LEN + sizeof(timestamp)]{};
@@ -277,24 +292,27 @@ void MAVLinkProtocol::_logData(LinkInterface *link, const mavlink_message_t &mes
             _stopLogging();
             _logSuspendError = true;
         }
-
-        if ((message.msgid == MAVLINK_MSG_ID_HEARTBEAT) && !_vehicleWasArmed) {
-            if (mavlink_msg_heartbeat_get_base_mode(&message) & MAV_MODE_FLAG_DECODE_POSITION_SAFETY) {
-                _vehicleWasArmed = true;
-            }
-        }
     }
+
+    // Start logging based on telemetryLogOnConnect setting:
+    // - When true (default): log opens on first heartbeat (includes pre-arm data)
+    // - When false: log opens only when vehicle is first armed
+    const bool logOnConnect = SettingsManager::instance()->mavlinkSettings()->telemetryLogOnConnect()->rawValue().toBool();
 
     switch (message.msgid) {
     case MAVLINK_MSG_ID_HEARTBEAT: {
-        _startLogging();
+        if (logOnConnect || _vehicleIsArmed) {
+            _startLogging();
+        }
         mavlink_heartbeat_t heartbeat{};
         mavlink_msg_heartbeat_decode(&message, &heartbeat);
         emit vehicleHeartbeatInfo(link, message.sysid, message.compid, heartbeat.autopilot, heartbeat.type);
         break;
     }
     case MAVLINK_MSG_ID_HIGH_LATENCY: {
-        _startLogging();
+        if (logOnConnect) {
+            _startLogging();
+        }
         mavlink_high_latency_t highLatency{};
         mavlink_msg_high_latency_decode(&message, &highLatency);
         // HIGH_LATENCY does not provide autopilot or type information, generic is our safest bet
@@ -302,7 +320,9 @@ void MAVLinkProtocol::_logData(LinkInterface *link, const mavlink_message_t &mes
         break;
     }
     case MAVLINK_MSG_ID_HIGH_LATENCY2: {
-        _startLogging();
+        if (logOnConnect) {
+            _startLogging();
+        }
         mavlink_high_latency2_t highLatency2{};
         mavlink_msg_high_latency2_decode(&message, &highLatency2);
         emit vehicleHeartbeatInfo(link, message.sysid, message.compid, highLatency2.autopilot, highLatency2.type);
@@ -394,6 +414,29 @@ void MAVLinkProtocol::_stopLogging()
     }
 
     _vehicleWasArmed = false;
+    _vehicleIsArmed = false;
+}
+
+QGCTemporaryFile *MAVLinkProtocol::_createNewTempLogFile()
+{
+    return new QGCTemporaryFile(QStringLiteral("%2.%3").arg(_tempLogFileTemplate, _logFileExtension), this);
+}
+
+void MAVLinkProtocol::_rotateLogFile()
+{
+    // Save the current log file (it contains an armed flight)
+    if (_tempLogFile->isOpen() && _closeLogFile()) {
+        _saveTelemetryLog(_tempLogFile->fileName());
+    }
+
+    // Replace with a fresh temp file and continue logging
+    _tempLogFile->deleteLater();
+    _tempLogFile = _createNewTempLogFile();
+    _vehicleWasArmed = false;
+    _vehicleIsArmed = false;
+
+    // Immediately re-open for continued logging (vehicle is still connected)
+    _startLogging();
 }
 
 void MAVLinkProtocol::checkForLostLogFiles()

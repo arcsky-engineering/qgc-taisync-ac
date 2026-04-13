@@ -102,6 +102,15 @@ SettingsPage {
 
         FactCheckBoxSlider {
             Layout.fillWidth:   true
+            text:               qsTr("Start telemetry log on vehicle connect")
+            fact:               _telemetryLogOnConnect
+            visible:            fact.visible
+            enabled:            _mavlinkSettings.telemetrySave.rawValue
+            property Fact _telemetryLogOnConnect: _mavlinkSettings.telemetryLogOnConnect
+        }
+
+        FactCheckBoxSlider {
+            Layout.fillWidth:   true
             text:               qsTr("Save CSV log of telemetry data")
             fact:               _saveCsvTelemetry
             visible:            fact.visible

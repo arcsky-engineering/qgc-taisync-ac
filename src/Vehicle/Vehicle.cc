@@ -4564,6 +4564,11 @@ void Vehicle::_createStatusTextHandler()
 
 void Vehicle::_textMessageReceived(MAV_COMPONENT componentid, MAV_SEVERITY severity, QString text, QString description)
 {
+    // Arcsky telemetry metadata — logged to tlog but hidden from operator UI
+    if (text.startsWith(QStringLiteral("~"))) {
+        return;
+    }
+
     // PX4 backwards compatibility: messages sent out ending with a tab are also sent as event
     if (px4Firmware() && text.endsWith('\t')) {
         qCDebug(VehicleLog) << "Dropping message (expected as event):" << text;

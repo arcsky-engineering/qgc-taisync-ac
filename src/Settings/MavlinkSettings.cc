@@ -44,6 +44,7 @@ DECLARE_SETTINGGROUP(Mavlink, "")
 
 DECLARE_SETTINGSFACT(MavlinkSettings, telemetrySave)
 DECLARE_SETTINGSFACT(MavlinkSettings, telemetrySaveNotArmed)
+DECLARE_SETTINGSFACT(MavlinkSettings, telemetryLogOnConnect)
 DECLARE_SETTINGSFACT(MavlinkSettings, apmStartMavlinkStreams)
 DECLARE_SETTINGSFACT(MavlinkSettings, saveCsvTelemetry)
 DECLARE_SETTINGSFACT(MavlinkSettings, forwardMavlink)
