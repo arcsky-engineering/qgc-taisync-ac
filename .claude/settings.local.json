@@ -16,7 +16,13 @@
       "Bash(\"C:/Program Files \\(x86\\)/Inno Setup 6/ISCC.exe\" \"C:/q/qgroundcontrol/arcskycontrol.iss\")",
       "Bash(git checkout:*)",
       "Bash(find /c -maxdepth 3 -type d -iname \"QGCHL*\")",
-      "Bash(find /c -maxdepth 3 -type d -iname \"*herelink*\")"
+      "Bash(find /c -maxdepth 3 -type d -iname \"*herelink*\")",
+      "Read(//c/Users/js.LAPTOP-OK5IHI7D/Desktop/xplorer-field-tests/tlog//**)",
+      "Read(//c/Users/js.LAPTOP-OK5IHI7D/Desktop/xplorer-field-tests/tlog/**)",
+      "Bash(git show:*)",
+      "Read(//c/q//**)",
+      "Read(//c/qhl//**)",
+      "Bash(ls -la /c/q/qgroundcontrol/src/FlightDisplay/*.qml)"
     ]
   }
 }

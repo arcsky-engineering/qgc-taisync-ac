@@ -95,7 +95,7 @@ Item {
         QGCLabel {
             id: statusLabel
             anchors.verticalCenter: parent.verticalCenter
-            visible: activeVehicle && activeVehicle.payloadType === 1
+            visible: activeVehicle && (activeVehicle.payloadType === 1 || activeVehicle.airPixelDevice > 0)
             color: icon.color
             text: activeVehicle
                   ? activeVehicle.geoStatusText + " (" + activeVehicle.imageCount + ")"

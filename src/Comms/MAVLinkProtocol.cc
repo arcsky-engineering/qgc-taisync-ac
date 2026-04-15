@@ -267,18 +267,31 @@ void MAVLinkProtocol::_logData(LinkInterface *link, const mavlink_message_t &mes
     // Track arm/disarm state from autopilot heartbeats only — non-autopilot components
     // (e.g. camera triggers, companion computers) also send heartbeats but their base_mode
     // does not reflect the vehicle's armed state, which would cause false arm/disarm transitions.
+    //
+    // Debounce: require _kMinArmedHeartbeats consecutive armed heartbeats before confirming
+    // the vehicle is truly armed. This filters out transient armed bits that some autopilots
+    // report during boot/reboot, which would otherwise trigger a false arm->disarm rotation.
     if (message.msgid == MAVLINK_MSG_ID_HEARTBEAT && message.compid == MAV_COMP_ID_AUTOPILOT1) {
         const bool armed = mavlink_msg_heartbeat_get_base_mode(&message) & MAV_MODE_FLAG_DECODE_POSITION_SAFETY;
-        if (armed && !_vehicleWasArmed) {
-            _vehicleWasArmed = true;
-        }
-        // Detect armed -> disarmed transition: save this flight's log and start a new one
-        if (!armed && _vehicleIsArmed && _vehicleWasArmed && _tempLogFile->isOpen()) {
+
+        if (armed) {
+            _armedHeartbeatCount++;
+            if (_armedHeartbeatCount >= _kMinArmedHeartbeats) {
+                if (!_vehicleWasArmed) {
+                    _vehicleWasArmed = true;
+                }
+                _vehicleIsArmed = true;
+            }
+        } else {
+            _armedHeartbeatCount = 0;
+            // Detect confirmed-armed -> disarmed transition: save this flight's log and start a new one
+            if (_vehicleIsArmed && _vehicleWasArmed && _tempLogFile->isOpen()) {
+                _vehicleIsArmed = false;
+                _rotateLogFile();
+                // Fall through to heartbeat handling below (don't return — need to emit signal)
+            }
             _vehicleIsArmed = false;
-            _rotateLogFile();
-            // Fall through to heartbeat handling below (don't return — need to emit signal)
         }
-        _vehicleIsArmed = armed;
     }
 
     if (!_logSuspendError && !_logSuspendReplay && _tempLogFile->isOpen()) {
@@ -417,6 +430,7 @@ void MAVLinkProtocol::_stopLogging()
 
     _vehicleWasArmed = false;
     _vehicleIsArmed = false;
+    _armedHeartbeatCount = 0;
 }
 
 QGCTemporaryFile *MAVLinkProtocol::_createNewTempLogFile()
@@ -426,9 +440,17 @@ QGCTemporaryFile *MAVLinkProtocol::_createNewTempLogFile()
 
 void MAVLinkProtocol::_rotateLogFile()
 {
-    // Save the current log file (it contains an armed flight)
+    // Save the current log file only if it represents a real flight (same checks as _stopLogging)
     if (_tempLogFile->isOpen() && _closeLogFile()) {
-        _saveTelemetryLog(_tempLogFile->fileName());
+        auto appSettings = SettingsManager::instance()->appSettings();
+        auto mavlinkSettings = SettingsManager::instance()->mavlinkSettings();
+        if ((_vehicleWasArmed || mavlinkSettings->telemetrySaveNotArmed()->rawValue().toBool()) &&
+                mavlinkSettings->telemetrySave()->rawValue().toBool() &&
+                !appSettings->disableAllPersistence()->rawValue().toBool()) {
+            _saveTelemetryLog(_tempLogFile->fileName());
+        } else {
+            (void) QFile::remove(_tempLogFile->fileName());
+        }
     }
 
     // Replace with a fresh temp file and continue logging
@@ -436,6 +458,7 @@ void MAVLinkProtocol::_rotateLogFile()
     _tempLogFile = _createNewTempLogFile();
     _vehicleWasArmed = false;
     _vehicleIsArmed = false;
+    _armedHeartbeatCount = 0;
 
     // Immediately re-open for continued logging (vehicle is still connected)
     _startLogging();
@@ -443,6 +466,10 @@ void MAVLinkProtocol::_rotateLogFile()
 
 void MAVLinkProtocol::checkForLostLogFiles()
 {
+    // Clean up any orphaned temp log files left behind by a previous session
+    // (e.g. QGC crashed or was closed without a clean shutdown). Real flights
+    // are saved via _rotateLogFile() on disarm, so orphans are either incomplete
+    // flights or unarmed connection sessions — neither worth keeping.
     static const QDir tempDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation));
     static const QString filter(QStringLiteral("*.%1").arg(_logFileExtension));
     static const QStringList filterList(filter);
@@ -451,12 +478,8 @@ void MAVLinkProtocol::checkForLostLogFiles()
     qCDebug(MAVLinkProtocolLog) << "Orphaned log file count" << fileInfoList.count();
 
     for (const QFileInfo &fileInfo: fileInfoList) {
-        qCDebug(MAVLinkProtocolLog) << "Orphaned log file" << fileInfo.filePath();
-        if (fileInfo.size() == 0) {
-            (void) QFile::remove(fileInfo.filePath());
-            continue;
-        }
-        _saveTelemetryLog(fileInfo.filePath());
+        qCDebug(MAVLinkProtocolLog) << "Removing orphaned log file" << fileInfo.filePath();
+        (void) QFile::remove(fileInfo.filePath());
     }
 }
 

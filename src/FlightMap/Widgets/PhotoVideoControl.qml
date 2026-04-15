@@ -42,6 +42,10 @@ Rectangle {
     property bool   _photoCaptureIntervalIdle:  _camera.photoCaptureStatus === MavlinkCameraControl.PHOTO_CAPTURE_INTERVAL_IDLE
     property bool   _photoCaptureIdle:          _photoCaptureSingleIdle || _photoCaptureIntervalIdle
 
+    // AirPixel device detection
+    property bool   _isAirPixel:                _activeVehicle && _activeVehicle.airPixelDevice > 0
+    property int    _apCompId:                  _activeVehicle ? _activeVehicle.airPixelComponentId : 0
+
     // Sizing constants
     property real   _buttonHeight:              ScreenTools.defaultFontPixelHeight * 3
     property real   _captureButtonSize:         ScreenTools.defaultFontPixelHeight * 5
@@ -212,9 +216,14 @@ Rectangle {
             QGCLabel {
                 id:                 statusLabel
                 anchors.centerIn:   parent
-                text:               _cameraInVideoMode
-                                        ? (_videoCaptureIdle ? "00:00:00" : _camera.recordTimeStr)
-                                        : (_activeVehicle ? ('00000' + _activeVehicle.cameraTriggerPoints.count).slice(-5) : "00000")
+                text: {
+                    if (_cameraInVideoMode)
+                        return _videoCaptureIdle ? "00:00:00" : _camera.recordTimeStr
+                    if (!_activeVehicle) return "00000"
+                    var count = _isAirPixel ? _activeVehicle.imageCount
+                                            : _activeVehicle.cameraTriggerPoints.count
+                    return ('00000' + count).slice(-5)
+                }
                 font.pointSize:     ScreenTools.largeFontPointSize
                 font.bold:          true
             }
@@ -335,7 +344,7 @@ Rectangle {
                 }
 
                 QGCLabel {
-                    text:       qsTr("Camera Settings")
+                    text:       _isAirPixel ? qsTr("AirPixel Camera") : qsTr("Camera Settings")
                     font.bold:  true
                 }
             }
@@ -394,7 +403,7 @@ Rectangle {
                 Layout.fillWidth:   true
 
                 QGCLabel {
-                    text:               qsTr("Camera Settings")
+                    text:               _isAirPixel ? qsTr("AirPixel Camera") : qsTr("Camera Settings")
                     font.pointSize:     ScreenTools.mediumFontPointSize
                     font.bold:          true
                     Layout.fillWidth:   true
@@ -438,11 +447,190 @@ Rectangle {
                     width:  parent.width
                     spacing: _margins
 
+                    // ════════════════════════════════════════════
+                    //  AirPixel Camera Controls
+                    //  Readback from PARAM_EXT, step via DO_DIGICAM_CONFIGURE
+                    // ════════════════════════════════════════════
+                    ColumnLayout {
+                        id:                 apControls
+                        Layout.fillWidth:   true
+                        spacing:            _smallMargins
+                        visible:            _isAirPixel
+
+                        property real _lblW:     ScreenTools.defaultFontPixelWidth * 8
+                        property real _stepBtnW: ScreenTools.defaultFontPixelWidth * 5
+
+                        // ── command helpers ──
+                        function cfg(p1)              { _activeVehicle.sendCommand(_apCompId, 202, true, p1, 0, 0, 0, 0, 0, 0) }
+                        function step(p1, p2, p3, p4) { _activeVehicle.sendCommand(_apCompId, 202, true, p1, p2, p3, p4, 0, 0, 0) }
+
+                        // ── EXPOSURE MODE ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCLabel { text: qsTr("EXPOSURE MODE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            QGCButton {
+                                text: "M"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apExpMode === 1 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetExpMode(1)
+                            }
+                            QGCButton {
+                                text: "P"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apExpMode === 2 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetExpMode(2)
+                            }
+                            QGCButton {
+                                text: "A"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apExpMode === 3 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetExpMode(3)
+                            }
+                            QGCButton {
+                                text: "S"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apExpMode === 4 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetExpMode(4)
+                            }
+                        }
+
+                        // ── EXPOSURE VALUES ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCLabel { text: qsTr("EXPOSURE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                        // Shutter Speed
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            QGCLabel { text: qsTr("Speed"); Layout.preferredWidth: apControls._lblW }
+                            QGCLabel {
+                                text: _activeVehicle && _activeVehicle.apShutterSpeed > 0
+                                      ? "1/" + _activeVehicle.apShutterSpeed : "--"
+                                Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
+                            }
+                            QGCButton { text: "\u2212"; Layout.preferredWidth: apControls._stepBtnW; onClicked: apControls.step(0,0,0,99) }
+                            QGCButton { text: "+";      Layout.preferredWidth: apControls._stepBtnW; onClicked: apControls.step(0,0,0,101) }
+                        }
+
+                        // Aperture
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            QGCLabel { text: qsTr("Aperture"); Layout.preferredWidth: apControls._lblW }
+                            QGCLabel {
+                                text: _activeVehicle && _activeVehicle.apAperture > 0
+                                      ? "f/" + _activeVehicle.apAperture.toFixed(1) : "--"
+                                Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
+                            }
+                            QGCButton { text: "\u2212"; Layout.preferredWidth: apControls._stepBtnW; onClicked: apControls.step(0,99,0,0) }
+                            QGCButton { text: "+";      Layout.preferredWidth: apControls._stepBtnW; onClicked: apControls.step(0,101,0,0) }
+                        }
+
+                        // ISO (Auto + step)
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            QGCLabel { text: qsTr("ISO"); Layout.preferredWidth: apControls._lblW }
+                            QGCLabel {
+                                text: {
+                                    if (!_activeVehicle) return "--"
+                                    if (_activeVehicle.apISOAuto) return "Auto"
+                                    return _activeVehicle.apCameraISO > 0
+                                           ? _activeVehicle.apCameraISO.toString() : "--"
+                                }
+                                Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
+                            }
+                            QGCButton { text: "A";      Layout.preferredWidth: apControls._stepBtnW
+                                        onClicked: _activeVehicle.apSetParamUint("TG_ISO", 16777215) }
+                            QGCButton { text: "\u2212"; Layout.preferredWidth: apControls._stepBtnW; onClicked: apControls.step(0,0,99,0) }
+                            QGCButton { text: "+";      Layout.preferredWidth: apControls._stepBtnW; onClicked: apControls.step(0,0,101,0) }
+                        }
+
+                        // Exposure Compensation
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            QGCLabel { text: qsTr("Exp Comp"); Layout.preferredWidth: apControls._lblW }
+                            QGCLabel {
+                                text: {
+                                    if (!_activeVehicle) return "--"
+                                    var v = _activeVehicle.apExpCorr
+                                    return (v > 0 ? "+" : "") + v.toFixed(1)
+                                }
+                                Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
+                            }
+                            QGCButton { text: "\u2212"; Layout.preferredWidth: apControls._stepBtnW; onClicked: apControls.cfg(123) }
+                            QGCButton { text: "+";      Layout.preferredWidth: apControls._stepBtnW; onClicked: apControls.cfg(122) }
+                        }
+
+                        // ── FOCUS MODE ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCLabel { text: qsTr("FOCUS"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            QGCButton {
+                                text: "AF-S"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apAFMode === 2 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetAFMode(2)
+                            }
+                            QGCButton {
+                                text: "AF-C"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apAFMode === 32772 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetAFMode(32772)
+                            }
+                            QGCButton {
+                                text: "MF"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apAFMode === 1 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetAFMode(1)
+                            }
+                        }
+
+                        // ── IMAGE RESOLUTION ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCLabel { text: qsTr("IMAGE SIZE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            QGCButton {
+                                text: "L"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apImgRes === 1 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetImgRes(1)
+                            }
+                            QGCButton {
+                                text: "M"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apImgRes === 2 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetImgRes(2)
+                            }
+                            QGCButton {
+                                text: "S"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apImgRes === 3 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetImgRes(3)
+                            }
+                        }
+
+                        // ── FORMAT ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+
+                        QGCButton {
+                            text:               qsTr("Format SD Card")
+                            Layout.fillWidth:   true
+                            onClicked:          apFormatConfirm.open()
+
+                            MessageDialog {
+                                id:         apFormatConfirm
+                                title:      qsTr("Format Camera Storage")
+                                text:       qsTr("This will erase all files on the camera SD card. Continue?")
+                                buttons:    MessageDialog.Yes | MessageDialog.No
+                                onButtonClicked: function (button, role) {
+                                    if (button === MessageDialog.Yes) {
+                                        _activeVehicle.apFormatCard()
+                                    }
+                                    apFormatConfirm.close()
+                                }
+                            }
+                        }
+                    }
+
                     // ── Section: Camera Selection ──
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
-                        visible:            settingsPanel._multipleMavlinkCameras || settingsPanel._multipleMavlinkCameraStreams
+                        visible:            !_isAirPixel && (settingsPanel._multipleMavlinkCameras || settingsPanel._multipleMavlinkCameraStreams)
 
                         Rectangle {
                             Layout.fillWidth:       true
@@ -502,7 +690,7 @@ Rectangle {
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
-                        visible:            _camera.activeSettings.length > 0
+                        visible:            !_isAirPixel && _camera.activeSettings.length > 0
 
                         Rectangle {
                             Layout.fillWidth:       true
@@ -590,7 +778,7 @@ Rectangle {
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
-                        visible:            _camera.thermalStreamInstance
+                        visible:            !_isAirPixel && _camera.thermalStreamInstance
 
                         Rectangle {
                             Layout.fillWidth:       true
@@ -648,7 +836,7 @@ Rectangle {
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
-                        visible:            _camera.hasVideoStream
+                        visible:            !_isAirPixel && _camera.hasVideoStream
 
                         Rectangle {
                             Layout.fillWidth:       true
@@ -700,6 +888,7 @@ Rectangle {
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
+                        visible:            !_isAirPixel
 
                         Rectangle {
                             Layout.fillWidth:       true

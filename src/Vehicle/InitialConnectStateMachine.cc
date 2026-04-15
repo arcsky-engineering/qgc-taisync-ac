@@ -313,7 +313,7 @@ void InitialConnectStateMachine::_stateRequestParameters(StateMachine* stateMach
     qCDebug(InitialConnectStateMachineLog) << "_stateRequestParameters";
     connect(vehicle->_parameterManager, &ParameterManager::loadProgressChanged, connectMachine,
             &InitialConnectStateMachine::gotProgressUpdate);
-    vehicle->_parameterManager->refreshAllParameters();
+    vehicle->_parameterManager->refreshAllParameters(MAV_COMP_ID_AUTOPILOT1);
 }
 
 void InitialConnectStateMachine::_stateRequestMission(StateMachine* stateMachine)

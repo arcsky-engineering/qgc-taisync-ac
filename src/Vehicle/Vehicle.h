@@ -140,6 +140,13 @@ public:
     };
     Q_ENUM(PayloadType)
 
+    enum AirPixelDevice {
+        AirPixelNone = 0,
+        AirPixelEntire,
+        AirPixelTagE
+    };
+    Q_ENUM(AirPixelDevice)
+
     Q_PROPERTY(int                  id                          READ id                                                             CONSTANT)
     Q_PROPERTY(AutoPilotPlugin*     autopilotPlugin             MEMBER _autopilotPlugin                                             CONSTANT)
     Q_PROPERTY(QGeoCoordinate       coordinate                  READ coordinate                                                     NOTIFY coordinateChanged)
@@ -320,6 +327,28 @@ public:
     Q_PROPERTY(int geoFinalImageCount READ geoFinalImageCount NOTIFY geoStatusChanged)
 
     Q_PROPERTY(PayloadType payloadType READ payloadType NOTIFY payloadTypeChanged)
+
+    Q_PROPERTY(int airPixelDevice READ airPixelDevice NOTIFY airPixelDeviceChanged)
+    Q_PROPERTY(int airPixelComponentId READ airPixelComponentId NOTIFY airPixelDeviceChanged)
+
+    // AirPixel camera readback (from PARAM_EXT)
+    Q_PROPERTY(bool   apCameraConnected READ apCameraConnected NOTIFY apCameraChanged)
+    Q_PROPERTY(int    apCameraISO       READ apCameraISO       NOTIFY apCameraChanged)
+    Q_PROPERTY(bool   apISOAuto         READ apISOAuto         NOTIFY apCameraChanged)
+    Q_PROPERTY(int    apShutterSpeed    READ apShutterSpeed    NOTIFY apCameraChanged)
+    Q_PROPERTY(double apAperture        READ apAperture        NOTIFY apCameraChanged)
+    Q_PROPERTY(int    apCameraMode      READ apCameraMode      NOTIFY apCameraChanged)
+    Q_PROPERTY(double apExpCorr         READ apExpCorr         NOTIFY apCameraChanged)
+    Q_PROPERTY(int    apExpMode         READ apExpMode         NOTIFY apCameraChanged)
+    Q_PROPERTY(int    apAFMode          READ apAFMode          NOTIFY apCameraChanged)
+    Q_PROPERTY(int    apImgRes          READ apImgRes          NOTIFY apCameraChanged)
+
+    Q_INVOKABLE void apSetParamUint (const QString& name, quint32 value);
+    Q_INVOKABLE void apSetParamFloat(const QString& name, float value);
+    Q_INVOKABLE void apSetExpMode(int mode);    // optimistic: updates UI + sends TG_EXPMODE
+    Q_INVOKABLE void apSetAFMode(int mode);     // optimistic: updates UI + sends TG_AFMODE
+    Q_INVOKABLE void apSetImgRes(int res);      // optimistic: updates UI + sends TG_IMGRES
+    Q_INVOKABLE void apFormatCard();
 
     /// Resets link status counters
     Q_INVOKABLE void resetCounters  ();
@@ -655,7 +684,26 @@ public:
 
     PayloadType payloadType() const { return _payloadType; }
 
+    int airPixelDevice() const { return static_cast<int>(_airPixelDevice); }
+    int airPixelComponentId() const {
+        switch (_airPixelDevice) {
+            case AirPixelEntire: return 105;
+            case AirPixelTagE:   return 100;
+            default:             return 0;
+        }
+    }
 
+    // AirPixel camera readback (from PARAM_EXT)
+    bool   apCameraConnected() const { return _apCameraConnected; }
+    int    apCameraISO()       const { return _apCameraISO; }
+    bool   apISOAuto()         const { return _apISOAuto; }
+    int    apShutterSpeed()    const { return _apShutterSpeed; }
+    double apAperture()        const { return _apAperture; }
+    int    apCameraMode()      const { return _apCameraMode; }
+    double apExpCorr()         const { return _apExpCorr; }
+    int    apExpMode()         const { return _apExpMode; }
+    int    apAFMode()          const { return _apAFMode; }
+    int    apImgRes()          const { return _apImgRes; }
 
     FactGroup* vehicleFactGroup             () { return _vehicleFactGroup; }
     FactGroup* gpsFactGroup                 () { return &_gpsFactGroup; }
@@ -949,9 +997,12 @@ signals:
     void loadProgressChanged            (float value);
 
     void entireData64Received(const QByteArray& data);
+    void entireData32Received(const QByteArray& data);
     void entireData16Received(const QByteArray& data);
     void geoStatusChanged();
     void geoCompletedTriggered();
+    void airPixelDeviceChanged();
+    void apCameraChanged();
     void imageCountChanged();
     void payloadTypeChanged(PayloadType type);
 
@@ -1023,7 +1074,10 @@ private slots:
     void _updateAltAboveTerrain             ();
     void _altitudeAboveTerrainReceived      (bool sucess, QList<double> heights);
     void handleEntireData64(const QByteArray& data);
+    void handleEntireData32(const QByteArray& data);
     void handleEntireData16(const QByteArray& data);
+    void _handleAirPixelParamValue(const mavlink_param_ext_value_t& value);
+    void _apSendParamExt(const QString& name, const void* value, size_t valueSize, uint8_t paramType);
     void _checkGeoCompletion();
     void _updateUnifiedImageCount();
 
@@ -1324,6 +1378,20 @@ private:
     bool _geoCompletionArmed = false;
 
     PayloadType _payloadType = PayloadUnknown;
+    AirPixelDevice _airPixelDevice = AirPixelNone;
+
+    // AirPixel camera readback (from PARAM_EXT)
+    bool   _apCameraConnected = false;  // from DATA32 byte2 bit0
+    int    _apCameraISO       = 0;
+    bool   _apISOAuto         = false;
+    int    _apShutterSpeed    = 0;      // lower 16 bits of TG_SHTTERSPD
+    double _apAperture        = 0.0;    // TG_APERTURE (float)
+    int    _apCameraMode      = 0;
+    double _apExpCorr         = 0.0;    // TG_EXPC (float)
+    int    _apExpMode         = 0;      // lower 16 bits of TG_EXPMODE (1=M,2=P,3=A,4=S)
+    int    _apAFMode          = 0;
+    int    _apImgRes          = 0;      // TG_IMGRES (0=L,1=M,2=S)
+
     void _updatePayloadType();   // declared
 
 

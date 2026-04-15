@@ -126,6 +126,9 @@ Vehicle::Vehicle(LinkInterface*             link,
     connect(this, &Vehicle::entireData64Received,
                       this, &Vehicle::handleEntireData64);
 
+    connect(this, &Vehicle::entireData32Received,
+            this, &Vehicle::handleEntireData32);
+
     connect(this, &Vehicle::entireData16Received,
             this, &Vehicle::handleEntireData16);
 
@@ -679,25 +682,42 @@ void Vehicle::_mavlinkMessageReceived(LinkInterface* link, mavlink_message_t mes
         if (message.compid == 105) {
             mavlink_data64_t data;
             mavlink_msg_data64_decode(&message, &data);
-            //qDebug() << "ENTIRE DATA64 byte 5:" << static_cast<int>(data.data[5]);
-            //qDebug() << "ENTIRE data length:" << static_cast<int>(data.len);
             emit entireData64Received(QByteArray(reinterpret_cast<char*>(data.data), data.len));
+        }
+        break;
+    }
+
+    case MAVLINK_MSG_ID_DATA32:
+    {
+        if (message.compid == 100) {
+            mavlink_data32_t data;
+            mavlink_msg_data32_decode(&message, &data);
+            emit entireData32Received(QByteArray(reinterpret_cast<char*>(data.data), data.len));
         }
         break;
     }
 
     case MAVLINK_MSG_ID_DATA16:
     {
-        if (message.compid == 105) {
+        if (message.compid == 105 || message.compid == 100) {
             mavlink_data16_t data;
             mavlink_msg_data16_decode(&message, &data);
             emit entireData16Received(QByteArray(reinterpret_cast<char*>(data.data), data.len));
         }
         break;
     }
+    case MAVLINK_MSG_ID_PARAM_EXT_VALUE:
+    {
+        if (message.compid == 100 || message.compid == 105) {
+            mavlink_param_ext_value_t value;
+            mavlink_msg_param_ext_value_decode(&message, &value);
+            _handleAirPixelParamValue(value);
+        }
+        break;
+    }
     case MAVLINK_MSG_ID_CAMERA_CAPTURE_STATUS:
     {
-        if (message.compid == 105) {
+        if (message.compid == 105 || message.compid == 100) {
             mavlink_camera_capture_status_t cap{};
             mavlink_msg_camera_capture_status_decode(&message, &cap);
 
@@ -1168,6 +1188,12 @@ void Vehicle::handleEntireData64(const QByteArray& data)
 {
     if (data.size() < 7) return;
 
+    // Detect AirPixel ENTIRE device
+    if (_airPixelDevice != AirPixelEntire) {
+        _airPixelDevice = AirPixelEntire;
+        emit airPixelDeviceChanged();
+    }
+
     bool changed = false;
 
             // Byte4 — geotag mode ('n','s','c','p')
@@ -1205,11 +1231,61 @@ void Vehicle::handleEntireData64(const QByteArray& data)
 }
 
 
+void Vehicle::handleEntireData32(const QByteArray& data)
+{
+    if (data.size() < 22) return;
+    if ((uint8_t)data[0] != 0xAC || (uint8_t)data[1] != 0xD6) return;
+
+    // Detect AirPixel TAG-E device
+    if (_airPixelDevice != AirPixelTagE) {
+        _airPixelDevice = AirPixelTagE;
+        emit airPixelDeviceChanged();
+    }
+
+    bool geoChanged = false;
+
+    // Byte 2: status bits (camera connected + geo flags)
+    uint8_t statusBits = (uint8_t)data[2];
+
+    bool camConn = (statusBits & 0x01) != 0;
+    if (_apCameraConnected != camConn) {
+        _apCameraConnected = camConn;
+        emit apCameraChanged();
+    }
+
+    // bit 6 — auto take-off detection enabled
+    int newAutoTrigger = (statusBits >> 6) & 1;
+    if (_geoAutoTriggerStatus != newAutoTrigger) {
+        _geoAutoTriggerStatus = newAutoTrigger;
+        geoChanged = true;
+    }
+
+    if (geoChanged) emit geoStatusChanged();
+    // NOTE: DATA32 camera bytes (19, 21, etc.) use a different encoding
+    //       than PARAM_EXT values, so we do NOT use them for UI feedback.
+    //       Mode/AF/exposure readback comes solely from PARAM_EXT + optimistic updates.
+}
+
+
 void Vehicle::handleEntireData16(const QByteArray& data)
 {
     if (data.size() < 8) return;
 
     bool changed = false;
+
+    // Byte 2 — session status (mirrors DATA64 byte 5 on ENTIRE, sole source on TAG-E)
+    int newSessionStatus = (uint8_t)data[2];
+    if (_geoSessionStatus != newSessionStatus) {
+        _prevGeoSessionStatus = _geoSessionStatus;
+        _geoSessionStatus = newSessionStatus;
+        changed = true;
+
+        // ARM completion when entering SAVING
+        if (newSessionStatus == 3) {
+            _geoFinalImageCount = _cameraData16ImageCount;
+            _geoCompletionArmed = true;
+        }
+    }
 
     int loggingStatus = (uint8_t)data[2];
     int progress = (uint8_t)data[3];
@@ -1343,6 +1419,150 @@ void Vehicle::_updateUnifiedImageCount()
         emit imageCountChanged();
     }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// AirPixel PARAM_EXT handling — bypass camera manager, read/write directly
+// ────────────────────────────────────────────────────────────────────────────
+
+void Vehicle::_handleAirPixelParamValue(const mavlink_param_ext_value_t& value)
+{
+    char nameBuf[17] = {};
+    memcpy(nameBuf, value.param_id, 16);
+    QString name(nameBuf);
+
+    bool changed = false;
+
+    if (name == QStringLiteral("TG_SHTTERSPD")) {
+        uint32_t raw;
+        memcpy(&raw, value.param_value, sizeof(raw));
+        int speed = static_cast<int>(raw & 0xFFFF);   // lower 16 bits = denominator
+        if (_apShutterSpeed != speed) { _apShutterSpeed = speed; changed = true; }
+    }
+    else if (name == QStringLiteral("TG_APERTURE")) {
+        float raw;
+        memcpy(&raw, value.param_value, sizeof(raw));
+        double ap = static_cast<double>(raw);
+        if (!qFuzzyCompare(_apAperture, ap)) { _apAperture = ap; changed = true; }
+    }
+    else if (name == QStringLiteral("TG_ISO")) {
+        uint32_t raw;
+        memcpy(&raw, value.param_value, sizeof(raw));
+        bool isAuto = (raw == 0x00FFFFFF);
+        int iso = isAuto ? 0 : static_cast<int>(raw);
+        if (_apCameraISO != iso || _apISOAuto != isAuto) {
+            _apCameraISO = iso; _apISOAuto = isAuto; changed = true;
+        }
+    }
+    else if (name == QStringLiteral("TG_EXPC")) {
+        float raw;
+        memcpy(&raw, value.param_value, sizeof(raw));
+        double ec = static_cast<double>(raw);
+        if (!qFuzzyCompare(_apExpCorr + 1.0, ec + 1.0)) { _apExpCorr = ec; changed = true; }
+    }
+    else if (name == QStringLiteral("TG_EXPMODE")) {
+        uint32_t raw;
+        memcpy(&raw, value.param_value, sizeof(raw));
+        int mode = static_cast<int>(raw & 0xFFFF);   // lower 16 bits: 1=M,2=P,3=A,4=S
+        if (_apExpMode != mode) { _apExpMode = mode; changed = true; }
+    }
+    else if (name == QStringLiteral("TG_CAM_MODE")) {
+        uint32_t raw;
+        memcpy(&raw, value.param_value, sizeof(raw));
+        int mode = static_cast<int>(raw);
+        if (_apCameraMode != mode) { _apCameraMode = mode; changed = true; }
+    }
+    else if (name == QStringLiteral("TG_AFMODE")) {
+        uint32_t raw;
+        memcpy(&raw, value.param_value, sizeof(raw));
+        int af = static_cast<int>(raw);
+        if (_apAFMode != af) { _apAFMode = af; changed = true; }
+    }
+    else if (name == QStringLiteral("TG_IMGRES")) {
+        uint32_t raw;
+        memcpy(&raw, value.param_value, sizeof(raw));
+        int res = static_cast<int>(raw);
+        // TAG-E always reads back 0 for IMGRES — don't let it clobber optimistic value
+        if (res > 0 && _apImgRes != res) { _apImgRes = res; changed = true; }
+    }
+
+    if (changed) emit apCameraChanged();
+}
+
+void Vehicle::_apSendParamExt(const QString& name, const void* value, size_t valueSize, uint8_t paramType)
+{
+    int compId = airPixelComponentId();
+    if (compId == 0) return;
+
+    SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
+    if (!sharedLink) return;
+
+    mavlink_param_ext_set_t p{};
+    memset(&p, 0, sizeof(p));
+    p.target_system    = static_cast<uint8_t>(id());
+    p.target_component = static_cast<uint8_t>(compId);
+    p.param_type       = paramType;
+    memcpy(p.param_value, value, valueSize);
+    strncpy(p.param_id, name.toUtf8().constData(), sizeof(p.param_id));
+
+    mavlink_message_t msg{};
+    mavlink_msg_param_ext_set_encode_chan(
+        static_cast<uint8_t>(MAVLinkProtocol::instance()->getSystemId()),
+        static_cast<uint8_t>(MAVLinkProtocol::getComponentId()),
+        sharedLink->mavlinkChannel(),
+        &msg,
+        &p);
+    sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
+}
+
+void Vehicle::apSetParamUint(const QString& name, quint32 value)
+{
+    _apSendParamExt(name, &value, sizeof(value), 5);   // MAV_PARAM_EXT_TYPE_UINT32
+}
+
+void Vehicle::apSetParamFloat(const QString& name, float value)
+{
+    _apSendParamExt(name, &value, sizeof(value), 9);   // MAV_PARAM_EXT_TYPE_REAL32
+}
+
+void Vehicle::apSetExpMode(int mode)
+{
+    _apExpMode = mode;
+    emit apCameraChanged();
+    quint32 val = static_cast<quint32>(((mode - 1) << 16) | mode);
+    apSetParamUint(QStringLiteral("TG_EXPMODE"), val);
+}
+
+void Vehicle::apSetAFMode(int mode)
+{
+    _apAFMode = mode;
+    emit apCameraChanged();
+    apSetParamUint(QStringLiteral("TG_AFMODE"), static_cast<quint32>(mode));
+}
+
+void Vehicle::apSetImgRes(int res)
+{
+    _apImgRes = res;
+    emit apCameraChanged();
+    apSetParamUint(QStringLiteral("TG_IMGRES"), static_cast<quint32>(res));
+}
+
+void Vehicle::apFormatCard()
+{
+    // TAG-E requires toggling TG_FORMAT (1→0) multiple times via PARAM_EXT.
+    // Spacing ~200ms between each command to avoid overwhelming the device.
+    for (int i = 0; i < 3; i++) {
+        QTimer::singleShot(i * 400, this, [this]() {
+            uint8_t on = 1;
+            _apSendParamExt(QStringLiteral("TG_FORMAT"), &on, sizeof(on), 1);
+        });
+        QTimer::singleShot(i * 400 + 200, this, [this]() {
+            uint8_t off = 0;
+            _apSendParamExt(QStringLiteral("TG_FORMAT"), &off, sizeof(off), 1);
+        });
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 
 void Vehicle::_updatePayloadType()
 {

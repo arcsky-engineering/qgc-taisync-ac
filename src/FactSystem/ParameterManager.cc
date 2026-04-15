@@ -137,6 +137,14 @@ void ParameterManager::mavlinkMessageReceived(const mavlink_message_t &message)
     if (_tryftp && (message.compid == MAV_COMP_ID_AUTOPILOT1) && !_initialLoadComplete)
         return;
 
+    // During initial load, only process parameters from the autopilot. Non-autopilot components
+    // (gimbals, camera triggers, companion computers) that respond to PARAM_REQUEST_LIST or send
+    // unsolicited PARAM_VALUE messages would otherwise get auto-discovered and added to the wait
+    // list, blocking completion until all their parameters are individually retried and timed out.
+    if (!_initialLoadComplete && message.compid != MAV_COMP_ID_AUTOPILOT1) {
+        return;
+    }
+
     if (message.msgid == MAVLINK_MSG_ID_PARAM_VALUE) {
         mavlink_param_value_t param_value{};
         mavlink_msg_param_value_decode(&message, &param_value);

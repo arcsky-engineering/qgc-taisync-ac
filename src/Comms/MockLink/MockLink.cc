@@ -592,99 +592,116 @@ void MockLink::_sendDistanceSensor()
 void MockLink::_sendVibration()
 {
     // ------------------------------------------------------------------------
-    // Simulation state
+    // TAG-E Simulation (component 100, DATA32 + DATA16)
     // ------------------------------------------------------------------------
     static int elapsedSeconds = 0;
     static int photoCount = 0;
     static int progressPercent = 0;
-    static uint8_t geoSessionStatus = 0; // DATA64 byte5
-    static uint8_t loggingStatus = 0;    // DATA16 byte2
-    static uint8_t geoMode = 1;          // DATA64 byte4 (geotagging mode)
-    static bool savingInProgress = false;
+    static uint8_t geoSessionStatus = 0;
+    static uint8_t loggingStatus = 0;
 
-            // ------------------------------------------------------------------------
-            // Determine current session phase based on elapsedSeconds
-            // ------------------------------------------------------------------------
+    // Simulated camera values
+    static uint16_t simISO = 400;
+    static uint16_t simSpeed = 500;     // 1/500
+    static uint8_t  simAperture = 28;   // f/2.8 (x10)
+    static uint8_t  simMode = 3;        // Manual
+    static int8_t   simExpCorr = 0;
+    static uint8_t  simAFMode = 1;
+
+    // ------------------------------------------------------------------------
+    // Determine current session phase based on elapsedSeconds
+    // LIFECYCLE: IDLE → INIT → RUN → SAVING → IDLE
+    // ------------------------------------------------------------------------
     if (elapsedSeconds < 10) {
         // IDLE
         geoSessionStatus = 0;
         loggingStatus = 0;
         photoCount = 0;
         progressPercent = 0;
-        savingInProgress = false;
     } else if (elapsedSeconds < 20) {
-        //Initialization
+        // Initialization
         geoSessionStatus = 1;
         loggingStatus = 1;
         photoCount = 0;
         progressPercent = 0;
-        savingInProgress = false;
     } else if (elapsedSeconds < 40) {
-        // RUN
+        // RUN — camera actively taking photos
         geoSessionStatus = 2;
         loggingStatus = 2;
-        // Increment photo count once per second
         photoCount = elapsedSeconds - 20 + 1; // 1 → 20
         progressPercent = 0;
-        savingInProgress = false;
+        // Simulate ISO varying during capture
+        simISO = 400 + ((elapsedSeconds - 20) % 4) * 100; // 400,500,600,700...
     } else if (elapsedSeconds < 45) {
         // Saving
         geoSessionStatus = 3;
         loggingStatus = 3;
-        savingInProgress = true;
-        // Keep photo count at 20
-        //photoCount = 20;
-        // Progress 0 → 100% over 5s
-        progressPercent = (elapsedSeconds - 40 + 1) * 20; // 20%,40%,...,100%
+        progressPercent = (elapsedSeconds - 40 + 1) * 20; // 20%→100%
         if (progressPercent > 100) progressPercent = 100;
+        simISO = 400;
     } else {
         // IDLE again (finished)
         geoSessionStatus = 0;
         loggingStatus = 0;
         photoCount = 20;
         progressPercent = 100;
-        savingInProgress = false;
     }
 
-            // ------------------------------------------------------------------------
-            // Build DATA64 message
-            // ------------------------------------------------------------------------
-    mavlink_message_t msg64{};
-    mavlink_data64_t data64{};
-    memset(&data64, 0, sizeof(data64));
+    // ------------------------------------------------------------------------
+    // Build DATA32 message (TAG-E status packet)
+    // ------------------------------------------------------------------------
+    mavlink_message_t msg32{};
+    mavlink_data32_t data32{};
+    memset(&data32, 0, sizeof(data32));
 
-    data64.data[0] = 0xAC;
-    data64.data[1] = 0xA0;
-    data64.data[2] = 0b00000101; // camera connected + WiFi active
-    data64.data[4] = geoMode;     // geotagging mode
-    data64.data[5] = geoSessionStatus; // geotagging session status
-    data64.data[6] = 1;           // auto trigger enabled
-    data64.len = 25;
+    data32.data[0] = 0xAC;                     // AirPixel magic
+    data32.data[1] = 0xD6;                     // TAG-E status packet type
+    data32.data[2] = 0b01010001;               // bit0=cam connected, bit4=timesync, bit6=auto takeoff det
+    data32.data[3] = 0;                        // reserved
+    data32.data[4] = 10;                       // MavLink GPS speed
+    data32.data[5] = 10;                       // NMEA GPS speed
+    data32.data[6] = 10;                       // ERB GPS speed
+    data32.data[7] = 50;                       // MavLink ATTI speed
+    data32.data[8] = 10;                       // MavLink TIMESYNC speed
+    data32.data[9]  = simISO & 0xFF;           // Camera ISO Lbyte
+    data32.data[10] = (simISO >> 8) & 0xFF;    // Camera ISO Hbyte
+    data32.data[11] = 100 & 0xFF;              // ISO-min Lbyte (100)
+    data32.data[12] = (100 >> 8) & 0xFF;       // ISO-min Hbyte
+    data32.data[13] = 6400 & 0xFF;             // ISO-max Lbyte (6400)
+    data32.data[14] = (6400 >> 8) & 0xFF;      // ISO-max Hbyte
+    data32.data[15] = simSpeed & 0xFF;         // Sh.Speed Lbyte
+    data32.data[16] = (simSpeed >> 8) & 0xFF;  // Sh.Speed Hbyte1
+    data32.data[17] = (simSpeed >> 16) & 0xFF; // Sh.Speed Hbyte2
+    data32.data[18] = simAperture;             // Aperture (x10)
+    data32.data[19] = simMode;                 // Camera Mode
+    data32.data[20] = static_cast<uint8_t>(simExpCorr); // Exp.Corr
+    data32.data[21] = simAFMode;               // AF-mode
+    data32.len = 22;
 
-    mavlink_msg_data64_encode_chan(_vehicleSystemId, 105, mavlinkChannel(), &msg64, &data64);
-    respondWithMavlinkMessage(msg64);
+    mavlink_msg_data32_encode_chan(_vehicleSystemId, 100, mavlinkChannel(), &msg32, &data32);
+    respondWithMavlinkMessage(msg32);
 
-            // ------------------------------------------------------------------------
-            // Build DATA16 message
-            // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // Build DATA16 message (same format for ENTIRE and TAG-E)
+    // ------------------------------------------------------------------------
     mavlink_message_t msg16{};
     mavlink_data16_t data16{};
     memset(&data16, 0, sizeof(data16));
 
     data16.data[0] = 0xAC;
     data16.data[1] = 0xA9;
-    data16.data[2] = loggingStatus; // logging session status mirrors DATA64 session
+    data16.data[2] = loggingStatus;                 // session status
     data16.data[3] = progressPercent;
-    data16.data[4] = photoCount & 0xFF;        // LSB
-    data16.data[5] = (photoCount >> 8) & 0xFF; // MSB
+    data16.data[4] = photoCount & 0xFF;             // photo count LSB
+    data16.data[5] = (photoCount >> 8) & 0xFF;      // photo count MSB
     data16.len = 8;
 
-    mavlink_msg_data16_encode_chan(_vehicleSystemId, 105, mavlinkChannel(), &msg16, &data16);
+    mavlink_msg_data16_encode_chan(_vehicleSystemId, 100, mavlinkChannel(), &msg16, &data16);
     respondWithMavlinkMessage(msg16);
 
-            // ------------------------------------------------------------------------
-            // Advance simulation counter
-            // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // Advance simulation counter
+    // ------------------------------------------------------------------------
     elapsedSeconds++;
 }
 

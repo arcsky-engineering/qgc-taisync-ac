@@ -139,11 +139,11 @@ ToolIndicatorPage {
             spacing: ScreenTools.defaultFontPixelHeight
 
             //----------------------------------------------------
-            // ILX Geotag Section (only for ILX payload)
+            // Geotag Section (ILX / ENTIRE / TAG-E)
             //----------------------------------------------------
             SettingsGroupLayout {
                 heading: "Geotagging Details"
-                visible: payloadType === 1
+                visible: payloadType === 1 || (activeVehicle && activeVehicle.airPixelDevice > 0)
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -160,7 +160,7 @@ ToolIndicatorPage {
 
             SettingsGroupLayout {
                 heading: "Geotagging Actions"
-                visible: payloadType === 1
+                visible: payloadType === 1 || (activeVehicle && activeVehicle.airPixelDevice > 0)
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -170,8 +170,10 @@ ToolIndicatorPage {
                         text: "Geotagging ON"
                         Layout.fillWidth: true
                         onClicked: {
+                            var compId = activeVehicle.airPixelComponentId > 0
+                                         ? activeVehicle.airPixelComponentId : 105
                             activeVehicle.sendCommand(
-                                105,
+                                compId,
                                 202,
                                 true,
                                 132,0,0,0,0,0,0
@@ -183,8 +185,10 @@ ToolIndicatorPage {
                         text: "Geotagging OFF"
                         Layout.fillWidth: true
                         onClicked: {
+                            var compId = activeVehicle.airPixelComponentId > 0
+                                         ? activeVehicle.airPixelComponentId : 105
                             activeVehicle.sendCommand(
-                                105,
+                                compId,
                                 202,
                                 true,
                                 133,0,0,0,0,0,0

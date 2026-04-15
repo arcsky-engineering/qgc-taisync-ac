@@ -128,6 +128,7 @@ private:
     bool _logSuspendReplay = false; ///< true: Logging suspended due to replay
     bool _vehicleWasArmed = false;  ///< true: Vehicle was armed during log sequence
     bool _vehicleIsArmed = false;   ///< true: Vehicle is currently armed (for disarm detection)
+    int _armedHeartbeatCount = 0;   ///< Consecutive armed heartbeats seen (debounce boot transients)
 
     uint8_t _lastIndex[256][256]{};                             ///< Store the last received sequence ID for each system/component pair
     QSet<QPair<uint8_t,uint8_t>> _firstMessageSeen;
@@ -140,6 +141,7 @@ private:
 
     static constexpr const char *_tempLogFileTemplate = "FlightDataXXXXXX"; ///< Template for temporary log file
     static constexpr const char *_logFileExtension = "mavlink";             ///< Extension for log files
+    static constexpr int _kMinArmedHeartbeats = 3;                          ///< Consecutive armed heartbeats required to confirm armed state
 
     static constexpr uint8_t kMaxCompId = MAV_COMPONENT_ENUM_END - 1;
 };

@@ -303,7 +303,7 @@ Item {
             console.log("showContinueMission", showContinueMission)
         }
         _outputState()
-        if (showContinueMission) {
+        if (showContinueMission && !_disableStartMissionSlider) {
             confirmAction(actionContinueMission)
         }
     }
@@ -476,7 +476,7 @@ Item {
             showImmediate = false
             confirmDialog.title = continueMissionTitle
             confirmDialog.message = continueMissionMessage
-            confirmDialog.hideTrigger = Qt.binding(function() { return !showContinueMission })
+            confirmDialog.hideTrigger = Qt.binding(function() { return !showContinueMission || _disableStartMissionSlider })
             break;
         case actionResumeMission:
             // Resume Mission is handled in mission end dialog
