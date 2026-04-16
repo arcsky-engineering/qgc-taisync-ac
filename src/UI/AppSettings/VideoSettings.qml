@@ -86,6 +86,16 @@ SettingsPage {
             fact:                       _videoSettings.udpUrl
             visible:                    _requiresUDPUrl && _videoSettings.udpUrl.visible
         }
+
+        QGCButton {
+            Layout.fillWidth:   true
+            text:               qsTr("Reset RTSP to Defaults")
+            visible:            _isRTSP
+            onClicked: {
+                _videoSettings.rtspUrl.value  = _videoSettings.rtspUrl.defaultValue
+                _videoSettings.rtspUrl2.value = _videoSettings.rtspUrl2.defaultValue
+            }
+        }
     }
 
     SettingsGroupLayout {

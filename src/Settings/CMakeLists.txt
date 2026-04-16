@@ -36,6 +36,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         SettingsGroup.h
         SettingsManager.cc
         SettingsManager.h
+        TelemetryLogManager.cc
+        TelemetryLogManager.h
         UnitsSettings.cc
         UnitsSettings.h
         VideoSettings.cc

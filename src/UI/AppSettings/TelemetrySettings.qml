@@ -14,6 +14,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 
 import QGroundControl
+import QGroundControl.Controllers
 import QGroundControl.FactSystem
 import QGroundControl.FactControls
 import QGroundControl.Controls
@@ -31,6 +32,8 @@ SettingsPage {
     property bool   _isAPM:                     _activeVehicle ? _activeVehicle.apmFirmware : true
     property bool   _showAPMStreamRates:        QGroundControl.apmFirmwareSupported && _settingsManager.apmMavlinkStreamRateSettings.visible && _isAPM
     property var    _apmStartMavlinkStreams:    _mavlinkSettings.apmStartMavlinkStreams
+
+    TelemetryLogManager { id: telemetryLogManager }
 
     SettingsGroupLayout {
         Layout.fillWidth:   true
@@ -115,6 +118,139 @@ SettingsPage {
             fact:               _saveCsvTelemetry
             visible:            fact.visible
             property Fact _saveCsvTelemetry: _mavlinkSettings.saveCsvTelemetry
+        }
+    }
+
+    SettingsGroupLayout {
+        Layout.fillWidth:   true
+        heading:            qsTr("Saved Telemetry Logs")
+        headingDescription: telemetryLogManager.totalCount > 0
+                                ? qsTr("%1 logs, %2 total").arg(telemetryLogManager.totalCount).arg(telemetryLogManager.totalSizeStr)
+                                : qsTr("No logs found")
+        visible:            !_disableAllDataPersistence
+
+        Rectangle {
+            Layout.fillWidth:   true
+            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 14
+            color:              qgcPal.window
+            border.color:       qgcPal.groupBorder
+            border.width:       1
+            visible:            telemetryLogManager.totalCount > 0
+
+            QGCListView {
+                id:                 logListView
+                anchors.fill:       parent
+                anchors.margins:    ScreenTools.defaultFontPixelWidth
+                clip:               true
+                model:              telemetryLogManager.logFiles
+                spacing:            2
+
+                delegate: Rectangle {
+                    width:  logListView.width
+                    height: logEntryRow.height + ScreenTools.defaultFontPixelHeight * 0.5
+                    color:  object.selected ? qgcPal.buttonHighlight : "transparent"
+                    radius: ScreenTools.defaultFontPixelHeight * 0.25
+
+                    RowLayout {
+                        id:                     logEntryRow
+                        anchors.left:           parent.left
+                        anchors.right:          parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin:     ScreenTools.defaultFontPixelWidth
+                        anchors.rightMargin:    ScreenTools.defaultFontPixelWidth
+                        spacing:                ScreenTools.defaultFontPixelWidth
+
+                        QGCCheckBox {
+                            checked:    object.selected
+                            onClicked:  object.selected = checked
+                        }
+
+                        QGCLabel {
+                            Layout.fillWidth:   true
+                            text:               object.name
+                            color:              object.selected ? qgcPal.buttonHighlightText : qgcPal.text
+                        }
+
+                        QGCLabel {
+                            text:   object.sizeStr
+                            color:  object.selected ? qgcPal.buttonHighlightText : qgcPal.text
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill:   parent
+                        onClicked:      object.selected = !object.selected
+                        z:              -1
+                    }
+                }
+            }
+        }
+
+        QGCLabel {
+            Layout.fillWidth:   true
+            text:               qsTr("No telemetry logs found in save directory.")
+            visible:            telemetryLogManager.totalCount === 0
+        }
+
+        RowLayout {
+            Layout.fillWidth:   true
+            spacing:            ScreenTools.defaultFontPixelWidth
+
+            QGCButton {
+                text:       qsTr("Select All")
+                enabled:    telemetryLogManager.totalCount > 0
+                onClicked:  telemetryLogManager.selectAll()
+            }
+
+            QGCButton {
+                text:       qsTr("Select None")
+                enabled:    telemetryLogManager.selectedCount > 0
+                onClicked:  telemetryLogManager.selectNone()
+            }
+
+            QGCButton {
+                text:       qsTr("Delete Selected")
+                enabled:    telemetryLogManager.selectedCount > 0
+                onClicked:  deleteConfirmDialog.open()
+
+                MessageDialog {
+                    id:         deleteConfirmDialog
+                    visible:    false
+                    buttons:    MessageDialog.Yes | MessageDialog.No
+                    title:      qsTr("Delete Selected Logs")
+                    text:       qsTr("Delete %1 selected telemetry log(s)?").arg(telemetryLogManager.selectedCount)
+                    onButtonClicked: function (button, role) {
+                        if (button === MessageDialog.Yes) {
+                            telemetryLogManager.deleteSelected()
+                        }
+                    }
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            QGCButton {
+                text:       qsTr("Refresh")
+                onClicked:  telemetryLogManager.refresh()
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth:   true
+            spacing:            ScreenTools.defaultFontPixelWidth
+
+            QGCButton {
+                text:       telemetryLogManager.isCapturing ? qsTr("Capturing...") : qsTr("Start Capture")
+                enabled:    !telemetryLogManager.isCapturing && !(_activeVehicle && _activeVehicle.armed)
+                visible:    !(_activeVehicle && _activeVehicle.armed)
+                onClicked:  telemetryLogManager.startCapture()
+            }
+
+            QGCButton {
+                text:       qsTr("Stop & Save")
+                enabled:    telemetryLogManager.isCapturing
+                onClicked:  telemetryLogManager.stopAndSaveCapture()
+            }
         }
     }
 

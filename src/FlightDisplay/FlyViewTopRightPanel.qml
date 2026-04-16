@@ -222,6 +222,7 @@ Rectangle {
                         sourceComponent:            globals.activeVehicle ? photoVideoControlComponent : undefined
                         visible:                    QGroundControl.videoManager.hasVideo
                                                     && QGroundControl.settingsManager.flyViewSettings.showSimpleCameraControl.value
+                                                    && QGroundControl.settingsManager.flyViewSettings.payloadSelection.value !== 2  // hide for LiDAR
                         property real rightEdgeCenterInset: visible ? parent.width - x : 0
 
                         Component {

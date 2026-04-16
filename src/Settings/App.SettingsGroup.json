@@ -290,7 +290,7 @@
     "type":             "uint32",
     "enumStrings":      "X55,Xplorer",
     "enumValues":       "0,1",
-    "default":          0,
+    "default":          1,
     "qgcRebootRequired": true
 }
 ]

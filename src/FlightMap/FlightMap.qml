@@ -121,6 +121,7 @@ Map {
     signal mapPanStart
     signal mapPanStop
     signal mapClicked(var position)
+    signal mapLongPress(var position)
     
     PinchHandler {
         id:     pinchHandler
@@ -130,6 +131,7 @@ Map {
 
         onActiveChanged: {
             if (active) {
+                longPressTimer.stop()
                 pinchStartCentroid = _map.toCoordinate(pinchHandler.centroid.position, false)
             }
         }
@@ -163,12 +165,20 @@ Map {
         property real lastMouseX
         property real lastMouseY
 
+        Timer {
+            id:             longPressTimer
+            interval:       800
+            onTriggered:    _map.mapLongPress(Qt.point(parent.lastMouseX, parent.lastMouseY))
+        }
+
         onPressed: (touchPoints) => {
             lastMouseX = touchPoints[0].x
             lastMouseY = touchPoints[0].y
+            longPressTimer.restart()
         }
 
         onGestureStarted: (gesture) => {
+            longPressTimer.stop()
             dragActive = true
             gesture.grab()
             mapPanStart()
@@ -187,6 +197,7 @@ Map {
         }
 
         onReleased: (touchPoints) => {
+            longPressTimer.stop()
             if (dragActive) {
                 _map.pan(lastMouseX - touchPoints[0].x, lastMouseY - touchPoints[0].y)
                 dragActive = false

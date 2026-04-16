@@ -345,10 +345,23 @@ public:
 
     Q_INVOKABLE void apSetParamUint (const QString& name, quint32 value);
     Q_INVOKABLE void apSetParamFloat(const QString& name, float value);
-    Q_INVOKABLE void apSetExpMode(int mode);    // optimistic: updates UI + sends TG_EXPMODE
-    Q_INVOKABLE void apSetAFMode(int mode);     // optimistic: updates UI + sends TG_AFMODE
-    Q_INVOKABLE void apSetImgRes(int res);      // optimistic: updates UI + sends TG_IMGRES
+    Q_INVOKABLE void apSetExpMode(int mode);
+    Q_INVOKABLE void apSetAFMode(int mode);
+    Q_INVOKABLE void apSetImgRes(int res);
     Q_INVOKABLE void apFormatCard();
+
+    // VIO camera (component 101)
+    Q_PROPERTY(bool vioDetected      READ vioDetected      NOTIFY vioCameraChanged)
+    Q_PROPERTY(int  vioCameraSource  READ vioCameraSource   NOTIFY vioCameraChanged)
+    Q_PROPERTY(int  vioIRPalette     READ vioIRPalette      NOTIFY vioCameraChanged)
+    Q_PROPERTY(int  vioIRZoom        READ vioIRZoom         NOTIFY vioCameraChanged)
+    Q_PROPERTY(int  vioEOZoom        READ vioEOZoom         NOTIFY vioCameraChanged)
+
+    Q_INVOKABLE void vioSetParam(const QString& name, quint32 value);
+    Q_INVOKABLE void vioSetSource(int val);
+    Q_INVOKABLE void vioSetIRPalette(int val);
+    Q_INVOKABLE void vioSetIRZoom(int val);
+    Q_INVOKABLE void vioSetEOZoom(int val);
 
     /// Resets link status counters
     Q_INVOKABLE void resetCounters  ();
@@ -705,6 +718,13 @@ public:
     int    apAFMode()          const { return _apAFMode; }
     int    apImgRes()          const { return _apImgRes; }
 
+    // VIO camera readback
+    bool   vioDetected()      const { return _vioDetected; }
+    int    vioCameraSource()  const { return _vioCameraSource; }
+    int    vioIRPalette()     const { return _vioIRPalette; }
+    int    vioIRZoom()        const { return _vioIRZoom; }
+    int    vioEOZoom()        const { return _vioEOZoom; }
+
     FactGroup* vehicleFactGroup             () { return _vehicleFactGroup; }
     FactGroup* gpsFactGroup                 () { return &_gpsFactGroup; }
     FactGroup* gps2FactGroup                () { return &_gps2FactGroup; }
@@ -1003,6 +1023,7 @@ signals:
     void geoCompletedTriggered();
     void airPixelDeviceChanged();
     void apCameraChanged();
+    void vioCameraChanged();
     void imageCountChanged();
     void payloadTypeChanged(PayloadType type);
 
@@ -1077,7 +1098,9 @@ private slots:
     void handleEntireData32(const QByteArray& data);
     void handleEntireData16(const QByteArray& data);
     void _handleAirPixelParamValue(const mavlink_param_ext_value_t& value);
+    void _handleVioParamValue(const mavlink_param_ext_value_t& value);
     void _apSendParamExt(const QString& name, const void* value, size_t valueSize, uint8_t paramType);
+    void _sendParamExtToComponent(int compId, const QString& name, const void* value, size_t valueSize, uint8_t paramType);
     void _checkGeoCompletion();
     void _updateUnifiedImageCount();
 
@@ -1391,6 +1414,13 @@ private:
     int    _apExpMode         = 0;      // lower 16 bits of TG_EXPMODE (1=M,2=P,3=A,4=S)
     int    _apAFMode          = 0;
     int    _apImgRes          = 0;      // TG_IMGRES (0=L,1=M,2=S)
+
+    // VIO camera readback
+    bool _vioDetected      = false;
+    int  _vioCameraSource  = 0;
+    int  _vioIRPalette     = 0;
+    int  _vioIRZoom        = 0;
+    int  _vioEOZoom        = 0;
 
     void _updatePayloadType();   // declared
 

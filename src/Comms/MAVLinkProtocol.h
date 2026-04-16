@@ -86,6 +86,8 @@ signals:
 
     void mavlinkMessageStatus(int sysid, uint64_t totalSent, uint64_t totalReceived, uint64_t totalLoss, float lossPercent);
 
+    void manualCaptureActiveChanged();
+
 public slots:
     /// Receive bytes from a communication interface and constructs a MAVLink packet
     ///     @param link The interface to read from
@@ -98,6 +100,15 @@ public slots:
 
     /// Deletes any log files which are in the temp directory
     static void deleteTempLogFiles();
+
+    /// Start a manual log capture — saves/discards any current data and begins a fresh log.
+    void startManualCapture();
+
+    /// Stop a manual log capture — force-saves the current log regardless of arm state.
+    void stopManualCapture();
+
+    /// Whether a manual capture is currently active.
+    bool manualCaptureActive() const { return _manualCaptureActive; }
 
 private slots:
     void _vehicleCountChanged();
@@ -128,6 +139,7 @@ private:
     bool _logSuspendReplay = false; ///< true: Logging suspended due to replay
     bool _vehicleWasArmed = false;  ///< true: Vehicle was armed during log sequence
     bool _vehicleIsArmed = false;   ///< true: Vehicle is currently armed (for disarm detection)
+    bool _manualCaptureActive = false; ///< true: User started a manual log capture
     int _armedHeartbeatCount = 0;   ///< Consecutive armed heartbeats seen (debounce boot transients)
 
     uint8_t _lastIndex[256][256]{};                             ///< Store the last received sequence ID for each system/component pair

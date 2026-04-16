@@ -157,7 +157,7 @@
     "shortDesc":    "ILX-LR1 baud rate parameter value",
     "longDesc":     "The SERIALx_BAUD parameter value that indicates an ILX-LR1 payload is configured.",
     "type":         "uint32",
-    "default":      230
+    "default":      500
 },
 {
     "name":         "payloadVioBaud",
@@ -165,6 +165,13 @@
     "longDesc":     "The SERIALx_BAUD parameter value that indicates a VIO payload is configured.",
     "type":         "uint32",
     "default":      115
+},
+{
+    "name":         "payloadSelection",
+    "shortDesc":    "Selected payload type",
+    "longDesc":     "Persisted payload selection: 0=ILX-LR1, 1=VIO, 2=LiDAR.",
+    "type":         "uint32",
+    "default":      0
 },
 {
     "name":             "enableMicROM",

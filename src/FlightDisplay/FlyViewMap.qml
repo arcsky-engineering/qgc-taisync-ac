@@ -755,8 +755,8 @@ FlightMap {
         }
     }
 
-    onMapClicked: (position) => {
-        // Only respond to clicks when the map is visible, enabled, and in full screen mode (not PIP)
+    onMapLongPress: (position) => {
+        // Only respond to long press when the map is visible, enabled, and in full screen mode (not PIP)
         if (!_root.visible || !_root.enabled || pipMode) {
             return
         }

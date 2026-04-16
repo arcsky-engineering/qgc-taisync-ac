@@ -42,6 +42,7 @@ ColumnLayout {
         Layout.preferredHeight: _photoVideoExpanded ? photoVideoControlLoader.height : expandButton.height
         visible:                QGroundControl.videoManager.hasVideo && (globals.activeVehicle ? true : false)
                                 && QGroundControl.settingsManager.flyViewSettings.showSimpleCameraControl.value
+                                && QGroundControl.settingsManager.flyViewSettings.payloadSelection.value !== 2  // hide for LiDAR
         clip:                   true
 
         Behavior on Layout.preferredWidth  { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad } }

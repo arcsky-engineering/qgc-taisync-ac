@@ -124,6 +124,34 @@ const QmlObjectListModel *QGCCorePlugin::customMapItems()
 
 bool QGCCorePlugin::adjustSettingMetaData(const QString &settingsGroup, FactMetaData &metaData)
 {
+    // One-time check: if vehicle variant changed since last run, clear variant-dependent
+    // settings so the new defaults take effect. Without this, persisted values from the
+    // old variant would stick even after switching.
+    static bool variantChecked = false;
+    if (!variantChecked) {
+        variantChecked = true;
+        QSettings settings;
+        const uint currentVariant = settings.value("vehicleVariant", 1).toUInt();
+        if (!settings.contains("_lastAppliedVariant")) {
+            // First run with variant tracking — record current variant without clearing
+            settings.setValue("_lastAppliedVariant", currentVariant);
+        } else if (settings.value("_lastAppliedVariant").toUInt() != currentVariant) {
+            // Variant changed — clear dependent settings so new defaults apply
+            settings.beginGroup(FlyViewSettings::settingsGroup);
+            settings.remove(FlyViewSettings::showForwardRangefinderName);
+            settings.remove(FlyViewSettings::showDownRangefinderName);
+            settings.remove(FlyViewSettings::showSimpleCameraControlName);
+            settings.remove(FlyViewSettings::showPayloadIndicatorName);
+            settings.remove(FlyViewSettings::enableMicROMName);
+            settings.endGroup();
+            settings.beginGroup(BatteryIndicatorSettings::settingsGroup);
+            settings.remove(BatteryIndicatorSettings::valueDisplayName);
+            settings.endGroup();
+            settings.setValue("_lastAppliedVariant", currentVariant);
+            qCDebug(QGCCorePluginLog) << "Vehicle variant changed to" << currentVariant << "- reset dependent settings to new defaults";
+        }
+    }
+
     if (settingsGroup == AppSettings::settingsGroup) {
         if (metaData.name() == AppSettings::indoorPaletteName) {
             // Default to Indoor (1) color scheme
@@ -143,7 +171,7 @@ bool QGCCorePlugin::adjustSettingMetaData(const QString &settingsGroup, FactMeta
 
     // Vehicle variant-aware defaults (read raw setting to avoid circular initialization)
     // AppSettings group is "" (empty), so key is just "vehicleVariant"
-    const bool isXplorer = QSettings().value("vehicleVariant", 0).toUInt() == 1;
+    const bool isXplorer = QSettings().value("vehicleVariant", 1).toUInt() == 1;
 
     if (settingsGroup == FlyViewSettings::settingsGroup) {
         // Rangefinders: default on for Xplorer, off for X55

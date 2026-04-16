@@ -192,6 +192,7 @@ QGCCameraParamIO::_sendParameter()
         p.target_system     = static_cast<uint8_t>(_vehicle->id());
         p.target_component  = static_cast<uint8_t>(_control->compID());
         strncpy(p.param_id, _fact->name().toStdString().c_str(), MAVLINK_MSG_PARAM_EXT_SET_FIELD_PARAM_ID_LEN);
+        qDebug() << "[PARAM_EXT_SET] name:" << _fact->name() << "value:" << _fact->rawValue() << "type:" << _mavParamType << "comp:" << _control->compID();
         mavlink_msg_param_ext_set_encode_chan(
                     static_cast<uint8_t>(MAVLinkProtocol::instance()->getSystemId()),
                     static_cast<uint8_t>(MAVLinkProtocol::getComponentId()),
@@ -223,6 +224,7 @@ void
 QGCCameraParamIO::handleParamAck(const mavlink_param_ext_ack_t& ack)
 {
     _paramWriteTimer.stop();
+    qDebug() << "[PARAM_EXT_ACK] name:" << _fact->name() << "result:" << ack.param_result << "(0=accepted, 1=in_progress, 2=failed, 3=unsupported)";
     if(ack.param_result == PARAM_ACK_ACCEPTED) {
         QVariant val = _valueFromMessage(ack.param_value, ack.param_type);
         if(_fact->rawValue() != val) {
@@ -263,6 +265,7 @@ QGCCameraParamIO::handleParamValue(const mavlink_param_ext_value_t& value)
 {
     _paramRequestTimer.stop();
     QVariant newValue = _valueFromMessage(value.param_value, value.param_type);
+    qDebug() << "[PARAM_EXT_VALUE] name:" << _fact->name() << "value:" << newValue << "type:" << value.param_type;
     if(_control->incomingParameter(_fact, newValue)) {
         _fact->containerSetRawValue(newValue);
         _control->factChanged(_fact);

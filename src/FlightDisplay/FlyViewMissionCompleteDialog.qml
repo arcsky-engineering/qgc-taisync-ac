@@ -77,7 +77,7 @@ Item {
                     Layout.fillWidth:       true
                     text:                   qsTr("%1 Images Taken").arg(_activeVehicle.cameraTriggerPoints.count)
                     horizontalAlignment:    Text.AlignHCenter
-                    visible:                _activeVehicle.cameraTriggerPoints.count !== 0
+                    visible:                false  // disabled — image count from cameraTriggerPoints double-counts with TAG-E
                 }
 
                 QGCButton {

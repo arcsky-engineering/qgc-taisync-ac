@@ -46,12 +46,35 @@ Rectangle {
     property bool   _isAirPixel:                _activeVehicle && _activeVehicle.airPixelDevice > 0
     property int    _apCompId:                  _activeVehicle ? _activeVehicle.airPixelComponentId : 0
 
+    // VIO detection — either from PARAM_EXT auto-detect OR persisted payload selection
+    property bool   _isVIO:                     _activeVehicle && (_activeVehicle.vioDetected
+                                                || QGroundControl.settingsManager.flyViewSettings.payloadSelection.value === 1)
+    property bool   _showDefaultCamSettings:    false   // toggle for debugging
+
     // Sizing constants
     property real   _buttonHeight:              ScreenTools.defaultFontPixelHeight * 3
     property real   _captureButtonSize:         ScreenTools.defaultFontPixelHeight * 5
     property real   _panelWidth:                ScreenTools.defaultFontPixelWidth * 30
 
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
+
+    // Force photo mode on startup
+    property bool _photoModeForced: false
+    onVisibleChanged: {
+        if (visible && !_photoModeForced && _camera && _camera.hasModes && _cameraInVideoMode) {
+            _camera.setCameraModePhoto()
+            _photoModeForced = true
+        }
+    }
+    Connections {
+        target: _camera
+        function onCameraModeChanged() {
+            if (!_photoModeForced && _camera.hasModes && _cameraInVideoMode) {
+                _camera.setCameraModePhoto()
+                _photoModeForced = true
+            }
+        }
+    }
 
     DeadMouseArea { anchors.fill: parent }
 
@@ -76,47 +99,7 @@ Rectangle {
             spacing:            _margins
             visible:            _camera.hasModes
 
-            // Video mode button
-            Rectangle {
-                Layout.fillWidth:       true
-                Layout.preferredHeight: _buttonHeight
-                radius:                 ScreenTools.defaultFontPixelWidth
-                color:                  _cameraInVideoMode ? qgcPal.brandingPurple : qgcPal.windowShadeLight
-                border.color:           _cameraInVideoMode ? Qt.lighter(qgcPal.brandingPurple, 1.3) : qgcPal.groupBorder
-                border.width:           _cameraInVideoMode ? 2 : 1
-
-                ColumnLayout {
-                    anchors.centerIn:   parent
-                    spacing:            2
-
-                    QGCColoredImage {
-                        Layout.alignment:       Qt.AlignHCenter
-                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.5
-                        Layout.preferredWidth:  Layout.preferredHeight
-                        source:                 "/qmlimages/camera_video.svg"
-                        fillMode:               Image.PreserveAspectFit
-                        sourceSize.height:      Layout.preferredHeight
-                        color:                  _cameraInVideoMode ? "white" : qgcPal.text
-                    }
-
-                    QGCLabel {
-                        Layout.alignment:   Qt.AlignHCenter
-                        text:               qsTr("VIDEO")
-                        font.pointSize:     ScreenTools.smallFontPointSize
-                        font.bold:          true
-                        color:              _cameraInVideoMode ? "white" : qgcPal.text
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill:   parent
-                    enabled:        _cameraInPhotoMode ? _photoCaptureIdle : true
-                    onClicked:      _camera.setCameraModeVideo()
-                    cursorShape:    Qt.PointingHandCursor
-                }
-            }
-
-            // Photo mode button
+            // Photo mode button (first/left)
             Rectangle {
                 Layout.fillWidth:       true
                 Layout.preferredHeight: _buttonHeight
@@ -152,6 +135,46 @@ Rectangle {
                     anchors.fill:   parent
                     enabled:        _cameraInVideoMode ? _videoCaptureIdle : true
                     onClicked:      _camera.setCameraModePhoto()
+                    cursorShape:    Qt.PointingHandCursor
+                }
+            }
+
+            // Video mode button (second/right)
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: _buttonHeight
+                radius:                 ScreenTools.defaultFontPixelWidth
+                color:                  _cameraInVideoMode ? qgcPal.brandingPurple : qgcPal.windowShadeLight
+                border.color:           _cameraInVideoMode ? Qt.lighter(qgcPal.brandingPurple, 1.3) : qgcPal.groupBorder
+                border.width:           _cameraInVideoMode ? 2 : 1
+
+                ColumnLayout {
+                    anchors.centerIn:   parent
+                    spacing:            2
+
+                    QGCColoredImage {
+                        Layout.alignment:       Qt.AlignHCenter
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.5
+                        Layout.preferredWidth:  Layout.preferredHeight
+                        source:                 "/qmlimages/camera_video.svg"
+                        fillMode:               Image.PreserveAspectFit
+                        sourceSize.height:      Layout.preferredHeight
+                        color:                  _cameraInVideoMode ? "white" : qgcPal.text
+                    }
+
+                    QGCLabel {
+                        Layout.alignment:   Qt.AlignHCenter
+                        text:               qsTr("VIDEO")
+                        font.pointSize:     ScreenTools.smallFontPointSize
+                        font.bold:          true
+                        color:              _cameraInVideoMode ? "white" : qgcPal.text
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill:   parent
+                    enabled:        _cameraInPhotoMode ? _photoCaptureIdle : true
+                    onClicked:      _camera.setCameraModeVideo()
                     cursorShape:    Qt.PointingHandCursor
                 }
             }
@@ -344,7 +367,7 @@ Rectangle {
                 }
 
                 QGCLabel {
-                    text:       _isAirPixel ? qsTr("AirPixel Camera") : qsTr("Camera Settings")
+                    text:       _isAirPixel ? qsTr("ILX Settings") : _isVIO ? qsTr("VIO Settings") : qsTr("Camera Settings")
                     font.bold:  true
                 }
             }
@@ -403,7 +426,7 @@ Rectangle {
                 Layout.fillWidth:   true
 
                 QGCLabel {
-                    text:               _isAirPixel ? qsTr("AirPixel Camera") : qsTr("Camera Settings")
+                    text:               _isAirPixel ? qsTr("ILX Settings") : _isVIO ? qsTr("VIO Settings") : qsTr("Camera Settings")
                     font.pointSize:     ScreenTools.mediumFontPointSize
                     font.bold:          true
                     Layout.fillWidth:   true
@@ -626,11 +649,118 @@ Rectangle {
                         }
                     }
 
+                    // ════════════════════════════════════════════
+                    //  VIO Camera Controls
+                    // ════════════════════════════════════════════
+                    ColumnLayout {
+                        id:                 vioControls
+                        Layout.fillWidth:   true
+                        spacing:            _smallMargins
+                        visible:            _isVIO && !_isAirPixel
+
+                        property real _btnW: ScreenTools.defaultFontPixelWidth * 5
+
+                        // ── CAMERA SOURCE ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCLabel { text: qsTr("CAMERA SOURCE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            Repeater {
+                                model: [
+                                    { label: "EO+IR", val: 0 },
+                                    { label: "EO",    val: 1 },
+                                    { label: "IR",    val: 2 },
+                                    { label: "IR+EO", val: 3 },
+                                    { label: "SxS",   val: 6 }
+                                ]
+                                QGCButton {
+                                    text: modelData.label; Layout.fillWidth: true
+                                    backgroundColor: _activeVehicle && _activeVehicle.vioCameraSource === modelData.val ? "green" : "gray"
+                                    onClicked: _activeVehicle.vioSetSource(modelData.val)
+                                }
+                            }
+                        }
+
+                        // ── IR PALETTE ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCLabel { text: qsTr("IR PALETTE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                        QGCComboBox {
+                            Layout.fillWidth: true
+                            model: ["WhiteHot", "BlackHot", "Rainbow", "RainbowHC", "Ironbow", "Lava", "Arctic", "Globow", "Gradedfire", "Hottest"]
+                            currentIndex: _activeVehicle ? _activeVehicle.vioIRPalette : 0
+                            onActivated: function(index) { _activeVehicle.vioSetIRPalette(index) }
+                        }
+
+                        // ── IR ZOOM ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCLabel { text: qsTr("IR ZOOM"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            Repeater {
+                                model: [
+                                    { label: "1x", val: 0 },
+                                    { label: "2x", val: 1 },
+                                    { label: "4x", val: 3 },
+                                    { label: "8x", val: 7 }
+                                ]
+                                QGCButton {
+                                    text: modelData.label; Layout.fillWidth: true
+                                    backgroundColor: _activeVehicle && _activeVehicle.vioIRZoom === modelData.val ? "green" : "gray"
+                                    onClicked: _activeVehicle.vioSetIRZoom(modelData.val)
+                                }
+                            }
+                        }
+
+                        // ── EO ZOOM ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCLabel { text: qsTr("EO ZOOM"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            QGCLabel {
+                                text: {
+                                    // Map SR zoom level index to display multiplier
+                                    var labels = ["1x","2x","4x","6x","8x","10x","12x","14x","16x","18x","20x","30x"]
+                                    var idx = _activeVehicle ? _activeVehicle.vioEOZoom : 0
+                                    return idx < labels.length ? labels[idx] : idx + "?"
+                                }
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                font.bold: true
+                            }
+                            QGCButton {
+                                text: "\u2212"; Layout.preferredWidth: vioControls._btnW
+                                onClicked: {
+                                    var cur = _activeVehicle.vioEOZoom
+                                    if (cur > 0) _activeVehicle.vioSetEOZoom(cur - 1)
+                                }
+                            }
+                            QGCButton {
+                                text: "+"; Layout.preferredWidth: vioControls._btnW
+                                onClicked: {
+                                    var cur = _activeVehicle.vioEOZoom
+                                    if (cur < 11) _activeVehicle.vioSetEOZoom(cur + 1)
+                                }
+                            }
+                        }
+
+                        // ── Show/hide default camera settings ──
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCButton {
+                            Layout.fillWidth: true
+                            text: _showDefaultCamSettings ? qsTr("Hide Default Settings") : qsTr("Show Default Settings")
+                            onClicked: _showDefaultCamSettings = !_showDefaultCamSettings
+                        }
+                    }
+
                     // ── Section: Camera Selection ──
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
-                        visible:            !_isAirPixel && (settingsPanel._multipleMavlinkCameras || settingsPanel._multipleMavlinkCameraStreams)
+                        visible:            (!_isAirPixel && !_isVIO || _showDefaultCamSettings) && (settingsPanel._multipleMavlinkCameras || settingsPanel._multipleMavlinkCameraStreams)
 
                         Rectangle {
                             Layout.fillWidth:       true
@@ -690,7 +820,7 @@ Rectangle {
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
-                        visible:            !_isAirPixel && _camera.activeSettings.length > 0
+                        visible:            (!_isAirPixel && !_isVIO || _showDefaultCamSettings) && _camera.activeSettings.length > 0
 
                         Rectangle {
                             Layout.fillWidth:       true
@@ -778,7 +908,7 @@ Rectangle {
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
-                        visible:            !_isAirPixel && _camera.thermalStreamInstance
+                        visible:            (!_isAirPixel && !_isVIO || _showDefaultCamSettings) && _camera.thermalStreamInstance
 
                         Rectangle {
                             Layout.fillWidth:       true
@@ -836,7 +966,7 @@ Rectangle {
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
-                        visible:            !_isAirPixel && _camera.hasVideoStream
+                        visible:            (!_isAirPixel && !_isVIO || _showDefaultCamSettings) && _camera.hasVideoStream
 
                         Rectangle {
                             Layout.fillWidth:       true
@@ -888,7 +1018,7 @@ Rectangle {
                     ColumnLayout {
                         Layout.fillWidth:   true
                         spacing:            _smallMargins
-                        visible:            !_isAirPixel
+                        visible:            !_isAirPixel && !_isVIO || _showDefaultCamSettings
 
                         Rectangle {
                             Layout.fillWidth:       true

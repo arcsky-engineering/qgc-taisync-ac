@@ -419,8 +419,8 @@ void MAVLinkProtocol::_stopLogging()
     if (_tempLogFile->isOpen() && _closeLogFile()) {
         auto appSettings = SettingsManager::instance()->appSettings();
         auto mavlinkSettings = SettingsManager::instance()->mavlinkSettings();
-        if ((_vehicleWasArmed || mavlinkSettings->telemetrySaveNotArmed()->rawValue().toBool()) && 
-                mavlinkSettings->telemetrySave()->rawValue().toBool() && 
+        if ((_vehicleWasArmed || _manualCaptureActive || mavlinkSettings->telemetrySaveNotArmed()->rawValue().toBool()) &&
+                mavlinkSettings->telemetrySave()->rawValue().toBool() &&
                 !appSettings->disableAllPersistence()->rawValue().toBool()) {
             _saveTelemetryLog(_tempLogFile->fileName());
         } else {
@@ -431,6 +431,10 @@ void MAVLinkProtocol::_stopLogging()
     _vehicleWasArmed = false;
     _vehicleIsArmed = false;
     _armedHeartbeatCount = 0;
+    if (_manualCaptureActive) {
+        _manualCaptureActive = false;
+        emit manualCaptureActiveChanged();
+    }
 }
 
 QGCTemporaryFile *MAVLinkProtocol::_createNewTempLogFile()
@@ -444,7 +448,7 @@ void MAVLinkProtocol::_rotateLogFile()
     if (_tempLogFile->isOpen() && _closeLogFile()) {
         auto appSettings = SettingsManager::instance()->appSettings();
         auto mavlinkSettings = SettingsManager::instance()->mavlinkSettings();
-        if ((_vehicleWasArmed || mavlinkSettings->telemetrySaveNotArmed()->rawValue().toBool()) &&
+        if ((_vehicleWasArmed || _manualCaptureActive || mavlinkSettings->telemetrySaveNotArmed()->rawValue().toBool()) &&
                 mavlinkSettings->telemetrySave()->rawValue().toBool() &&
                 !appSettings->disableAllPersistence()->rawValue().toBool()) {
             _saveTelemetryLog(_tempLogFile->fileName());
@@ -461,6 +465,33 @@ void MAVLinkProtocol::_rotateLogFile()
     _armedHeartbeatCount = 0;
 
     // Immediately re-open for continued logging (vehicle is still connected)
+    _startLogging();
+}
+
+void MAVLinkProtocol::startManualCapture()
+{
+    // Save/discard any current data based on arm state, then start fresh
+    _rotateLogFile();
+    _manualCaptureActive = true;
+    emit manualCaptureActiveChanged();
+}
+
+void MAVLinkProtocol::stopManualCapture()
+{
+    _manualCaptureActive = false;
+    emit manualCaptureActiveChanged();
+
+    // Force-save the current log regardless of arm state — the user explicitly requested this
+    if (_tempLogFile->isOpen() && _closeLogFile()) {
+        _saveTelemetryLog(_tempLogFile->fileName());
+    }
+
+    // Continue logging in a fresh file
+    _tempLogFile->deleteLater();
+    _tempLogFile = _createNewTempLogFile();
+    _vehicleWasArmed = false;
+    _vehicleIsArmed = false;
+    _armedHeartbeatCount = 0;
     _startLogging();
 }
 

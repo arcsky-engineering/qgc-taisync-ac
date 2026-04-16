@@ -712,6 +712,10 @@ void Vehicle::_mavlinkMessageReceived(LinkInterface* link, mavlink_message_t mes
             mavlink_param_ext_value_t value;
             mavlink_msg_param_ext_value_decode(&message, &value);
             _handleAirPixelParamValue(value);
+        } else if (message.compid == 101) {
+            mavlink_param_ext_value_t value;
+            mavlink_msg_param_ext_value_decode(&message, &value);
+            _handleVioParamValue(value);
         }
         break;
     }
@@ -1488,9 +1492,8 @@ void Vehicle::_handleAirPixelParamValue(const mavlink_param_ext_value_t& value)
     if (changed) emit apCameraChanged();
 }
 
-void Vehicle::_apSendParamExt(const QString& name, const void* value, size_t valueSize, uint8_t paramType)
+void Vehicle::_sendParamExtToComponent(int compId, const QString& name, const void* value, size_t valueSize, uint8_t paramType)
 {
-    int compId = airPixelComponentId();
     if (compId == 0) return;
 
     SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
@@ -1512,6 +1515,16 @@ void Vehicle::_apSendParamExt(const QString& name, const void* value, size_t val
         &msg,
         &p);
     sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
+}
+
+void Vehicle::_apSendParamExt(const QString& name, const void* value, size_t valueSize, uint8_t paramType)
+{
+    int compId = airPixelComponentId();
+    qDebug() << "[AP_PARAM_EXT_SEND] name:" << name << "compId:" << compId << "airPixelDevice:" << static_cast<int>(_airPixelDevice);
+    if (compId == 0) {
+        qDebug() << "[AP_PARAM_EXT_SEND] DROPPED - no AirPixel device detected";
+    }
+    _sendParamExtToComponent(compId, name, value, valueSize, paramType);
 }
 
 void Vehicle::apSetParamUint(const QString& name, quint32 value)
@@ -1560,6 +1573,80 @@ void Vehicle::apFormatCard()
             _apSendParamExt(QStringLiteral("TG_FORMAT"), &off, sizeof(off), 1);
         });
     }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// VIO camera PARAM_EXT handling (component 101)
+// ────────────────────────────────────────────────────────────────────────────
+
+void Vehicle::_handleVioParamValue(const mavlink_param_ext_value_t& value)
+{
+    char nameBuf[17] = {};
+    memcpy(nameBuf, value.param_id, 16);
+    QString name(nameBuf);
+
+    if (!_vioDetected) {
+        _vioDetected = true;
+        emit vioCameraChanged();
+    }
+
+    bool changed = false;
+
+    if (name == QStringLiteral("C_SOURCE")) {
+        uint32_t raw; memcpy(&raw, value.param_value, sizeof(raw));
+        int v = static_cast<int>(raw);
+        if (_vioCameraSource != v) { _vioCameraSource = v; changed = true; }
+    }
+    else if (name == QStringLiteral("C_T_PALETTE")) {
+        uint32_t raw; memcpy(&raw, value.param_value, sizeof(raw));
+        int v = static_cast<int>(raw);
+        if (_vioIRPalette != v) { _vioIRPalette = v; changed = true; }
+    }
+    else if (name == QStringLiteral("C_T_ZOOM")) {
+        uint32_t raw; memcpy(&raw, value.param_value, sizeof(raw));
+        int v = static_cast<int>(raw);
+        if (_vioIRZoom != v) { _vioIRZoom = v; changed = true; }
+    }
+    else if (name == QStringLiteral("C_V_ZM_SR_LV")) {
+        uint32_t raw; memcpy(&raw, value.param_value, sizeof(raw));
+        int v = static_cast<int>(raw);
+        if (_vioEOZoom != v) { _vioEOZoom = v; changed = true; }
+    }
+
+    if (changed) emit vioCameraChanged();
+}
+
+void Vehicle::vioSetParam(const QString& name, quint32 value)
+{
+    _sendParamExtToComponent(101, name, &value, sizeof(value), 5);  // UINT32
+}
+
+void Vehicle::vioSetSource(int val)
+{
+    _vioCameraSource = val;
+    emit vioCameraChanged();
+    vioSetParam(QStringLiteral("C_SOURCE"), static_cast<quint32>(val));
+}
+
+void Vehicle::vioSetIRPalette(int val)
+{
+    _vioIRPalette = val;
+    emit vioCameraChanged();
+    vioSetParam(QStringLiteral("C_T_PALETTE"), static_cast<quint32>(val));
+}
+
+void Vehicle::vioSetIRZoom(int val)
+{
+    _vioIRZoom = val;
+    emit vioCameraChanged();
+    vioSetParam(QStringLiteral("C_T_ZOOM"), static_cast<quint32>(val));
+}
+
+void Vehicle::vioSetEOZoom(int val)
+{
+    _vioEOZoom = val;
+    emit vioCameraChanged();
+    vioSetParam(QStringLiteral("C_V_ZM_SR_LV"), static_cast<quint32>(val));
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -3585,7 +3672,9 @@ void Vehicle::_rebootCommandResultHandler(void* resultHandlerData, int /*compId*
         }
         qgcApp()->showAppMessage(tr("Vehicle reboot failed."));
     } else {
-        vehicle->closeVehicle();
+        // Don't close the vehicle/link — let the connection naturally
+        // timeout and auto-reconnect when the vehicle finishes rebooting.
+        qCDebug(VehicleLog) << "MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN accepted — waiting for reconnect";
     }
 }
 

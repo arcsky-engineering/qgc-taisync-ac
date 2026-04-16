@@ -42,5 +42,6 @@ public:
     DEFINE_SETTINGFACT(payloadSerialPort)
     DEFINE_SETTINGFACT(payloadIlxBaud)
     DEFINE_SETTINGFACT(payloadVioBaud)
+    DEFINE_SETTINGFACT(payloadSelection)
     DEFINE_SETTINGFACT(enableMicROM)
 };

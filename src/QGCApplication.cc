@@ -62,6 +62,7 @@
 #include "QGCImageProvider.h"
 #include "QGCLoggingCategory.h"
 #include "QGroundControlQmlGlobal.h"
+#include "TelemetryLogManager.h"
 #include "SettingsManager.h"
 #include "AppSettings.h"
 #include "ShapeFileHelper.h"
@@ -313,6 +314,7 @@ void QGCApplication::init()
 #endif
     qmlRegisterType<GeoTagController>("QGroundControl.Controllers", 1, 0, "GeoTagController");
     qmlRegisterType<LogDownloadController>("QGroundControl.Controllers", 1, 0, "LogDownloadController");
+    qmlRegisterType<TelemetryLogManager>("QGroundControl.Controllers", 1, 0, "TelemetryLogManager");
     qmlRegisterType<MAVLinkConsoleController>("QGroundControl.Controllers", 1, 0, "MAVLinkConsoleController");
 
 

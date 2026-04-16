@@ -34,6 +34,14 @@ ToolIndicatorPage {
     property Fact _camTypeFact
     property int payloadType: 0   // 0=unknown, 1=ILX, 2=VIO
 
+    // Payload selection: 0=ILX-LR1, 1=VIO, 2=LiDAR  (persisted across restarts)
+    property int _selectedPayload: _flyViewSettings.payloadSelection.value
+
+    function _savePayloadSelection(index) {
+        _selectedPayload = index
+        _flyViewSettings.payloadSelection.value = index
+    }
+
     //--------------------------------------
     // Detect payload based on parameters
     //--------------------------------------
@@ -139,74 +147,7 @@ ToolIndicatorPage {
             spacing: ScreenTools.defaultFontPixelHeight
 
             //----------------------------------------------------
-            // Geotag Section (ILX / ENTIRE / TAG-E)
-            //----------------------------------------------------
-            SettingsGroupLayout {
-                heading: "Geotagging Details"
-                visible: payloadType === 1 || (activeVehicle && activeVehicle.airPixelDevice > 0)
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: ScreenTools.defaultFontPixelHeight / 2
-
-                    QGCLabel { text: "Mode: " + activeVehicle.geoMode }
-                    QGCLabel { text: "Session Status: " + activeVehicle.geoStatusText }
-                    QGCLabel { text: "Auto-trigger Status: " + activeVehicle.geoAutoTriggerStatus }
-                    QGCLabel { text: "Logging Status: " + activeVehicle.geoLoggingStatus }
-                    QGCLabel { text: "Progress: " + activeVehicle.geoProgressPercent + "%" }
-                    QGCLabel { text: "Photos Taken: " + activeVehicle.imageCount }
-                }
-            }
-
-            SettingsGroupLayout {
-                heading: "Geotagging Actions"
-                visible: payloadType === 1 || (activeVehicle && activeVehicle.airPixelDevice > 0)
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: ScreenTools.defaultFontPixelPixelHeight / 2
-
-                    QGCButton {
-                        text: "Geotagging ON"
-                        Layout.fillWidth: true
-                        onClicked: {
-                            var compId = activeVehicle.airPixelComponentId > 0
-                                         ? activeVehicle.airPixelComponentId : 105
-                            activeVehicle.sendCommand(
-                                compId,
-                                202,
-                                true,
-                                132,0,0,0,0,0,0
-                            )
-                        }
-                    }
-
-                    QGCButton {
-                        text: "Geotagging OFF"
-                        Layout.fillWidth: true
-                        onClicked: {
-                            var compId = activeVehicle.airPixelComponentId > 0
-                                         ? activeVehicle.airPixelComponentId : 105
-                            activeVehicle.sendCommand(
-                                compId,
-                                202,
-                                true,
-                                133,0,0,0,0,0,0
-                            )
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: qgcPal.buttonText
-                opacity: 0.25
-            }
-
-            //----------------------------------------------------
-            // PAYLOAD SELECTION
+            // PAYLOAD SELECTION (dropdown)
             //----------------------------------------------------
             SettingsGroupLayout {
                 heading: "Payload Selection"
@@ -216,18 +157,203 @@ ToolIndicatorPage {
                     Layout.fillWidth: true
                     spacing: ScreenTools.defaultFontPixelHeight / 2
 
-                    QGCButton {
-                        text: "VIO Payload"
-                        Layout.fillWidth: true
-                        backgroundColor: (payloadType === 2) ? "green" : "gray"
-                        onClicked: applyPayloadConfig(_vioBaud, 6)
+                    QGCComboBox {
+                        id:                 payloadCombo
+                        Layout.fillWidth:   true
+                        model:              ["ILX-LR1", "VIO", "LiDAR"]
+                        currentIndex:       _selectedPayload
+                        onActivated: function(index) { _savePayloadSelection(index) }
                     }
 
                     QGCButton {
-                        text: "ILX-LR1 Payload"
+                        text:               "Apply"
+                        Layout.fillWidth:   true
+                        visible:            _selectedPayload < 2   // ILX or VIO
+                        onClicked: {
+                            if (_selectedPayload === 0)
+                                applyPayloadConfig(_ilxBaud, 5)
+                            else
+                                applyPayloadConfig(_vioBaud, 6)
+                        }
+                    }
+
+                    QGCButton {
+                        text:               "Apply"
+                        Layout.fillWidth:   true
+                        visible:            _selectedPayload === 2   // LiDAR
+                        onClicked: {
+                            // Set CAM1_TYPE=0 to prevent camera manager from loading
+                            if (_camTypeFact && _camTypeFact.value !== 0) {
+                                _camTypeFact.value = 0
+                                mainWindow.showMessageDialog("Payload Info",
+                                    "Camera driver disabled for LiDAR. Rebooting...")
+                                Qt.callLater(function() {
+                                    activeVehicle.rebootVehicle()
+                                    mainWindow.closeIndicatorDrawer()
+                                })
+                            } else {
+                                mainWindow.showMessageDialog("Payload Info",
+                                    "Camera driver already disabled")
+                            }
+                        }
+                    }
+                }
+            }
+
+            //----------------------------------------------------
+            // LiDAR PATTERN SETTINGS
+            //----------------------------------------------------
+            SettingsGroupLayout {
+                heading: "LiDAR Pattern Settings"
+                visible: _selectedPayload === 2 && activeVehicle
+
+                ColumnLayout {
+                    id:                 lidarCol
+                    Layout.fillWidth:   true
+                    spacing:            ScreenTools.defaultFontPixelHeight / 2
+
+                    property var _ptrnPnum:    activeVehicle ? controller.getParameterFact(-1, "PTRN_PNUM",    false) : null
+                    property var _ptrnRadius:  activeVehicle ? controller.getParameterFact(-1, "PTRN_RADIUS",  false) : null
+                    property var _ptrnSpeed:   activeVehicle ? controller.getParameterFact(-1, "PTRN_SPEED",   false) : null
+                    property var _ptrnSlspd:   activeVehicle ? controller.getParameterFact(-1, "PTRN_SLSPD",   false) : null
+                    property var _ptrnShape:   activeVehicle ? controller.getParameterFact(-1, "PTRN_SHAPE",   false) : null
+                    property var _ptrnTrigger: activeVehicle ? controller.getParameterFact(-1, "PTRN_TRIGGER", false) : null
+                    property bool _paramsOk:   !!_ptrnPnum
+
+                    QGCLabel {
+                        text:               "PTRN_ parameters not found.\nEnsure the LiDAR pattern script is loaded."
+                        visible:            !lidarCol._paramsOk
+                        wrapMode:           Text.WordWrap
+                        Layout.fillWidth:   true
+                    }
+
+                    // ── LiDAR Type ──
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: 2; visible: lidarCol._paramsOk
+
+                        QGCLabel { text: "LiDAR Type"; font.pointSize: ScreenTools.smallFontPointSize }
+
+                        QGCComboBox {
+                            Layout.fillWidth:   true
+                            model:              ["Phoenix", "Inertial Labs", "YellowScan"]
+                            currentIndex:       lidarCol._ptrnPnum ? lidarCol._ptrnPnum.value - 1 : 0
+                            onActivated: function(index) { if (lidarCol._ptrnPnum) lidarCol._ptrnPnum.value = index + 1 }
+                        }
+                    }
+
+                    // ── Pattern Radius ──
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: 2; visible: lidarCol._paramsOk
+
+                        QGCLabel { text: "Pattern Radius"; font.pointSize: ScreenTools.smallFontPointSize }
+
+                        QGCComboBox {
+                            Layout.fillWidth:   true
+                            model:              ["25 m", "40 m", "50 m"]
+                            property var _values: [25, 40, 50]
+                            currentIndex: {
+                                if (!lidarCol._ptrnRadius) return 2
+                                var v = lidarCol._ptrnRadius.value
+                                for (var i = 0; i < _values.length; i++)
+                                    if (Math.abs(v - _values[i]) < 0.5) return i
+                                return 2
+                            }
+                            onActivated: function(index) { if (lidarCol._ptrnRadius) lidarCol._ptrnRadius.value = _values[index] }
+                        }
+                    }
+
+                    // ── Pattern Speed ──
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: 2; visible: lidarCol._paramsOk
+
+                        QGCLabel { text: "Pattern Speed"; font.pointSize: ScreenTools.smallFontPointSize }
+
+                        QGCComboBox {
+                            Layout.fillWidth:   true
+                            model:              ["5 m/s", "6 m/s", "7 m/s"]
+                            property var _values: [5, 6, 7]
+                            currentIndex: {
+                                if (!lidarCol._ptrnSpeed) return 0
+                                var v = lidarCol._ptrnSpeed.value
+                                for (var i = 0; i < _values.length; i++)
+                                    if (Math.abs(v - _values[i]) < 0.5) return i
+                                return 0
+                            }
+                            onActivated: function(index) { if (lidarCol._ptrnSpeed) lidarCol._ptrnSpeed.value = _values[index] }
+                        }
+                    }
+
+                    // ── Straight Line Speed ──
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: 2; visible: lidarCol._paramsOk
+
+                        QGCLabel { text: "Straight Line Speed"; font.pointSize: ScreenTools.smallFontPointSize }
+
+                        QGCComboBox {
+                            Layout.fillWidth:   true
+                            model:              ["5 m/s", "6 m/s", "7 m/s", "10 m/s"]
+                            property var _values: [5, 6, 7, 10]
+                            currentIndex: {
+                                if (!lidarCol._ptrnSlspd) return 0
+                                var v = lidarCol._ptrnSlspd.value
+                                for (var i = 0; i < _values.length; i++)
+                                    if (Math.abs(v - _values[i]) < 0.5) return i
+                                return 0
+                            }
+                            onActivated: function(index) { if (lidarCol._ptrnSlspd) lidarCol._ptrnSlspd.value = _values[index] }
+                        }
+                    }
+
+                    // ── Pattern Style ──
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: 2; visible: lidarCol._paramsOk
+
+                        QGCLabel { text: "Pattern Style"; font.pointSize: ScreenTools.smallFontPointSize }
+
+                        QGCComboBox {
+                            Layout.fillWidth:   true
+                            model:              ["Figure-8", "Circular"]
+                            currentIndex:       lidarCol._ptrnShape ? lidarCol._ptrnShape.value : 0
+                            onActivated: function(index) { if (lidarCol._ptrnShape) lidarCol._ptrnShape.value = index }
+                        }
+                    }
+
+                    // ── Start Pattern ──
+                    Rectangle {
+                        Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder
+                        visible: lidarCol._paramsOk
+                    }
+
+                    RowLayout {
                         Layout.fillWidth: true
-                        backgroundColor: (payloadType === 1) ? "green" : "gray"
-                        onClicked: applyPayloadConfig(_ilxBaud, 5)
+                        spacing: ScreenTools.defaultFontPixelWidth / 2
+                        visible: lidarCol._paramsOk
+
+                        QGCButton {
+                            text:               "Start Pattern"
+                            Layout.fillWidth:   true
+                            enabled:            activeVehicle && activeVehicle.armed
+                            onClicked: {
+                                if (lidarCol._ptrnTrigger) lidarCol._ptrnTrigger.value = 1
+                            }
+                        }
+
+                        QGCButton {
+                            text:               "Start Pattern 2"
+                            Layout.fillWidth:   true
+                            enabled:            activeVehicle && activeVehicle.armed
+                            onClicked: {
+                                if (lidarCol._ptrnTrigger) lidarCol._ptrnTrigger.value = 2
+                            }
+                        }
+                    }
+
+                    QGCLabel {
+                        text:               "Arm the vehicle to start a pattern"
+                        visible:            lidarCol._paramsOk && activeVehicle && !activeVehicle.armed
+                        font.pointSize:     ScreenTools.smallFontPointSize
+                        color:              qgcPal.colorOrange
+                        Layout.fillWidth:   true
                     }
                 }
             }
