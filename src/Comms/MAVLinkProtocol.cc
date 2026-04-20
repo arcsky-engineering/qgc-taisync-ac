@@ -497,10 +497,11 @@ void MAVLinkProtocol::stopManualCapture()
 
 void MAVLinkProtocol::checkForLostLogFiles()
 {
-    // Clean up any orphaned temp log files left behind by a previous session
-    // (e.g. QGC crashed or was closed without a clean shutdown). Real flights
-    // are saved via _rotateLogFile() on disarm, so orphans are either incomplete
-    // flights or unarmed connection sessions — neither worth keeping.
+    // Recover orphaned temp log files left behind by a previous session (e.g. QGC
+    // crashed, was force-killed, or the controller lost power mid-flight). Files
+    // above _kMinOrphanSaveBytes are recovered as .tlog (likely a real flight
+    // whose data would otherwise be lost). Smaller orphans are deleted — they're
+    // typically brief connect/disconnect sessions with no meaningful flight data.
     static const QDir tempDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation));
     static const QString filter(QStringLiteral("*.%1").arg(_logFileExtension));
     static const QStringList filterList(filter);
@@ -509,8 +510,13 @@ void MAVLinkProtocol::checkForLostLogFiles()
     qCDebug(MAVLinkProtocolLog) << "Orphaned log file count" << fileInfoList.count();
 
     for (const QFileInfo &fileInfo: fileInfoList) {
-        qCDebug(MAVLinkProtocolLog) << "Removing orphaned log file" << fileInfo.filePath();
-        (void) QFile::remove(fileInfo.filePath());
+        if (fileInfo.size() >= _kMinOrphanSaveBytes) {
+            qCDebug(MAVLinkProtocolLog) << "Recovering orphaned flight log" << fileInfo.filePath() << "size" << fileInfo.size();
+            _saveTelemetryLog(fileInfo.filePath());
+        } else {
+            qCDebug(MAVLinkProtocolLog) << "Removing small orphaned log file" << fileInfo.filePath() << "size" << fileInfo.size();
+            (void) QFile::remove(fileInfo.filePath());
+        }
     }
 }
 

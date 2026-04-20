@@ -154,6 +154,7 @@ private:
     static constexpr const char *_tempLogFileTemplate = "FlightDataXXXXXX"; ///< Template for temporary log file
     static constexpr const char *_logFileExtension = "mavlink";             ///< Extension for log files
     static constexpr int _kMinArmedHeartbeats = 3;                          ///< Consecutive armed heartbeats required to confirm armed state
+    static constexpr qint64 _kMinOrphanSaveBytes = 500 * 1024;              ///< Minimum size (bytes) for an orphan log to be worth recovering as a flight
 
     static constexpr uint8_t kMaxCompId = MAV_COMPONENT_ENUM_END - 1;
 };
