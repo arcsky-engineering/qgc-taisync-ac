@@ -12,6 +12,8 @@
 #include "Vehicle.h"
 #include "CameraMetaData.h"
 #include "PlanMasterController.h"
+#include "SettingsManager.h"
+#include "FlyViewSettings.h"
 
 #include <QtQml/QQmlEngine>
 
@@ -63,6 +65,24 @@ CameraCalc::CameraCalc(PlanMasterController* masterController, const QString& se
         CameraMetaData* cameraMetaData = _knownCameraList[cameraIndex].value<CameraMetaData*>();
         if (!_cameraBrandList.contains(cameraMetaData->brand)) {
             _cameraBrandList.append(cameraMetaData->brand);
+        }
+    }
+
+    // If the payload indicator is enabled and the selected payload is ILX-LR1 (index 0),
+    // default the mission camera to the Sony ILX-LR1 entry so new Survey/Corridor items come
+    // up pre-configured. When the payload indicator is disabled (X55 variant), leave the
+    // persisted camera alone. load() runs after the constructor for saved plans, so this
+    // only affects freshly-created items.
+    FlyViewSettings* flyViewSettings = SettingsManager::instance()->flyViewSettings();
+    if (flyViewSettings->showPayloadIndicator()->rawValue().toBool() &&
+        flyViewSettings->payloadSelection()->rawValue().toInt() == 0) {
+        const QString ilxCanonical = QStringLiteral("Sony ILX-LR1 35mm");
+        for (int i = 0; i < _knownCameraList.count(); i++) {
+            CameraMetaData* meta = _knownCameraList[i].value<CameraMetaData*>();
+            if (meta->canonicalName == ilxCanonical) {
+                _cameraNameFact.setRawValue(ilxCanonical);
+                break;
+            }
         }
     }
 

@@ -10,6 +10,24 @@
 #pragma once
 
 #include "APMFirmwarePlugin.h"
+#include "FactGroup.h"
+
+class ArduCopterStatusFactGroup : public FactGroup
+{
+    Q_OBJECT
+    Q_PROPERTY(Fact *fwdAvdStatus READ fwdAvdStatus CONSTANT)
+    Q_PROPERTY(Fact *rfndStatus   READ rfndStatus   CONSTANT)
+
+public:
+    explicit ArduCopterStatusFactGroup(QObject *parent = nullptr);
+
+    Fact *fwdAvdStatus() { return &_fwdAvdStatusFact; }
+    Fact *rfndStatus()   { return &_rfndStatusFact; }
+
+private:
+    Fact _fwdAvdStatusFact = Fact(0, QStringLiteral("fwdAvdStatus"), FactMetaData::valueTypeUint8);
+    Fact _rfndStatusFact   = Fact(0, QStringLiteral("rfndStatus"),   FactMetaData::valueTypeUint8);
+};
 
 struct APMCopterMode
 {
@@ -71,6 +89,8 @@ public:
     bool supportsSmartRTL() const override { return true; }
 
     void updateAvailableFlightModes(FlightModeList &modeList) override;
+    bool adjustIncomingMavlinkMessage(Vehicle *vehicle, mavlink_message_t *message) override;
+    QMap<QString, FactGroup*> *factGroups() override;
 
 protected:
     uint32_t _convertToCustomFlightModeEnum(uint32_t val) const override;
@@ -105,4 +125,7 @@ private:
 
     static bool _remapParamNameIntialized;
     static FirmwarePlugin::remapParamNameMajorVersionMap_t _remapParamName;
+
+    QMap<QString, FactGroup*> _nameToFactGroupMap;
+    ArduCopterStatusFactGroup _statusFactGroup;
 };

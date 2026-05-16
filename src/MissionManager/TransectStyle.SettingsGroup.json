@@ -25,7 +25,7 @@
     "name":             "CameraTriggerInTurnAround",
     "shortDesc": "Camera continues taking images in turn arounds.",
     "type":             "bool",
-    "default":     true
+    "default":     false
 },
 {
     "name":             "HoverAndCapture",

@@ -11,12 +11,26 @@
 #include "ParameterManager.h"
 #include "Vehicle.h"
 
+ArduCopterStatusFactGroup::ArduCopterStatusFactGroup(QObject *parent)
+    : FactGroup(0, parent)
+{
+    _addFact(&_fwdAvdStatusFact);
+    _addFact(&_rfndStatusFact);
+    // 255 sentinel = "no NAMED_VALUE_INT update received yet" so QML can fall
+    // back to legacy display for firmware that doesn't broadcast the status.
+    _fwdAvdStatusFact.setRawValue(255);
+    _rfndStatusFact.setRawValue(255);
+}
+
 bool ArduCopterFirmwarePlugin::_remapParamNameIntialized = false;
 FirmwarePlugin::remapParamNameMajorVersionMap_t ArduCopterFirmwarePlugin::_remapParamName;
 
 ArduCopterFirmwarePlugin::ArduCopterFirmwarePlugin(QObject *parent)
     : APMFirmwarePlugin(parent)
+    , _statusFactGroup(this)
 {
+    _nameToFactGroupMap.insert(QStringLiteral("apmCopterStatus"), &_statusFactGroup);
+
     _setModeEnumToModeStringMapping({
         { APMCopterMode::STABILIZE,    _stabilizeFlightMode     },
         { APMCopterMode::ACRO,         _acroFlightMode          },
@@ -173,4 +187,27 @@ uint32_t ArduCopterFirmwarePlugin::_convertToCustomFlightModeEnum(uint32_t val) 
     default:
         return UINT32_MAX;
     }
+}
+
+QMap<QString, FactGroup*> *ArduCopterFirmwarePlugin::factGroups()
+{
+    return &_nameToFactGroupMap;
+}
+
+bool ArduCopterFirmwarePlugin::adjustIncomingMavlinkMessage(Vehicle *vehicle, mavlink_message_t *message)
+{
+    if (message->msgid == MAVLINK_MSG_ID_NAMED_VALUE_INT) {
+        mavlink_named_value_int_t value{};
+        mavlink_msg_named_value_int_decode(message, &value);
+
+        // value.name is char[10], not guaranteed null-terminated.
+        char name_buf[MAVLINK_MSG_NAMED_VALUE_INT_FIELD_NAME_LEN + 1] = {};
+        memcpy(name_buf, value.name, MAVLINK_MSG_NAMED_VALUE_INT_FIELD_NAME_LEN);
+        if (qstrcmp(name_buf, "FWDAVD_ST") == 0) {
+            _statusFactGroup.fwdAvdStatus()->setRawValue(value.value);
+        } else if (qstrcmp(name_buf, "RFND_ST") == 0) {
+            _statusFactGroup.rfndStatus()->setRawValue(value.value);
+        }
+    }
+    return APMFirmwarePlugin::adjustIncomingMavlinkMessage(vehicle, message);
 }

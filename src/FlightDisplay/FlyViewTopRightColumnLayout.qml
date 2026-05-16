@@ -33,6 +33,23 @@ ColumnLayout {
         Layout.preferredWidth:  _rightPanelWidth
     }
 
+    // LiDAR Control (shown in place of PhotoVideoControl when LiDAR payload selected).
+    // Wrapped in a Loader so FactPanelController inside LidarControl is only constructed once a
+    // real vehicle is connected — otherwise it latches onto the offline-editing vehicle and
+    // PTRN_ params never resolve.
+    Loader {
+        Layout.alignment:   Qt.AlignTop | Qt.AlignRight
+        active:             globals.activeVehicle
+                            && QGroundControl.settingsManager.flyViewSettings.payloadSelection.value === 2
+        visible:            active
+        sourceComponent:    lidarControlComponent
+
+        Component {
+            id: lidarControlComponent
+            LidarControl { }
+        }
+    }
+
     // We use a Loader to load the photoVideoControlComponent only when the active vehicle is not null
     // This make it easier to implement PhotoVideoControl without having to check for the mavlink camera
     // to be null all over the place
@@ -71,7 +88,7 @@ ColumnLayout {
         Rectangle {
             anchors.left:       parent.left
             anchors.bottom:     parent.bottom
-            width:              ScreenTools.defaultFontPixelHeight * 2
+            width:              ScreenTools.defaultFontPixelHeight * 2.5
             height:             width
             radius:             ScreenTools.defaultFontPixelHeight / 3
             color:              collapseMouseArea.containsMouse ? Qt.rgba(0, 0, 0, 0.6) : Qt.rgba(0, 0, 0, 0.35)
@@ -83,7 +100,7 @@ ColumnLayout {
             Image {
                 anchors.centerIn:   parent
                 source:             "/res/buttonRight.svg"
-                height:             parent.height * 0.5
+                height:             parent.height * 0.75
                 width:              height
                 fillMode:           Image.PreserveAspectFit
                 sourceSize.height:  height
@@ -103,7 +120,7 @@ ColumnLayout {
         Rectangle {
             id:                 expandButton
             anchors.right:      parent.right
-            width:              ScreenTools.defaultFontPixelHeight * 2
+            width:              ScreenTools.defaultFontPixelHeight * 2.5
             height:             width
             radius:             ScreenTools.defaultFontPixelHeight / 3
             color:              expandMouseArea.containsMouse ? Qt.rgba(0, 0, 0, 0.6) : Qt.rgba(0, 0, 0, 0.35)
@@ -114,7 +131,7 @@ ColumnLayout {
             Image {
                 anchors.centerIn:   parent
                 source:             "/res/buttonLeft.svg"
-                height:             parent.height * 0.5
+                height:             parent.height * 0.75
                 width:              height
                 fillMode:           Image.PreserveAspectFit
                 sourceSize.height:  height

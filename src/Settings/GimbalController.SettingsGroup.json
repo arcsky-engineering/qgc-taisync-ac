@@ -42,7 +42,7 @@
     "name":              "showAzimuthIndicatorOnMap",
     "shortDesc":         "Show gimbal Azimuth indicator over vehicle icon in map",
     "type":              "bool",
-    "default":           true
+    "default":           false
 },
 {
     "name":              "toolbarIndicatorShowAzimuth",

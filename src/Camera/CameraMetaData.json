@@ -45,6 +45,34 @@
             "fixedOrientation": false,
             "minTriggerInterval": 0.7,
             "deprecatedTranslatedName": "Phase One P3 IXM100"
+        },
+        {
+            "canonicalName": "Gremsy VIO EO 4.4mm",
+            "brand": "Gremsy",
+            "model": "VIO-EO-4.4mm",
+            "sensorWidth": 7.20,
+            "sensorHeight": 4.05,
+            "imageWidth": 3840,
+            "imageHeight": 2160,
+            "focalLength": 4.4,
+            "landscape": true,
+            "fixedOrientation": false,
+            "minTriggerInterval": 1.0,
+            "deprecatedTranslatedName": "Gremsy VIO EO 4.4mm"
+        },
+        {
+            "canonicalName": "Gremsy VIO IR 14mm (FLIR Boson 640)",
+            "brand": "Gremsy",
+            "model": "VIO-IR-Boson640-14mm",
+            "sensorWidth": 7.68,
+            "sensorHeight": 6.144,
+            "imageWidth": 640,
+            "imageHeight": 512,
+            "focalLength": 14.0,
+            "landscape": true,
+            "fixedOrientation": false,
+            "minTriggerInterval": 1.0,
+            "deprecatedTranslatedName": "Gremsy VIO IR 14mm (FLIR Boson 640)"
         }
     ]
 }

@@ -276,7 +276,6 @@ void QGCCorePlugin::factValueGridCreateDefaultSettings(FactValueGrid* factValueG
 
         (void) factValueGrid->appendColumn();
         (void) factValueGrid->appendColumn();
-        (void) factValueGrid->appendColumn();
         if (includeFWValues) {
             (void) factValueGrid->appendColumn();
         }
@@ -308,34 +307,9 @@ void QGCCorePlugin::factValueGridCreateDefaultSettings(FactValueGrid* factValueG
         value->setText("Speed");
         value->setShowUnits(true);
 
-        // if (includeFWValues) {
-        //     rowIndex = 0;
-        //     column = factValueGrid->columns()->value<QmlObjectListModel*>(2);
-
-        //     value = column->value<InstrumentValueData*>(rowIndex++);
-        //     value->setFact(QStringLiteral("Vehicle"), QStringLiteral("AirSpeed"));
-        //     value->setText(QStringLiteral("AirSpd"));
-        //     value->setShowUnits(true);
-
-        //     value = column->value<InstrumentValueData*>(rowIndex++);
-        //     value->setFact(QStringLiteral("Vehicle"), QStringLiteral("ThrottlePct"));
-        //     value->setText(QStringLiteral("Thr"));
-        //     value->setShowUnits(true);
-        // }
-
-        rowIndex = 0;
-        //column = factValueGrid->columns()->value<QmlObjectListModel*>(includeFWValues ? 3 : 2);
-        column = factValueGrid->columns()->value<QmlObjectListModel*>(2);
-
-        value = column->value<InstrumentValueData*>(rowIndex++);
-        value->setFact("Battery0", "Voltage");
-        value->setText("Voltage");
-        value->setShowUnits(true);
-
-        value = column->value<InstrumentValueData*>(rowIndex++);
-        value->setFact("Battery0", "Current");
-        value->setText("Current");
-        value->setShowUnits(true);
+        // Voltage/Current column intentionally omitted — with dual smart batteries
+        // a single Battery0 voltage/current column doesn't represent the system.
+        // The per-battery indicators in the toolbar surface this info instead.
     }
 }
 

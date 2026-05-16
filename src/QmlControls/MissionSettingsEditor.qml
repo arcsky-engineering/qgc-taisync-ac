@@ -6,6 +6,7 @@ import QGroundControl
 import QGroundControl.ScreenTools
 import QGroundControl.Vehicle
 import QGroundControl.Controls
+import QGroundControl.FactSystem
 import QGroundControl.FactControls
 import QGroundControl.Palette
 import QGroundControl.SettingsManager
@@ -46,6 +47,14 @@ Rectangle {
     QGCPalette { id: qgcPal }
     QGCFileDialogController { id: fileController }
     Component { id: altModeDialogComponent; AltModeDialog { } }
+
+    // When a real vehicle is connected, the Hover speed field reads/writes WPNAV_SPEED directly
+    // (converted between cm/s on the wire and m/s in the UI). When offline, the field falls back
+    // to offlineEditingHoverSpeed for time/distance estimation.
+    FactPanelController { id: hoverSpeedController }
+    property var _wpnavSpeedFact: globals.activeVehicle
+                                  ? hoverSpeedController.getParameterFact(-1, "WPNAV_SPEED", false)
+                                  : null
 
     Connections {
         target: _controllerVehicle
@@ -233,13 +242,32 @@ Rectangle {
                 }
 
                 QGCLabel {
-                    text:               qsTr("Hover speed")
+                    text:               _wpnavSpeedFact ? qsTr("Hover speed (live)") : qsTr("Hover speed")
                     visible:            _showHoverSpeed
                     Layout.fillWidth:   true
                 }
+                // Live: edit WPNAV_SPEED directly when a vehicle is connected.
+                // Display in m/s, write in cm/s. Reverts gracefully if vehicle disconnects.
+                QGCTextField {
+                    visible:                _showHoverSpeed && _wpnavSpeedFact
+                    Layout.preferredWidth:  _fieldWidth
+                    unitsLabel:             "m/s"
+                    showUnits:              true
+                    text:                   _wpnavSpeedFact ? (_wpnavSpeedFact.rawValue / 100).toFixed(1) : ""
+                    validator:              DoubleValidator { bottom: 0.1; top: 16; decimals: 1 }
+                    onEditingFinished: {
+                        if (_wpnavSpeedFact) {
+                            var v = parseFloat(text)
+                            if (!isNaN(v) && v >= 0.1) {
+                                _wpnavSpeedFact.rawValue = Math.round(v * 100)
+                            }
+                        }
+                    }
+                }
+                // Offline-editing fallback when no vehicle is connected
                 FactTextField {
                     fact:                   QGroundControl.settingsManager.appSettings.offlineEditingHoverSpeed
-                    visible:                _showHoverSpeed
+                    visible:                _showHoverSpeed && !_wpnavSpeedFact
                     Layout.preferredWidth:  _fieldWidth
                 }
             } // GridLayout

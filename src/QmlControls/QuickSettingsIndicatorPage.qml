@@ -24,8 +24,24 @@ ToolIndicatorPage {
     property var _unitsConversion: QGroundControl.unitsConversion
     FactPanelController { id: controller }
 
-    property Fact _wpnavSpeedFact: controller.getParameterFact(-1, "WPNAV_SPEED", false)
-    property Fact _rtlAltFact:     controller.getParameterFact(-1, "RTL_ALT", false)
+    property Fact _wpnavSpeedFact:    controller.getParameterFact(-1, "WPNAV_SPEED",    false)
+    property Fact _rtlAltFact:        controller.getParameterFact(-1, "RTL_ALT",        false)
+    property Fact _loitSpeedFact:     controller.getParameterFact(-1, "LOIT_SPEED",     false)
+    property Fact _camOptionsFact:    controller.getParameterFact(-1, "CAM1_OPTIONS",   false)
+    property Fact _autoRsmClimbFact:  controller.getParameterFact(-1, "AUTO_RSM_CLIMB", false)
+    property Fact _misRestartFact:    controller.getParameterFact(-1, "MIS_RESTART",    false)
+
+    // Convenience derived properties for binding. Using top-level properties (not
+    // inline expressions inside the checkbox bindings) so the checkbox's `checked`
+    // binding stays in sync with external param changes after the user clicks it.
+    property bool _cam3DEnabled:      !!_camOptionsFact && (_camOptionsFact.rawValue & 2) !== 0
+    property bool _autoRsmEnabled:    !!_autoRsmClimbFact && _autoRsmClimbFact.rawValue !== 0
+    property bool _misRestartEnabled: !!_misRestartFact && _misRestartFact.rawValue !== 0
+
+    // Helper: is LOIT_SPEED currently set to the given preset (cm/s)?
+    function _loitSpeedIs(target) {
+        return !!_loitSpeedFact && _loitSpeedFact.rawValue === target
+    }
 
     // Helper functions for unit conversion (cm <-> user preferred vertical distance units)
     function cmToDisplayUnits(cm) {
@@ -42,49 +58,11 @@ ToolIndicatorPage {
         ColumnLayout {
             spacing: ScreenTools.defaultFontPixelHeight / 2
 
-            // Waypoint Speed (m/s) and RTL Altitude (m) with robust clamping
+            // RTL altitude — its own section at the top.
             SettingsGroupLayout {
-                heading: qsTr("Flight Parameters")
-                visible: activeVehicle
+                heading: qsTr("Return to Launch")
+                visible: activeVehicle && !!_rtlAltFact
 
-                // Waypoint Speed (m/s)
-                RowLayout {
-                    Layout.fillWidth: true
-
-                    QGCLabel {
-                        Layout.fillWidth: true
-                        text: qsTr("Waypoint Speed (m/s)")
-                    }
-
-                    QGCTextField {
-                        id: wpnavSpeedField
-                        text: _wpnavSpeedFact ? (_wpnavSpeedFact.value / 100).toFixed(1) : "--"
-                        inputMethodHints: Qt.ImhFormattedNumbersOnly
-                        Layout.minimumWidth: ScreenTools.defaultFontPixelWidth * 10
-
-                        onEditingFinished: {
-                            if (!_wpnavSpeedFact) return
-                            var value = parseFloat(text)
-                            if (isNaN(value)) value = 0
-                            // Clamp value in display units
-                            value = Math.max(0.5, Math.min(20.0, value))
-                            // Write back in internal units (cm/s)
-                            _wpnavSpeedFact.value = Math.round(value * 100)
-                            // Update text to the clamped value
-                            wpnavSpeedField.text = (value).toFixed(1)
-                        }
-
-                        Connections {
-                            target: _wpnavSpeedFact
-                            onValueChanged: {
-                                var val = _wpnavSpeedFact ? (_wpnavSpeedFact.value / 100) : 0
-                                wpnavSpeedField.text = val.toFixed(1)
-                            }
-                        }
-                    }
-                }
-
-                // RTL Altitude (uses app settings for vertical distance units)
                 RowLayout {
                     Layout.fillWidth: true
 
@@ -118,6 +96,139 @@ ToolIndicatorPage {
                                 rtlAltField.text = _rtlAltFact ? cmToDisplayUnits(_rtlAltFact.value).toFixed(1) : "--"
                             }
                         }
+                    }
+                }
+            }
+
+            // Manual Flight Speed presets — three buttons that write directly
+            // to LOIT_SPEED (cm/s). The active preset (if the current value
+            // matches one exactly) is highlighted green. Hidden if the param
+            // isn't present on the connected vehicle.
+            SettingsGroupLayout {
+                heading: qsTr("Manual Flight Speed")
+                visible: activeVehicle && !!_loitSpeedFact
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing:          ScreenTools.defaultFontPixelWidth
+
+                    QGCButton {
+                        text:               qsTr("Slow")
+                        Layout.fillWidth:   true
+                        backgroundColor:    _loitSpeedIs(400)  ? "green" : "gray"
+                        onClicked:          { if (_loitSpeedFact) _loitSpeedFact.rawValue = 400 }
+                    }
+                    QGCButton {
+                        text:               qsTr("Normal")
+                        Layout.fillWidth:   true
+                        backgroundColor:    _loitSpeedIs(800)  ? "green" : "gray"
+                        onClicked:          { if (_loitSpeedFact) _loitSpeedFact.rawValue = 800 }
+                    }
+                    QGCButton {
+                        text:               qsTr("Fast")
+                        Layout.fillWidth:   true
+                        backgroundColor:    _loitSpeedIs(1200) ? "green" : "gray"
+                        onClicked:          { if (_loitSpeedFact) _loitSpeedFact.rawValue = 1200 }
+                    }
+                }
+
+                // Compact display of the actual value, so non-preset values
+                // (e.g. set elsewhere to 750) are still visible.
+                QGCLabel {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    opacity:          0.7
+                    font.pointSize:   ScreenTools.smallFontPointSize
+                    text:             _loitSpeedFact
+                                      ? qsTr("Current: %1 m/s").arg((_loitSpeedFact.rawValue / 100).toFixed(1))
+                                      : ""
+                }
+            }
+
+            // Auto Settings — a couple of one-shot toggles that aren't worth a
+            // full section each. Both are simple booleans on top of their
+            // respective parameters; the camera one masks bit 1 of CAM1_OPTIONS.
+            SettingsGroupLayout {
+                heading: qsTr("Auto Settings")
+                visible: activeVehicle && (!!_wpnavSpeedFact
+                                           || !!_camOptionsFact
+                                           || !!_autoRsmClimbFact
+                                           || !!_misRestartFact)
+
+                // Auto Flight Speed — was "Waypoint Speed" in the prior layout.
+                // Same WPNAV_SPEED param, just relocated and renamed to fit
+                // alongside the other Auto-mode behaviors.
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible:          !!_wpnavSpeedFact
+
+                    QGCLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("Auto Flight Speed (m/s)")
+                    }
+
+                    QGCTextField {
+                        id: wpnavSpeedField
+                        text: _wpnavSpeedFact ? (_wpnavSpeedFact.value / 100).toFixed(1) : "--"
+                        inputMethodHints: Qt.ImhFormattedNumbersOnly
+                        Layout.minimumWidth: ScreenTools.defaultFontPixelWidth * 10
+
+                        onEditingFinished: {
+                            if (!_wpnavSpeedFact) return
+                            var value = parseFloat(text)
+                            if (isNaN(value)) value = 0
+                            // Clamp value in display units
+                            value = Math.max(0.5, Math.min(20.0, value))
+                            // Write back in internal units (cm/s)
+                            _wpnavSpeedFact.value = Math.round(value * 100)
+                            // Update text to the clamped value
+                            wpnavSpeedField.text = (value).toFixed(1)
+                        }
+
+                        Connections {
+                            target: _wpnavSpeedFact
+                            onValueChanged: {
+                                var val = _wpnavSpeedFact ? (_wpnavSpeedFact.value / 100) : 0
+                                wpnavSpeedField.text = val.toFixed(1)
+                            }
+                        }
+                    }
+                }
+
+                QGCCheckBox {
+                    text:     qsTr("Use 3D distance for camera trigger")
+                    visible:  !!_camOptionsFact
+                    checked:  _cam3DEnabled
+                    onClicked: {
+                        if (!_camOptionsFact) return
+                        // Set/clear bit 1 while preserving all other bits.
+                        var v = _camOptionsFact.rawValue
+                        _camOptionsFact.rawValue = checked ? (v | 2) : (v & ~2)
+                    }
+                }
+
+                // Mission re-entry behavior. Default (unchecked, MIS_RESTART=0) is
+                // "resume from last command run". Checked (MIS_RESTART=1) restarts
+                // the mission from the beginning every time Auto is entered.
+                QGCCheckBox {
+                    text:     qsTr("Restart mission from beginning")
+                    visible:  !!_misRestartFact
+                    checked:  _misRestartEnabled
+                    onClicked: {
+                        if (_misRestartFact) _misRestartFact.rawValue = checked ? 1 : 0
+                    }
+                }
+
+                // Only meaningful when resuming (MIS_RESTART=0). Dimmed but still
+                // clickable when restart is selected — the param has no effect
+                // there but the UI doesn't prevent users from configuring it.
+                QGCCheckBox {
+                    text:     qsTr("Climb to altitude when resuming mission")
+                    visible:  !!_autoRsmClimbFact
+                    checked:  _autoRsmEnabled
+                    opacity:  _misRestartEnabled ? 0.5 : 1.0
+                    onClicked: {
+                        if (_autoRsmClimbFact) _autoRsmClimbFact.rawValue = checked ? 1 : 0
                     }
                 }
             }

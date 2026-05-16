@@ -42,13 +42,15 @@ Rectangle {
     property bool   _photoCaptureIntervalIdle:  _camera.photoCaptureStatus === MavlinkCameraControl.PHOTO_CAPTURE_INTERVAL_IDLE
     property bool   _photoCaptureIdle:          _photoCaptureSingleIdle || _photoCaptureIntervalIdle
 
-    // AirPixel device detection
-    property bool   _isAirPixel:                _activeVehicle && _activeVehicle.airPixelDevice > 0
+    // payloadSelection is the authoritative source of truth (0=ILX, 1=VIO, 2=LiDAR).
+    // Heartbeat/PARAM_EXT detection is only used as a fallback when the user hasn't yet
+    // picked a payload (covered by payloadSelection==0 default) and the autopilot is
+    // explicitly advertising a different payload. This prevents stale ILX detection
+    // from sticking after the user has switched to VIO via the toolbar.
+    property int    _payloadSelection:          QGroundControl.settingsManager.flyViewSettings.payloadSelection.value
+    property bool   _isAirPixel:                _activeVehicle && _payloadSelection === 0
+    property bool   _isVIO:                     _activeVehicle && _payloadSelection === 1
     property int    _apCompId:                  _activeVehicle ? _activeVehicle.airPixelComponentId : 0
-
-    // VIO detection — either from PARAM_EXT auto-detect OR persisted payload selection
-    property bool   _isVIO:                     _activeVehicle && (_activeVehicle.vioDetected
-                                                || QGroundControl.settingsManager.flyViewSettings.payloadSelection.value === 1)
     property bool   _showDefaultCamSettings:    false   // toggle for debugging
 
     // Sizing constants
@@ -57,6 +59,31 @@ Rectangle {
     property real   _panelWidth:                ScreenTools.defaultFontPixelWidth * 30
 
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
+
+    // Mapping-preset command queue. TAG-E is sensitive to rapid-fire PARAM_EXT sends
+    // (apFormatCard spaces writes ~400ms apart) so we pace these out via a Timer.
+    property var _presetQueue: []
+    Timer {
+        id:                 presetTimer
+        interval:           300
+        repeat:             true
+        triggeredOnStart:   true
+        onTriggered: {
+            if (_presetQueue.length === 0) { stop(); return }
+            var fn = _presetQueue.shift()
+            fn()
+        }
+    }
+    function _applyMappingDefaults() {
+        if (!_activeVehicle) return
+        _presetQueue = [
+            function() { _activeVehicle.apSetExpMode(4) },                        // S (shutter priority)
+            function() { _activeVehicle.apSetParamUint("TG_SHTTERSPD", 2000) },   // 1/2000
+            function() { _activeVehicle.apSetAFMode(32772) },                     // AF-C
+            function() { _activeVehicle.apSetParamUint("TG_ISO", 16777215) }      // Auto ISO
+        ]
+        presetTimer.restart()
+    }
 
     // Force photo mode on startup
     property bool _photoModeForced: false
@@ -252,6 +279,7 @@ Rectangle {
             }
         }
 
+
         // ── Status Info (storage, battery) ──
         ColumnLayout {
             Layout.alignment:   Qt.AlignHCenter
@@ -339,6 +367,50 @@ Rectangle {
                 value:              _camera.zoomLevel
                 live:               true
                 onValueChanged:     _camera.zoomLevel = value
+            }
+        }
+
+        // ── VIO EO Zoom (large buttons mirroring the popup +/-) ──
+        RowLayout {
+            Layout.fillWidth:   true
+            spacing:            _smallMargins
+            visible:            _isVIO
+
+            QGCButton {
+                text:                   "\u2212"
+                Layout.fillWidth:       true
+                Layout.preferredHeight: _buttonHeight
+                pointSize:              ScreenTools.largeFontPointSize
+                onClicked: {
+                    if (!_activeVehicle) return
+                    var cur = _activeVehicle.vioEOZoom
+                    if (cur > 0) _activeVehicle.vioSetEOZoom(cur - 1)
+                }
+            }
+
+            QGCLabel {
+                Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 6
+                horizontalAlignment:    Text.AlignHCenter
+                verticalAlignment:      Text.AlignVCenter
+                font.pointSize:         ScreenTools.mediumFontPointSize
+                font.bold:              true
+                text: {
+                    var labels = ["1x","2x","4x","6x","8x","10x","12x","14x","16x","18x","20x","30x"]
+                    var idx = _activeVehicle ? _activeVehicle.vioEOZoom : 0
+                    return idx < labels.length ? labels[idx] : idx + "?"
+                }
+            }
+
+            QGCButton {
+                text:                   "+"
+                Layout.fillWidth:       true
+                Layout.preferredHeight: _buttonHeight
+                pointSize:              ScreenTools.largeFontPointSize
+                onClicked: {
+                    if (!_activeVehicle) return
+                    var cur = _activeVehicle.vioEOZoom
+                    if (cur < 11) _activeVehicle.vioSetEOZoom(cur + 1)
+                }
             }
         }
 
@@ -482,17 +554,62 @@ Rectangle {
 
                         property real _lblW:     ScreenTools.defaultFontPixelWidth * 8
                         property real _stepBtnW: ScreenTools.defaultFontPixelWidth * 5
+                        property bool _showAdvanced: false
+
+                        // AUTO_TILT_EN fact for the "Auto NADIR (Down)" toggle. Reactive on
+                        // factAdded so the checkbox appears as soon as the param arrives, even
+                        // if it lands after this widget is instantiated.
+                        FactPanelController { id: ilxController }
+                        property int _factReload: 0
+                        property Fact _autoTiltEnFact: (_factReload, true)
+                            ? ilxController.getParameterFact(-1, "AUTO_TILT_EN", false)
+                            : null
+                        Connections {
+                            target: _activeVehicle ? _activeVehicle.parameterManager : null
+                            function onFactAdded(componentId, fact) {
+                                if (fact && fact.name === "AUTO_TILT_EN") apControls._factReload++
+                            }
+                        }
 
                         // ── command helpers ──
                         function cfg(p1)              { _activeVehicle.sendCommand(_apCompId, 202, true, p1, 0, 0, 0, 0, 0, 0) }
                         function step(p1, p2, p3, p4) { _activeVehicle.sendCommand(_apCompId, 202, true, p1, p2, p3, p4, 0, 0, 0) }
 
+                        // ── MAPPING PRESET ──
+                        QGCButton {
+                            Layout.fillWidth:   true
+                            text:               qsTr("Apply Mapping Defaults")
+                            enabled:            !presetTimer.running
+                            onClicked:          _applyMappingDefaults()
+                        }
+
+                        // ── AUTO NADIR (Down) — toggles AUTO_TILT_EN ──
+                        FactCheckBox {
+                            Layout.fillWidth:   true
+                            visible:            !!apControls._autoTiltEnFact
+                            text:               "  " + qsTr("Auto NADIR (Down)")
+                            fact:               apControls._autoTiltEnFact
+                            checkedValue:       1
+                            uncheckedValue:     0
+                        }
+
+                        // ── ADVANCED TOGGLE ──
+                        RowLayout {
+                            Layout.fillWidth: true
+                            QGCLabel { text: qsTr("Show Advanced"); Layout.fillWidth: true }
+                            QGCSwitch {
+                                checked:    apControls._showAdvanced
+                                onClicked:  apControls._showAdvanced = checked
+                            }
+                        }
+
                         // ── EXPOSURE MODE ──
-                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
-                        QGCLabel { text: qsTr("EXPOSURE MODE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder; visible: apControls._showAdvanced }
+                        QGCLabel { text: qsTr("EXPOSURE MODE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true; visible: apControls._showAdvanced }
 
                         RowLayout {
                             Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced
                             QGCButton {
                                 text: "M"; Layout.fillWidth: true
                                 backgroundColor: _activeVehicle && _activeVehicle.apExpMode === 1 ? "green" : "gray"
@@ -516,12 +633,13 @@ Rectangle {
                         }
 
                         // ── EXPOSURE VALUES ──
-                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
-                        QGCLabel { text: qsTr("EXPOSURE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder; visible: apControls._showAdvanced }
+                        QGCLabel { text: qsTr("EXPOSURE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true; visible: apControls._showAdvanced }
 
                         // Shutter Speed
                         RowLayout {
                             Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced
                             QGCLabel { text: qsTr("Speed"); Layout.preferredWidth: apControls._lblW }
                             QGCLabel {
                                 text: _activeVehicle && _activeVehicle.apShutterSpeed > 0
@@ -535,6 +653,7 @@ Rectangle {
                         // Aperture
                         RowLayout {
                             Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced
                             QGCLabel { text: qsTr("Aperture"); Layout.preferredWidth: apControls._lblW }
                             QGCLabel {
                                 text: _activeVehicle && _activeVehicle.apAperture > 0
@@ -548,6 +667,7 @@ Rectangle {
                         // ISO (Auto + step)
                         RowLayout {
                             Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced
                             QGCLabel { text: qsTr("ISO"); Layout.preferredWidth: apControls._lblW }
                             QGCLabel {
                                 text: {
@@ -567,6 +687,7 @@ Rectangle {
                         // Exposure Compensation
                         RowLayout {
                             Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced
                             QGCLabel { text: qsTr("Exp Comp"); Layout.preferredWidth: apControls._lblW }
                             QGCLabel {
                                 text: {
@@ -581,11 +702,12 @@ Rectangle {
                         }
 
                         // ── FOCUS MODE ──
-                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
-                        QGCLabel { text: qsTr("FOCUS"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder; visible: apControls._showAdvanced }
+                        QGCLabel { text: qsTr("FOCUS"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true; visible: apControls._showAdvanced }
 
                         RowLayout {
                             Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced
                             QGCButton {
                                 text: "AF-S"; Layout.fillWidth: true
                                 backgroundColor: _activeVehicle && _activeVehicle.apAFMode === 2 ? "green" : "gray"
@@ -596,19 +718,15 @@ Rectangle {
                                 backgroundColor: _activeVehicle && _activeVehicle.apAFMode === 32772 ? "green" : "gray"
                                 onClicked: _activeVehicle.apSetAFMode(32772)
                             }
-                            QGCButton {
-                                text: "MF"; Layout.fillWidth: true
-                                backgroundColor: _activeVehicle && _activeVehicle.apAFMode === 1 ? "green" : "gray"
-                                onClicked: _activeVehicle.apSetAFMode(1)
-                            }
                         }
 
                         // ── IMAGE RESOLUTION ──
-                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
-                        QGCLabel { text: qsTr("IMAGE SIZE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder; visible: apControls._showAdvanced }
+                        QGCLabel { text: qsTr("IMAGE SIZE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true; visible: apControls._showAdvanced }
 
                         RowLayout {
                             Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced
                             QGCButton {
                                 text: "L"; Layout.fillWidth: true
                                 backgroundColor: _activeVehicle && _activeVehicle.apImgRes === 1 ? "green" : "gray"
@@ -627,11 +745,12 @@ Rectangle {
                         }
 
                         // ── FORMAT ──
-                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder; visible: apControls._showAdvanced }
 
                         QGCButton {
                             text:               qsTr("Format SD Card")
                             Layout.fillWidth:   true
+                            visible:            apControls._showAdvanced
                             onClicked:          apFormatConfirm.open()
 
                             MessageDialog {
@@ -664,20 +783,21 @@ Rectangle {
                         Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
                         QGCLabel { text: qsTr("CAMERA SOURCE"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
 
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: _smallMargins
-                            Repeater {
-                                model: [
-                                    { label: "EO+IR", val: 0 },
-                                    { label: "EO",    val: 1 },
-                                    { label: "IR",    val: 2 },
-                                    { label: "IR+EO", val: 3 },
-                                    { label: "SxS",   val: 6 }
-                                ]
-                                QGCButton {
-                                    text: modelData.label; Layout.fillWidth: true
-                                    backgroundColor: _activeVehicle && _activeVehicle.vioCameraSource === modelData.val ? "green" : "gray"
-                                    onClicked: _activeVehicle.vioSetSource(modelData.val)
+                        QGCComboBox {
+                            id:                 vioSourceCombo
+                            Layout.fillWidth:   true
+                            // Index in `model` ↔ vioCameraSource value mapping
+                            property var _values: [0, 1, 2, 3, 6]
+                            model: ["EO + IR", "EO", "IR", "IR + EO", "Side by Side"]
+
+                            currentIndex: {
+                                if (!_activeVehicle) return 0
+                                var idx = _values.indexOf(_activeVehicle.vioCameraSource)
+                                return idx >= 0 ? idx : 0
+                            }
+                            onActivated: function(index) {
+                                if (_activeVehicle && index >= 0 && index < _values.length) {
+                                    _activeVehicle.vioSetSource(_values[index])
                                 }
                             }
                         }

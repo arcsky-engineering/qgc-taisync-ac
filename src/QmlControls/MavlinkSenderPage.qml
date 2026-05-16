@@ -35,10 +35,13 @@ ToolIndicatorPage {
     property int payloadType: 0   // 0=unknown, 1=ILX, 2=VIO
 
     // Payload selection: 0=ILX-LR1, 1=VIO, 2=LiDAR  (persisted across restarts)
+    // _selectedPayload reflects the authoritative persisted value — all other UI depends on this.
+    // _pendingPayload is the combo-box in-flight choice; only persisted when user hits Apply.
+    // Closing the drawer without applying discards _pendingPayload (property is re-initialised on reopen).
     property int _selectedPayload: _flyViewSettings.payloadSelection.value
+    property int _pendingPayload:  _selectedPayload
 
     function _savePayloadSelection(index) {
-        _selectedPayload = index
         _flyViewSettings.payloadSelection.value = index
     }
 
@@ -161,16 +164,17 @@ ToolIndicatorPage {
                         id:                 payloadCombo
                         Layout.fillWidth:   true
                         model:              ["ILX-LR1", "VIO", "LiDAR"]
-                        currentIndex:       _selectedPayload
-                        onActivated: function(index) { _savePayloadSelection(index) }
+                        currentIndex:       _pendingPayload
+                        onActivated: function(index) { _pendingPayload = index }
                     }
 
                     QGCButton {
                         text:               "Apply"
                         Layout.fillWidth:   true
-                        visible:            _selectedPayload < 2   // ILX or VIO
+                        visible:            _pendingPayload < 2   // ILX or VIO
                         onClicked: {
-                            if (_selectedPayload === 0)
+                            _savePayloadSelection(_pendingPayload)
+                            if (_pendingPayload === 0)
                                 applyPayloadConfig(_ilxBaud, 5)
                             else
                                 applyPayloadConfig(_vioBaud, 6)
@@ -180,8 +184,9 @@ ToolIndicatorPage {
                     QGCButton {
                         text:               "Apply"
                         Layout.fillWidth:   true
-                        visible:            _selectedPayload === 2   // LiDAR
+                        visible:            _pendingPayload === 2   // LiDAR
                         onClicked: {
+                            _savePayloadSelection(_pendingPayload)
                             // Set CAM1_TYPE=0 to prevent camera manager from loading
                             if (_camTypeFact && _camTypeFact.value !== 0) {
                                 _camTypeFact.value = 0
@@ -218,6 +223,7 @@ ToolIndicatorPage {
                     property var _ptrnSlspd:   activeVehicle ? controller.getParameterFact(-1, "PTRN_SLSPD",   false) : null
                     property var _ptrnShape:   activeVehicle ? controller.getParameterFact(-1, "PTRN_SHAPE",   false) : null
                     property var _ptrnTrigger: activeVehicle ? controller.getParameterFact(-1, "PTRN_TRIGGER", false) : null
+                    property var _ptrnToAuto:  activeVehicle ? controller.getParameterFact(-1, "PTRN_TOAUTO",  false) : null
                     property bool _paramsOk:   !!_ptrnPnum
 
                     QGCLabel {
@@ -231,11 +237,11 @@ ToolIndicatorPage {
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 2; visible: lidarCol._paramsOk
 
-                        QGCLabel { text: "LiDAR Type"; font.pointSize: ScreenTools.smallFontPointSize }
+                        QGCLabel { text: "Pattern Type"; font.pointSize: ScreenTools.smallFontPointSize }
 
                         QGCComboBox {
                             Layout.fillWidth:   true
-                            model:              ["Phoenix", "Inertial Labs", "YellowScan"]
+                            model:              ["Figure-8 Continuous", "Figure-8 Decel", "U-Turn"]
                             currentIndex:       lidarCol._ptrnPnum ? lidarCol._ptrnPnum.value - 1 : 0
                             onActivated: function(index) { if (lidarCol._ptrnPnum) lidarCol._ptrnPnum.value = index + 1 }
                         }
@@ -318,6 +324,19 @@ ToolIndicatorPage {
                         }
                     }
 
+                    // ── Switch to Auto on Completion (PTRN_TOAUTO) ──
+                    // Visible only if the Lua script exposes the param. The FactCheckBox's
+                    // checked state reads back from the autopilot, so the box stays in sync
+                    // with whatever the script currently has set.
+                    FactCheckBox {
+                        Layout.fillWidth:   true
+                        visible:            lidarCol._paramsOk && !!lidarCol._ptrnToAuto
+                        text:               "  Switch to Auto on Completion"
+                        fact:               lidarCol._ptrnToAuto
+                        checkedValue:       1
+                        uncheckedValue:     0
+                    }
+
                     // ── Start Pattern ──
                     Rectangle {
                         Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder
@@ -330,7 +349,7 @@ ToolIndicatorPage {
                         visible: lidarCol._paramsOk
 
                         QGCButton {
-                            text:               "Start Pattern"
+                            text:               "Start Pattern 1"
                             Layout.fillWidth:   true
                             enabled:            activeVehicle && activeVehicle.armed
                             onClicked: {
@@ -341,6 +360,7 @@ ToolIndicatorPage {
                         QGCButton {
                             text:               "Start Pattern 2"
                             Layout.fillWidth:   true
+                            visible:            lidarCol._ptrnPnum && lidarCol._ptrnPnum.value === 1
                             enabled:            activeVehicle && activeVehicle.armed
                             onClicked: {
                                 if (lidarCol._ptrnTrigger) lidarCol._ptrnTrigger.value = 2

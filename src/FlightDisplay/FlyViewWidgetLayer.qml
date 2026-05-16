@@ -110,12 +110,6 @@ Item {
         property real rightEdgeBottomInset:     width + _layoutMargin
     }
 
-    FlyViewMissionCompleteDialog {
-        missionController:      _missionController
-        geoFenceController:     _geoFenceController
-        rallyPointController:   _rallyPointController
-    }
-
     GuidedActionConfirm {
         anchors.margins:            _toolsMargin
         anchors.top:                parent.top

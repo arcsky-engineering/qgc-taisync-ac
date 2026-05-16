@@ -36,16 +36,6 @@ RowLayout {
     RowLayout {
         Layout.fillWidth: true
 
-        QGCColoredImage {
-            id:         flightModeIcon
-            width:      ScreenTools.defaultFontPixelWidth * 3
-            height:     ScreenTools.defaultFontPixelHeight
-            fillMode:   Image.PreserveAspectFit
-            mipmap:     true
-            color:      qgcPal.text
-            source:     "/qmlimages/FlightModesComponentIcon.png"
-        }
-
         QGCLabel {
             text:               activeVehicle ? activeVehicle.flightMode : qsTr("N/A", "No data to display")
             font.pointSize:     fontPointSize

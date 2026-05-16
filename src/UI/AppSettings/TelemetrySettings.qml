@@ -256,6 +256,98 @@ SettingsPage {
 
     SettingsGroupLayout {
         Layout.fillWidth:   true
+        heading:            qsTr("Vehicle Logs (SD Card)")
+        headingDescription: qsTr("Tap to erase log files on the vehicle. Press and hold (3 seconds) to FORMAT the SD card. Use Format only when Erase fails to clear a 'Logging Failed' state.")
+
+        LogDownloadController { id: vehicleLogController }
+
+        QGCLabel {
+            Layout.fillWidth:   true
+            wrapMode:           Text.WordWrap
+            color:              qgcPal.warningText
+            visible:            !_activeVehicle || _activeVehicle.armed
+            text:               !_activeVehicle
+                                    ? qsTr("Not connected to a vehicle.")
+                                    : qsTr("Vehicle is armed. Disarm to use these commands.")
+        }
+
+        QGCButton {
+            id:                 vehicleLogEraseButton
+            Layout.fillWidth:   true
+            enabled:            _activeVehicle && !_activeVehicle.armed && !_activeVehicle.isOfflineEditingVehicle
+            text:               vehicleLogHoldTimer.holdSecondsRemaining > 0
+                                    ? qsTr("Hold to FORMAT… %1").arg(vehicleLogHoldTimer.holdSecondsRemaining)
+                                    : qsTr("Erase Vehicle Logs (hold to Format)")
+
+            property bool _longPressFired: false
+
+            Timer {
+                id:         vehicleLogHoldTimer
+                interval:   100
+                repeat:     true
+                readonly property int holdMs: 3000
+                property double startedAt: 0
+                property int holdSecondsRemaining: 0
+                onTriggered: {
+                    var elapsed = Date.now() - startedAt
+                    holdSecondsRemaining = Math.max(0, Math.ceil((holdMs - elapsed) / 1000))
+                    if (elapsed >= holdMs) {
+                        stop()
+                        holdSecondsRemaining = 0
+                        vehicleLogEraseButton._longPressFired = true
+                        vehicleLogFormatConfirmDialog.open()
+                    }
+                }
+            }
+
+            onPressed: {
+                _longPressFired = false
+                vehicleLogHoldTimer.startedAt = Date.now()
+                vehicleLogHoldTimer.holdSecondsRemaining = 3
+                vehicleLogHoldTimer.start()
+            }
+            onReleased: {
+                vehicleLogHoldTimer.stop()
+                var wasLong = _longPressFired
+                vehicleLogHoldTimer.holdSecondsRemaining = 0
+                if (!wasLong) {
+                    vehicleLogEraseConfirmDialog.open()
+                }
+            }
+            onCanceled: {
+                vehicleLogHoldTimer.stop()
+                vehicleLogHoldTimer.holdSecondsRemaining = 0
+                _longPressFired = false
+            }
+        }
+
+        MessageDialog {
+            id:         vehicleLogEraseConfirmDialog
+            buttons:    MessageDialog.Yes | MessageDialog.No
+            title:      qsTr("Erase Vehicle Logs")
+            text:       qsTr("Delete all log files on the vehicle's SD card? Vehicle must be disarmed.")
+            onButtonClicked: function (button, role) {
+                if (button === MessageDialog.Yes) {
+                    vehicleLogController.eraseAll()
+                }
+            }
+        }
+
+        MessageDialog {
+            id:         vehicleLogFormatConfirmDialog
+            buttons:    MessageDialog.Yes | MessageDialog.No
+            title:      qsTr("FORMAT SD Card")
+            text:       qsTr("This will FORMAT the vehicle's SD card and erase ALL data permanently.\n\nUse only when normal Erase fails (e.g. 'Logging Failed' persists). The logger will reinitialise after format. Continue?")
+            onButtonClicked: function (button, role) {
+                if (button === MessageDialog.Yes) {
+                    vehicleLogController.formatSdCard()
+                }
+            }
+        }
+    }
+
+    SettingsGroupLayout {
+        Layout.fillWidth:   true
         heading:            qsTr("Stream Rates (ArduPilot Only)")
         visible:            _showAPMStreamRates
 

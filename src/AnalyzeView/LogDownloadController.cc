@@ -532,6 +532,24 @@ void LogDownloadController::eraseAll()
     refresh();
 }
 
+void LogDownloadController::formatSdCard()
+{
+    if (!_vehicle) {
+        qCWarning(LogDownloadControllerLog) << "Vehicle Unavailable";
+        return;
+    }
+
+    // MAV_CMD_STORAGE_FORMAT — handled by AP's GCS_MAVLINK::handle_command_storage_format.
+    // Strict params: param1 (storage id) == 1 AND param2 (format action) == 1, else UNSUPPORTED.
+    // Param3 (reset image) is not checked by AP. Async: returns IN_PROGRESS then a final ACK.
+    _vehicle->sendMavCommand(_vehicle->defaultComponentId(),
+                             MAV_CMD_STORAGE_FORMAT,
+                             true,  // showError
+                             1.0f,  // storage id (first SD)
+                             1.0f,  // format
+                             0.0f); // reset image (unused by AP)
+}
+
 void LogDownloadController::_requestLogList(uint32_t start, uint32_t end)
 {
     if (!_vehicle) {

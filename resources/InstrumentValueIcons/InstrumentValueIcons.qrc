@@ -132,6 +132,8 @@
 		<file alias="trophy.svg">trophy.svg</file>
 		<file alias="arrow-thick-right.svg">arrow-thick-right.svg</file>
 		<file alias="radar.svg">radar.svg</file>
+		<file alias="radar-rangefinder.svg">radar-rangefinder.svg</file>
+		<file alias="radar-rangefinder2.svg">radar-rangefinder2.svg</file>
 		<file alias="fast-rewind.svg">fast-rewind.svg</file>
 		<file alias="hard-drive.svg">hard-drive.svg</file>
 		<file alias="cheveron-outline-down.svg">cheveron-outline-down.svg</file>

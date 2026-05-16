@@ -46,6 +46,73 @@ Item {
         Component.onCompleted:  start()
     }
 
+    // Reconcile persisted payloadSelection against the vehicle's actual params on connect.
+    // For ILX/VIO we also verify (and fix) the serial baud so the payload is fully functional.
+    // Loader gate ensures FactPanelController is only constructed once a real vehicle is present;
+    // otherwise it would latch onto the offline-editing vehicle and never see these params.
+    Loader {
+        active: _activeVehicle !== null
+        sourceComponent: Component {
+            Item {
+                FactPanelController { id: reconcilerController }
+
+                property var _pm: _activeVehicle ? _activeVehicle.parameterManager : null
+                property bool _done: false
+
+                function _reconcile() {
+                    if (_done) return
+                    var camFact = reconcilerController.getParameterFact(-1, "CAM1_TYPE", false)
+                    if (!camFact) return   // try again on next factAdded / parametersReady
+
+                    var fvs = QGroundControl.settingsManager.flyViewSettings
+                    var sel = fvs.payloadSelection
+                    var serialParam = "SERIAL" + fvs.payloadSerialPort.value + "_BAUD"
+                    var baudFact = reconcilerController.getParameterFact(-1, serialParam, false)
+
+                    // CAM1_TYPE==0 ("camera driver disabled") is ambiguous on its own —
+                    // could be LiDAR, could be transient boot state, could be a vehicle
+                    // without a payload at all. We do NOT auto-set LiDAR from it. LiDAR
+                    // remains a user-driven choice via the toolbar dropdown.
+                    //
+                    // CAM1_TYPE==5 (ILX) or ==6 (VIO) is a clearer signal: those values
+                    // indicate the autopilot is set up for a specific payload, so we
+                    // sync payloadSelection and auto-fix the serial baud if it drifted.
+                    switch (camFact.rawValue) {
+                        case 5:   // ILX-LR1
+                            if (!baudFact) return
+                            if (baudFact.rawValue !== fvs.payloadIlxBaud.value) {
+                                baudFact.rawValue = fvs.payloadIlxBaud.value
+                            }
+                            if (sel.value !== 0) sel.value = 0
+                            break
+                        case 6:   // VIO
+                            if (!baudFact) return
+                            if (baudFact.rawValue !== fvs.payloadVioBaud.value) {
+                                baudFact.rawValue = fvs.payloadVioBaud.value
+                            }
+                            if (sel.value !== 1) sel.value = 1
+                            break
+                        // case 0 (camera disabled) and any other value: leave persisted alone
+                    }
+                    _done = true
+                }
+
+                Connections {
+                    target: _pm
+                    function onParametersReadyChanged() { _reconcile() }
+                    function onFactAdded(componentId, fact) {
+                        if (!fact) return
+                        if (fact.name === "CAM1_TYPE" || fact.name.indexOf("SERIAL") === 0) {
+                            _reconcile()
+                        }
+                    }
+                }
+
+                Component.onCompleted: _reconcile()
+            }
+        }
+    }
+
     property bool   _mainWindowIsMap:       mapControl.pipState.state === mapControl.pipState.fullState
     property bool   _isFullWindowItemDark:  _mainWindowIsMap ? mapControl.isSatelliteMap : true
     property var    _activeVehicle:         QGroundControl.multiVehicleManager.activeVehicle

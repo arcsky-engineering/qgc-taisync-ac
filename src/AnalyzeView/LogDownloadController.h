@@ -45,6 +45,7 @@ public:
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void download(const QString &path = QString());
     Q_INVOKABLE void eraseAll();
+    Q_INVOKABLE void formatSdCard();
     Q_INVOKABLE void cancel();
 
 signals:

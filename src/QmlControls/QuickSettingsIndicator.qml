@@ -85,19 +85,16 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing:                0
 
-            // Waypoint Speed
+            // Two-line stacked label keeps the visual width compact in the
+            // toolbar — matches the prior "Speed / RTL" layout.
             QGCLabel {
-                id:     wpnavSpeedLabel
-                color:  qgcPal.buttonText
-                text:   "Speed"
+                color:          qgcPal.buttonText
+                text:           "Quick"
                 font.pointSize: ScreenTools.smallFontPointSize
             }
-
-            // RTL Altitude
             QGCLabel {
-                id:     rtlAltLabel
-                color:  qgcPal.buttonText
-                text:   "RTL"
+                color:          qgcPal.buttonText
+                text:           "Config"
                 font.pointSize: ScreenTools.smallFontPointSize
             }
         }
