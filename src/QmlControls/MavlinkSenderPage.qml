@@ -121,13 +121,14 @@ ToolIndicatorPage {
             changed = true
         }
 
-        // Update RTSP automatically (temporary logic)
+        // Update RTSP automatically based on payload type.
+        // VIO and ILX (Sony) each have their own dedicated stream URL.
         if (baud === _vioBaud)
             QGroundControl.settingsManager.videoSettings.rtspUrl2.value =
                 "rtsp://192.168.144.10:8554/vio"
         else if (baud === _ilxBaud)
             QGroundControl.settingsManager.videoSettings.rtspUrl2.value =
-                "rtsp://192.168.144.121:8554/main.264"
+                "rtsp://192.168.144.122/stream-1.sdp"
 
         if (changed) {
             mainWindow.showMessageDialog("Payload Info", "Payload parameters changed, rebooting...")

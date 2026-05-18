@@ -274,7 +274,7 @@
     "shortDesc": "Disable start mission confirmation slider",
     "longDesc":  "When enabled, the slide-to-confirm dialog will not automatically pop up when a mission is ready to start.",
     "type":             "bool",
-    "default":     false
+    "default":     true
 },
 {
     "name":             "enableRIDOnConnect",

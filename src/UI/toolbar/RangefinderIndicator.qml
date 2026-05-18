@@ -206,14 +206,21 @@ Item {
                         id:                     landAltSlider
                         Layout.fillWidth:       true
                         Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.8
-                        from:                   2.0    // meters
+                        from:                   6.0    // meters
                         to:                     15.0
-                        stepSize:               0.5
+                        stepSize:               1.0    // snap to whole meters: 6, 7, 8, ..., 15
                         snapMode:               Slider.SnapAlways
-                        // Map cm fact -> meters for the slider position.
+                        // Map cm fact -> meters for the slider position. If the
+                        // stored value isn't on a 1 m boundary (e.g. 6.5 m),
+                        // SnapAlways will pull the handle to the nearest valid
+                        // stop on first interaction.
                         value: _landAltFact ? Math.max(from, Math.min(to, _landAltFact.rawValue / 100)) : 8.0
-                        onMoved: {
-                            if (_landAltFact) _landAltFact.rawValue = Math.round(value * 100)
+                        // Commit only on release (pressed → false). Avoids spamming
+                        // the autopilot with intermediate values while dragging.
+                        onPressedChanged: {
+                            if (!pressed && _landAltFact) {
+                                _landAltFact.rawValue = Math.round(value * 100)
+                            }
                         }
 
                         // Bigger handle for easier dragging.

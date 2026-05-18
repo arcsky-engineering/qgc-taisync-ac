@@ -273,8 +273,12 @@ Item {
                         stepSize:               1
                         snapMode:               Slider.SnapAlways
                         value:                  _sampFact ? parent.nearestIndex(_sampFact.rawValue) : 2
-                        onMoved: {
-                            if (_sampFact) {
+                        // Only commit the param when the user releases the handle —
+                        // pressed transitions to false on mouse-up / touch-release.
+                        // This prevents flooding the autopilot with intermediate
+                        // values during a drag.
+                        onPressedChanged: {
+                            if (!pressed && _sampFact) {
                                 _sampFact.rawValue = parent.samplesOptions[Math.round(value)]
                             }
                         }
