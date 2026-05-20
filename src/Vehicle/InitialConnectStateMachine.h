@@ -45,6 +45,7 @@ private:
     static void _stateRequestCompInfo                   (StateMachine* stateMachine);
     static void _stateRequestStandardModes              (StateMachine* stateMachine);
     static void _stateRequestCompInfoComplete           (void* requestAllCompleteFnData);
+    static void _stateXplorerParamSettleDelay           (StateMachine* stateMachine);
     static void _stateRequestParameters                 (StateMachine* stateMachine);
     static void _stateRequestMission                    (StateMachine* stateMachine);
     static void _stateRequestGeoFence                   (StateMachine* stateMachine);
@@ -65,6 +66,7 @@ private:
         _stateRequestProtocolVersion,
         _stateRequestStandardModes,
         _stateRequestCompInfo,
+        _stateXplorerParamSettleDelay,
         _stateRequestParameters,
         _stateRequestMission,
         _stateRequestGeoFence,
@@ -77,6 +79,7 @@ private:
         1, //_stateRequestProtocolVersion
         1, //_stateRequestStandardModes
         5, //_stateRequestCompInfo
+        1, //_stateXplorerParamSettleDelay
         5, //_stateRequestParameters
         2, //_stateRequestMission
         1, //_stateRequestGeoFence

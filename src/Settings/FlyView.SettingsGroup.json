@@ -49,6 +49,36 @@
     "default":      true
 },
 {
+    "name":         "showPhotoCaptureIndicators",
+    "shortDesc":    "Show photo capture indicators",
+    "longDesc":     "When enabled, a small camera icon is drawn on the map at each photo capture location. Disable to improve performance on large photogrammetry missions.",
+    "type":         "bool",
+    "default":      true
+},
+{
+    "name":         "showMissionOnMap",
+    "shortDesc":    "Show mission on map",
+    "longDesc":     "Master switch for displaying the mission on the Fly View map (polyline, waypoint markers, and direction arrows). Turn off to hide all mission visuals without losing the loaded mission.",
+    "type":         "bool",
+    "default":      true
+},
+{
+    "name":         "missionWaypointDisplay",
+    "shortDesc":    "Mission waypoint markers on Fly View",
+    "longDesc":     "Controls visibility of numbered waypoint markers on the Fly View map. The mission path line is always drawn. Hiding markers improves performance on large photogrammetry missions.",
+    "type":         "uint32",
+    "enumStrings":  "All waypoints,First and last only,None",
+    "enumValues":   "0,1,2",
+    "default":      0
+},
+{
+    "name":         "autoLoadMissionOnConnect",
+    "shortDesc":    "Auto-load mission on connect",
+    "longDesc":     "When enabled, QGC requests the mission from the vehicle on every connection. Disable to avoid slow mission downloads; you can still trigger a manual download from the Quick Config panel.",
+    "type":         "bool",
+    "default":      true
+},
+{
     "name":         "showObstacleDistanceOverlay",
     "shortDesc":    "Show obstacle distance overlay on map and video.",
     "type":         "bool",

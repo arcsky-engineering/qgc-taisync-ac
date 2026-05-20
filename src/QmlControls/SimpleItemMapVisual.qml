@@ -22,13 +22,27 @@ import QGroundControl.FlightMap
 Item {
     id: _root
 
-    property var map        ///< Map control to place item in
-    property var vehicle    ///< Vehicle associated with this item
+    property var  map        ///< Map control to place item in
+    property var  vehicle    ///< Vehicle associated with this item
     property bool interactive: true
+    // Set by Fly View's PlanMapItems Repeater. Used to decide whether the
+    // numbered indicator dot is shown when the user has chosen to display
+    // only first-and-last waypoints. Plan View leaves these false but is
+    // exempted via map.planView in _indicatorVisible.
+    property bool isFirstItem: false
+    property bool isLastItem:  false
 
     property var    _missionItem:       object
     property bool   _itemVisualShowing: false
     property bool   _dragAreaShowing:   false
+    // 0 = all, 1 = first/last only, 2 = none. Plan View is always exempt.
+    property int    _waypointDisplayMode: QGroundControl.settingsManager.flyViewSettings.missionWaypointDisplay.rawValue
+    property bool   _indicatorVisible: {
+        if (map && map.planView) return true
+        if (_waypointDisplayMode === 2) return false
+        if (_waypointDisplayMode === 1) return isFirstItem || isLastItem
+        return true
+    }
 
     signal clicked(int sequenceNumber)
 
@@ -163,7 +177,7 @@ Item {
 
         MissionItemIndicator {
             coordinate:     _missionItem.coordinate
-            visible:        _missionItem.specifiesCoordinate
+            visible:        _missionItem.specifiesCoordinate && _root._indicatorVisible
             z:              QGroundControl.zOrderMapItems
             missionItem:    _missionItem
             sequenceNumber: _missionItem.sequenceNumber

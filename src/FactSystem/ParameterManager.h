@@ -197,4 +197,11 @@ private:
     Fact _defaultFact;   ///< Used to return default fact, when parameter not found
 
     bool _tryftp = false;
+
+    // Xplorer: retry FTP param download once on parse error before falling
+    // back to per-param. The most common cause of parse failure is the
+    // ArduPilot AP_Filesystem_Param header/body count race; by the time we
+    // retry, the FC's param table has settled and the second file is consistent.
+    static constexpr int _maxFtpParseRetry = 1;
+    int _ftpParseRetryCount = 0;
 };

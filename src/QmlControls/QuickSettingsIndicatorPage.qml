@@ -7,6 +7,8 @@
  ****************************************************************************/
 
 import QtQuick
+import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 import QGroundControl
@@ -26,10 +28,12 @@ ToolIndicatorPage {
 
     property Fact _wpnavSpeedFact:    controller.getParameterFact(-1, "WPNAV_SPEED",    false)
     property Fact _rtlAltFact:        controller.getParameterFact(-1, "RTL_ALT",        false)
+    property Fact _rtlSpeedFact:      controller.getParameterFact(-1, "RTL_SPEED",      false)
     property Fact _loitSpeedFact:     controller.getParameterFact(-1, "LOIT_SPEED",     false)
     property Fact _camOptionsFact:    controller.getParameterFact(-1, "CAM1_OPTIONS",   false)
     property Fact _autoRsmClimbFact:  controller.getParameterFact(-1, "AUTO_RSM_CLIMB", false)
     property Fact _misRestartFact:    controller.getParameterFact(-1, "MIS_RESTART",    false)
+    property Fact _showMissionOnMap:  QGroundControl.settingsManager.flyViewSettings.showMissionOnMap
 
     // Convenience derived properties for binding. Using top-level properties (not
     // inline expressions inside the checkbox bindings) so the checkbox's `checked`
@@ -37,6 +41,7 @@ ToolIndicatorPage {
     property bool _cam3DEnabled:      !!_camOptionsFact && (_camOptionsFact.rawValue & 2) !== 0
     property bool _autoRsmEnabled:    !!_autoRsmClimbFact && _autoRsmClimbFact.rawValue !== 0
     property bool _misRestartEnabled: !!_misRestartFact && _misRestartFact.rawValue !== 0
+    property bool _useAutoRtlSpeed:   !!_rtlSpeedFact && _rtlSpeedFact.rawValue === 0
 
     // Helper: is LOIT_SPEED currently set to the given preset (cm/s)?
     function _loitSpeedIs(target) {
@@ -54,17 +59,92 @@ ToolIndicatorPage {
         return meters * 100.0
     }
 
+    function cmpsToDisplaySpeed(cmps) {
+        return _unitsConversion.metersSecondToAppSettingsSpeedUnits(cmps / 100.0)
+    }
+
+    function displaySpeedToCmps(displayValue) {
+        return _unitsConversion.appSettingsSpeedUnitsToMetersSecond(displayValue) * 100.0
+    }
+
     contentComponent: Component {
         ColumnLayout {
             spacing: ScreenTools.defaultFontPixelHeight / 2
 
-            // RTL altitude — its own section at the top.
+            // Manual mission download — useful when "Auto-load mission on connect"
+            // is disabled, or to refresh the displayed mission without reconnecting.
+            // Routes through Vehicle.reloadMissionFromVehicle() because the Fly
+            // view's PlanMasterController.loadFromVehicle() is a no-op by design.
+            SettingsGroupLayout {
+                heading: qsTr("Mission")
+                visible: activeVehicle
+
+                QGCCheckBox {
+                    Layout.fillWidth: true
+                    text:             qsTr("Show mission on map")
+                    checked:          _showMissionOnMap.rawValue
+                    onClicked:        _showMissionOnMap.rawValue = checked
+                }
+
+                QGCButton {
+                    Layout.fillWidth: true
+                    text:             qsTr("Download Mission From Vehicle")
+                    enabled:          !!activeVehicle
+                    onClicked: {
+                        if (activeVehicle) {
+                            activeVehicle.reloadMissionFromVehicle()
+                        }
+                    }
+                }
+
+                QGCButton {
+                    Layout.fillWidth: true
+                    text:             qsTr("Clear Mission on Vehicle")
+                    enabled:          !!activeVehicle && !!globals.planMasterControllerFlyView
+                    onClicked: {
+                        mainWindow.showMessageDialog(
+                            qsTr("Clear Mission"),
+                            qsTr("Are you sure you want to remove all mission items and clear the mission from the vehicle?"),
+                            Dialog.Yes | Dialog.Cancel,
+                            function() {
+                                if (globals.planMasterControllerFlyView) {
+                                    globals.planMasterControllerFlyView.removeAllFromVehicle()
+                                }
+                            })
+                    }
+                }
+            }
+
+            // Mission download progress. Visible only while a download is
+            // active (loadProgress is set by Vehicle::_gotProgressUpdate during
+            // the manual reload). Closing the drawer to see the toolbar bar is
+            // an option too; this gives in-drawer feedback if it's still open.
+            SettingsGroupLayout {
+                heading: qsTr("Mission download")
+                visible: activeVehicle && activeVehicle.loadProgress > 0 && activeVehicle.loadProgress < 1
+
+                ProgressBar {
+                    Layout.fillWidth: true
+                    from:             0
+                    to:               1
+                    value:            activeVehicle ? activeVehicle.loadProgress : 0
+                }
+
+                QGCLabel {
+                    Layout.fillWidth:   true
+                    horizontalAlignment: Text.AlignHCenter
+                    text:               activeVehicle ? qsTr("%1%").arg(Math.round(activeVehicle.loadProgress * 100)) : ""
+                }
+            }
+
+            // RTL altitude and speed — grouped together at the top.
             SettingsGroupLayout {
                 heading: qsTr("Return to Launch")
-                visible: activeVehicle && !!_rtlAltFact
+                visible: activeVehicle && (!!_rtlAltFact || !!_rtlSpeedFact)
 
                 RowLayout {
                     Layout.fillWidth: true
+                    visible: !!_rtlAltFact
 
                     QGCLabel {
                         Layout.fillWidth: true
@@ -81,12 +161,9 @@ ToolIndicatorPage {
                             if (!_rtlAltFact) return
                             var value = parseFloat(text)
                             if (isNaN(value)) value = 0
-                            // Clamp value in display units (0-300m or 0-984ft equivalent)
                             var maxInDisplayUnits = _unitsConversion.metersToAppSettingsVerticalDistanceUnits(300)
                             value = Math.max(0, Math.min(maxInDisplayUnits, value))
-                            // Write back in internal units (cm)
                             _rtlAltFact.value = Math.round(displayUnitsToCm(value))
-                            // Update text to clamped value
                             rtlAltField.text = value.toFixed(1)
                         }
 
@@ -95,6 +172,56 @@ ToolIndicatorPage {
                             onValueChanged: {
                                 rtlAltField.text = _rtlAltFact ? cmToDisplayUnits(_rtlAltFact.value).toFixed(1) : "--"
                             }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: !!_rtlSpeedFact && !_useAutoRtlSpeed
+
+                    QGCLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("RTL Speed (%1)").arg(_unitsConversion.appSettingsSpeedUnitsString)
+                    }
+
+                    QGCTextField {
+                        id: rtlSpeedField
+                        text: _rtlSpeedFact && _rtlSpeedFact.rawValue > 0
+                              ? cmpsToDisplaySpeed(_rtlSpeedFact.rawValue).toFixed(1) : "--"
+                        inputMethodHints: Qt.ImhFormattedNumbersOnly
+                        Layout.minimumWidth: ScreenTools.defaultFontPixelWidth * 10
+
+                        onEditingFinished: {
+                            if (!_rtlSpeedFact) return
+                            var value = parseFloat(text)
+                            if (isNaN(value)) value = 2.0
+                            var mps = _unitsConversion.appSettingsSpeedUnitsToMetersSecond(value)
+                            mps = Math.max(2.0, Math.min(14.0, mps))
+                            _rtlSpeedFact.rawValue = Math.round(mps * 100)
+                            rtlSpeedField.text = _unitsConversion.metersSecondToAppSettingsSpeedUnits(mps).toFixed(1)
+                        }
+
+                        Connections {
+                            target: _rtlSpeedFact
+                            onValueChanged: {
+                                if (_rtlSpeedFact && _rtlSpeedFact.rawValue > 0)
+                                    rtlSpeedField.text = cmpsToDisplaySpeed(_rtlSpeedFact.rawValue).toFixed(1)
+                            }
+                        }
+                    }
+                }
+
+                QGCCheckBox {
+                    text:    qsTr("Use Auto Flight Speed")
+                    visible: !!_rtlSpeedFact
+                    checked: _useAutoRtlSpeed
+                    onClicked: {
+                        if (!_rtlSpeedFact) return
+                        if (checked) {
+                            _rtlSpeedFact.rawValue = 0
+                        } else {
+                            _rtlSpeedFact.rawValue = 600
                         }
                     }
                 }

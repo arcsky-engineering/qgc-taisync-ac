@@ -21,9 +21,19 @@
 #include <QtCore/QTemporaryFile>
 #include <QtCore/QThread>
 #include <QtCore/QTimer>
+#include <QtCore/QtMath>
+#include <cmath>
 
 QGC_LOGGING_CATEGORY(MockLinkLog, "qgc.comms.mocklink.mocklink")
 QGC_LOGGING_CATEGORY(MockLinkVerboseLog, "qgc.comms.mocklink.mocklink:verbose")
+
+// Mock flight simulation: drone drifts in a meandering heading and fires
+// duplicate camera trigger messages periodically. Set to false to revert
+// the mock to a stationary, silent vehicle.
+static constexpr bool   kMockSimulateFlight        = false;
+static constexpr double kMockSimSpeedMps           = 6.0;     // ground speed of simulated drift
+static constexpr double kMockSimHeadingNoiseDeg    = 4.0;     // max heading change per 10Hz tick
+static constexpr int    kMockSimCameraTickInterval = 20;      // 20 ticks at 10Hz => one capture every 2s
 
 int MockLink::_nextVehicleSystemId = 128;
 
@@ -183,11 +193,85 @@ void MockLink::run10HzTasks()
             // We delay gps position for better testing
             _sendGPSPositionDelayCount--;
         } else {
+            if (kMockSimulateFlight) {
+                _advanceSimulatedFlight();
+                if ((_simTickCount % kMockSimCameraTickInterval) == 0) {
+                    _sendCameraTriggerMessages();
+                }
+                _simTickCount++;
+            }
             _sendGpsRawInt();
             _sendGlobalPositionInt();
             _sendExtendedSysState();
         }
     }
+}
+
+void MockLink::_advanceSimulatedFlight()
+{
+    // Random walk: per tick, nudge heading by up to +/- kMockSimHeadingNoiseDeg
+    // and step forward by (speed / 10Hz) meters along it. One degree of latitude
+    // is ~111320 m; longitude shrinks by cos(latitude).
+    const double headingChange = ((QRandomGenerator::global()->bounded(2000) - 1000) / 1000.0) * kMockSimHeadingNoiseDeg;
+    _vehicleHeadingDeg = std::fmod(_vehicleHeadingDeg + headingChange + 360.0, 360.0);
+
+    const double stepM = kMockSimSpeedMps / 10.0;
+    const double headingRad = qDegreesToRadians(_vehicleHeadingDeg);
+    const double dLat = (stepM * std::cos(headingRad)) / 111320.0;
+    const double dLon = (stepM * std::sin(headingRad)) / (111320.0 * std::max(std::cos(qDegreesToRadians(_vehicleLatitude)), 1e-6));
+
+    _vehicleLatitude  += dLat;
+    _vehicleLongitude += dLon;
+}
+
+void MockLink::_sendCameraTriggerMessages()
+{
+    const int32_t latE7 = static_cast<int32_t>(_vehicleLatitude  * 1e7);
+    const int32_t lonE7 = static_cast<int32_t>(_vehicleLongitude * 1e7);
+    static uint32_t imgIndex = 0;
+    ++imgIndex;
+
+    // CAMERA_IMAGE_CAPTURED: standard MAVLink, sent by the camera component.
+    {
+        mavlink_message_t msg{};
+        mavlink_msg_camera_image_captured_pack_chan(
+            _vehicleSystemId, MAV_COMP_ID_CAMERA, mavlinkChannel(), &msg,
+            0,                              // time_boot_ms
+            0,                              // time_utc
+            0,                              // camera_id
+            latE7, lonE7,
+            static_cast<int32_t>(_vehicleAltitudeAMSL * 1000),    // alt mm
+            static_cast<int32_t>(_vehicleAltitudeAMSL * 1000),    // relative_alt mm
+            nullptr,                        // q
+            static_cast<int32_t>(imgIndex),
+            1,                              // capture_result: success
+            ""                              // file_url
+        );
+        respondWithMavlinkMessage(msg);
+    }
+
+    // CAMERA_FEEDBACK: ArduPilot dialect, sent by the autopilot. Same shot reported
+    // from a second source -- exercises the dedup path in Vehicle::_appendCameraTriggerPoint.
+#if !defined(QGC_NO_ARDUPILOT_DIALECT)
+    if (_firmwareType == MAV_AUTOPILOT_ARDUPILOTMEGA) {
+        mavlink_message_t msg{};
+        mavlink_msg_camera_feedback_pack_chan(
+            _vehicleSystemId, _vehicleComponentId, mavlinkChannel(), &msg,
+            0,                              // time_usec
+            _vehicleSystemId,               // target_system
+            0,                              // cam_idx
+            static_cast<uint16_t>(imgIndex),
+            latE7, lonE7,
+            static_cast<float>(_vehicleAltitudeAMSL),    // alt_msl
+            static_cast<float>(_vehicleAltitudeAMSL),    // alt_rel
+            0.0f, 0.0f, 0.0f,               // roll, pitch, yaw
+            0.0f,                           // foc_len
+            0,                              // flags
+            0                               // completed_captures
+        );
+        respondWithMavlinkMessage(msg);
+    }
+#endif
 }
 
 void MockLink::run500HzTasks()
@@ -602,7 +686,7 @@ void MockLink::_sendVibration()
 
     // Simulated camera values
     static uint16_t simISO = 400;
-    static uint16_t simSpeed = 500;     // 1/500
+    static uint32_t simSpeed = 500;     // 1/500 — 24-bit packed into data32.data[15..17]
     static uint8_t  simAperture = 28;   // f/2.8 (x10)
     static uint8_t  simMode = 3;        // Manual
     static int8_t   simExpCorr = 0;
@@ -982,7 +1066,9 @@ void MockLink::_handleParamRequestList(const mavlink_message_t &msg)
     mavlink_msg_param_request_list_decode(&msg, &request);
 
     Q_ASSERT(request.target_system == _vehicleSystemId);
-    Q_ASSERT(request.target_component == MAV_COMP_ID_ALL);
+    // MAVLink permits targeting a specific component (e.g. MAV_COMP_ID_AUTOPILOT1) instead
+    // of MAV_COMP_ID_ALL. The mock replies with all components it has regardless of target.
+    Q_ASSERT((request.target_component == MAV_COMP_ID_ALL) || (request.target_component == MAV_COMP_ID_AUTOPILOT1));
 
     // Start the worker routine
     _currentParamRequestListComponentIndex = 0;
@@ -1276,6 +1362,13 @@ void MockLink::_handleCommandLong(const mavlink_message_t &msg)
             _mavBaseMode |= MAV_MODE_FLAG_SAFETY_ARMED;
         }
         commandResult = MAV_RESULT_ACCEPTED;
+        break;
+    case MAV_CMD_DO_SET_MODE:
+        // ArduPilot path for flight mode changes. param1 = base mode flags
+        // (with CUSTOM_MODE_ENABLED set), param2 = custom mode.
+        _mavBaseMode   = (_mavBaseMode & ~MAV_MODE_FLAG_DECODE_POSITION_CUSTOM_MODE) | static_cast<uint8_t>(request.param1);
+        _mavCustomMode = static_cast<uint32_t>(request.param2);
+        commandResult  = MAV_RESULT_ACCEPTED;
         break;
     case MAV_CMD_PREFLIGHT_CALIBRATION:
         _handlePreFlightCalibration(request);

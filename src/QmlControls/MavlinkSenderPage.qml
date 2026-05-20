@@ -192,14 +192,14 @@ ToolIndicatorPage {
                             if (_camTypeFact && _camTypeFact.value !== 0) {
                                 _camTypeFact.value = 0
                                 mainWindow.showMessageDialog("Payload Info",
-                                    "Camera driver disabled for LiDAR. Rebooting...")
+                                    "Payload Changed to LiDAR. Rebooting...")
                                 Qt.callLater(function() {
                                     activeVehicle.rebootVehicle()
                                     mainWindow.closeIndicatorDrawer()
                                 })
                             } else {
                                 mainWindow.showMessageDialog("Payload Info",
-                                    "Camera driver already disabled")
+                                    "LiDAR payload already active")
                             }
                         }
                     }

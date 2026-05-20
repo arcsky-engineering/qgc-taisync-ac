@@ -453,10 +453,16 @@ VehicleCameraControl::setCameraModeVideo()
             //-- Use MAVLink Command
             if(_cameraMode != CAM_MODE_VIDEO) {
                 //-- Use basic MAVLink message
+                // Xplorer: showError=false so a duplicate SET_CAMERA_MODE
+                // (e.g. left over from camera init at boot) does not pop a
+                // "Waiting on previous response" dialog at the user. The
+                // duplicate is still suppressed by Vehicle's dedup logic; the
+                // user just needs to click again once the pending command
+                // clears.
                 _vehicle->sendMavCommand(
                     _compID,                                // Target component
                     MAV_CMD_SET_CAMERA_MODE,                // Command id
-                    true,                                   // ShowError
+                    false,                                  // ShowError
                     0,                                      // Reserved (Set to 0)
                     CAM_MODE_VIDEO);                        // Camera mode (0: photo, 1: video)
                 _setCameraMode(CAM_MODE_VIDEO);
@@ -482,10 +488,11 @@ VehicleCameraControl::setCameraModePhoto()
             //-- Use MAVLink Command
             if(_cameraMode != CAM_MODE_PHOTO) {
                 //-- Use basic MAVLink message
+                // Xplorer: showError=false (see setCameraModeVideo for rationale).
                 _vehicle->sendMavCommand(
                     _compID,                                // Target component
                     MAV_CMD_SET_CAMERA_MODE,                // Command id
-                    true,                                   // ShowError
+                    false,                                  // ShowError
                     0,                                      // Reserved (Set to 0)
                     CAM_MODE_PHOTO);                        // Camera mode (0: photo, 1: video)
                 _setCameraMode(CAM_MODE_PHOTO);

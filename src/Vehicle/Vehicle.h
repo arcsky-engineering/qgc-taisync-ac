@@ -366,6 +366,13 @@ public:
     /// Resets link status counters
     Q_INVOKABLE void resetCounters  ();
 
+    /// Manually re-download the mission from the vehicle. Used by the
+    /// Fly View Quick Config "Download Mission" button — the Fly View's
+    /// PlanMasterController refuses loadFromVehicle() by design, so we
+    /// invoke the vehicle's MissionManager directly (same path as the
+    /// initial-connect state machine).
+    Q_INVOKABLE void reloadMissionFromVehicle();
+
     Q_INVOKABLE void virtualTabletJoystickValue(double roll, double pitch, double yaw, double thrust);
 
     /// Command vehicle to return to launch
@@ -1133,6 +1140,7 @@ private:
     void _handleCameraFeedback          (const mavlink_message_t& message);
 #endif
     void _handleCameraImageCaptured     (const mavlink_message_t& message);
+    void _appendCameraTriggerPoint      (const QGeoCoordinate& coord);
     void _handleCommandLong             (const mavlink_message_t& message);
     void _missionManagerError           (int errorCode, const QString& errorMsg);
     void _geoFenceManagerError          (int errorCode, const QString& errorMsg);

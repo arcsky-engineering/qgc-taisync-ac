@@ -77,6 +77,13 @@ QGC_LOGGING_CATEGORY(VehicleLog, "VehicleLog")
 #define SET_HOME_TERRAIN_ALT_MAX 10000
 #define SET_HOME_TERRAIN_ALT_MIN -500
 
+// Camera trigger indicators are kept as a short rolling buffer of recent capture points,
+// not a full history. The two MAVLink messages that report captures (CAMERA_FEEDBACK from
+// the autopilot, CAMERA_IMAGE_CAPTURED from the camera) can both fire for the same shot;
+// _appendCameraTriggerPoint() drops a new point that is within the dedup radius of the last entry.
+static constexpr int    kCameraTriggerPointsMaxCount   = 10;
+static constexpr double kCameraTriggerDedupMeters      = 2.0;
+
 // After a second GCS has requested control and we have given it permission to takeover, we will remove takeover permission automatically after this timeout
 // If the second GCS didn't get control 
 #define REQUEST_OPERATOR_CONTROL_ALLOW_TAKEOVER_TIMEOUT_MSECS 10000
@@ -474,6 +481,38 @@ void Vehicle::resetCounters()
     _heardFrom          = false;
 }
 
+void Vehicle::reloadMissionFromVehicle()
+{
+    if (!_missionManager) {
+        return;
+    }
+    SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
+    if (!sharedLink || sharedLink->linkConfiguration()->isHighLatency() || sharedLink->isLogReplay()) {
+        return;
+    }
+    qCDebug(VehicleLog) << "reloadMissionFromVehicle: triggering MissionManager::loadFromVehicle";
+
+    // Drive the FlyViewToolBar progress bar from the mission download for the
+    // duration of this load only. Vehicle::_gotProgressUpdate already gates so
+    // we don't fight the initial-connect state machine if both are active.
+    auto progressConn = std::make_shared<QMetaObject::Connection>();
+    auto doneConn     = std::make_shared<QMetaObject::Connection>();
+    auto errorConn    = std::make_shared<QMetaObject::Connection>();
+    auto cleanup = [this, progressConn, doneConn, errorConn]() {
+        QObject::disconnect(*progressConn);
+        QObject::disconnect(*doneConn);
+        QObject::disconnect(*errorConn);
+        _loadProgress = 0.0f;
+        emit loadProgressChanged(0.0f);
+    };
+
+    *progressConn = connect(_missionManager, &MissionManager::progressPctChanged, this, &Vehicle::_gotProgressUpdate);
+    *doneConn     = connect(_missionManager, &MissionManager::newMissionItemsAvailable, this, cleanup);
+    *errorConn    = connect(_missionManager, &MissionManager::error, this, cleanup);
+
+    _missionManager->loadFromVehicle();
+}
+
 void Vehicle::_mavlinkMessageReceived(LinkInterface* link, mavlink_message_t message)
 {
     // If the link is already running at Mavlink V2 set our max proto version to it.
@@ -751,9 +790,32 @@ void Vehicle::_handleCameraFeedback(const mavlink_message_t& message)
 
     QGeoCoordinate imageCoordinate((double)feedback.lat / qPow(10.0, 7.0), (double)feedback.lng / qPow(10.0, 7.0), feedback.alt_msl);
     qCDebug(VehicleLog) << "_handleCameraFeedback coord:index" << imageCoordinate << feedback.img_idx;
-    _cameraTriggerPoints.append(new QGCQGeoCoordinate(imageCoordinate, this));
+    _appendCameraTriggerPoint(imageCoordinate);
 }
 #endif
+
+void Vehicle::_appendCameraTriggerPoint(const QGeoCoordinate& coord)
+{
+    if (!coord.isValid()) {
+        return;
+    }
+    // Drop duplicates from the second transport reporting the same shot (e.g. CAMERA_FEEDBACK
+    // from the autopilot plus CAMERA_IMAGE_CAPTURED from the camera). They arrive close in time,
+    // so comparing against the most recent entry is enough.
+    if (_cameraTriggerPoints.count() > 0) {
+        auto* last = qobject_cast<QGCQGeoCoordinate*>(_cameraTriggerPoints.get(_cameraTriggerPoints.count() - 1));
+        if (last && last->coordinate().distanceTo(coord) < kCameraTriggerDedupMeters) {
+            return;
+        }
+    }
+    _cameraTriggerPoints.append(new QGCQGeoCoordinate(coord, this));
+    while (_cameraTriggerPoints.count() > kCameraTriggerPointsMaxCount) {
+        QObject* removed = _cameraTriggerPoints.removeAt(0);
+        if (removed) {
+            removed->deleteLater();
+        }
+    }
+}
 
 void Vehicle::_handleOrbitExecutionStatus(const mavlink_message_t& message)
 {
@@ -800,7 +862,7 @@ void Vehicle::_handleCameraImageCaptured(const mavlink_message_t& message)
     QGeoCoordinate imageCoordinate((double)feedback.lat / qPow(10.0, 7.0), (double)feedback.lon / qPow(10.0, 7.0), feedback.alt);
     qCDebug(VehicleLog) << "_handleCameraFeedback coord:index" << imageCoordinate << feedback.image_index << feedback.capture_result;
     if (feedback.capture_result == 1) {
-        _cameraTriggerPoints.append(new QGCQGeoCoordinate(imageCoordinate, this));
+        _appendCameraTriggerPoint(imageCoordinate);
     }
 }
 
@@ -3215,6 +3277,12 @@ bool Vehicle::_commandCanBeDuplicated(MAV_CMD command)
     case MAV_CMD_DO_MOTOR_TEST:
         return true;
     case MAV_CMD_SET_MESSAGE_INTERVAL:
+        return true;
+    // Xplorer: SET_CAMERA_MODE is idempotent (last write wins). Allowing
+    // duplicates means a user-initiated mode switch is never blocked by an
+    // earlier auto-init send that the camera was too slow to ACK (e.g.
+    // TAG-E during its boot window).
+    case MAV_CMD_SET_CAMERA_MODE:
         return true;
     default:
         return false;

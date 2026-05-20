@@ -187,6 +187,8 @@ private:
     void _logDownloadWorker();
     void _availableModesWorker();
     void _sendAvailableMode(uint8_t modeIndexOneBased);
+    void _advanceSimulatedFlight();
+    void _sendCameraTriggerMessages();
     int  _availableModesCount() const;
     void _moveADSBVehicle(int vehicleIndex);
 
@@ -206,8 +208,10 @@ private:
     const bool _sendStatusText = false;
     const MockConfiguration::FailureMode_t _failureMode = MockConfiguration::FailNone;
     const uint8_t _vehicleSystemId = 0;
-    const double _vehicleLatitude = 0.0;
-    const double _vehicleLongitude = 0.0;
+    double _vehicleLatitude = 0.0;
+    double _vehicleLongitude = 0.0;
+    double _vehicleHeadingDeg = 0.0;     // for simulated drift
+    int    _simTickCount     = 0;        // 10Hz tick counter for camera trigger pacing
     // These are just set for reporting the fields in _respondWithAutopilotVersion()
     // and ensuring that the Vehicle reports the fields in Vehicle::firmwareBoardVendorId etc.
     // They do not control any mock simulation (and it is up to the Custom build to do that).

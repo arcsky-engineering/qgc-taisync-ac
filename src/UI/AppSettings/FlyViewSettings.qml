@@ -107,6 +107,31 @@ SettingsPage {
 
         FactCheckBoxSlider {
             Layout.fillWidth:   true
+            text:               qsTr("Show photo capture indicators")
+            visible:            _showPhotoCaptureIndicators.visible
+            fact:               _showPhotoCaptureIndicators
+            property Fact _showPhotoCaptureIndicators: _flyViewSettings.showPhotoCaptureIndicators
+        }
+
+        LabelledFactComboBox {
+            Layout.fillWidth:   true
+            label:              qsTr("Mission waypoint markers")
+            fact:               _missionWaypointDisplay
+            indexModel:         false
+            visible:            _missionWaypointDisplay.visible
+            property Fact _missionWaypointDisplay: _flyViewSettings.missionWaypointDisplay
+        }
+
+        FactCheckBoxSlider {
+            Layout.fillWidth:   true
+            text:               qsTr("Auto-load mission on connect")
+            visible:            _autoLoadMissionOnConnect.visible
+            fact:               _autoLoadMissionOnConnect
+            property Fact _autoLoadMissionOnConnect: _flyViewSettings.autoLoadMissionOnConnect
+        }
+
+        FactCheckBoxSlider {
+            Layout.fillWidth:   true
             text:               qsTr("Update return to home position based on device location.")
             fact:               _updateHomePosition
             visible:            _updateHomePosition.visible

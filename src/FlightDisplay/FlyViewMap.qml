@@ -360,7 +360,7 @@ FlightMap {
 
     // Camera trigger points
     MapItemView {
-        model: _activeVehicle ? _activeVehicle.cameraTriggerPoints : 0
+        model: (_activeVehicle && _flyViewSettings.showPhotoCaptureIndicators.rawValue) ? _activeVehicle.cameraTriggerPoints : 0
 
         delegate: CameraTriggerIndicator {
             coordinate:     object.coordinate

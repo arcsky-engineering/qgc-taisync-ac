@@ -24,6 +24,7 @@
 
 #include <QtCore/QEasingCurve>
 #include <QtCore/QFile>
+#include <QtCore/QSet>
 #include <QtCore/QStandardPaths>
 #include <QtCore/QVariantAnimation>
 #include <QtQml/qqml.h>
@@ -193,6 +194,15 @@ void ParameterManager::mavlinkMessageReceived(const mavlink_message_t &message)
 
 void ParameterManager::_handleParamValue(int componentId, const QString &parameterName, int parameterCount, int parameterIndex, MAV_PARAM_TYPE mavParamType, const QVariant &parameterValue)
 {
+    // Xplorer: ignore param traffic from components we manage out-of-band
+    // (camera at compid 100, gimbal at compid 154). Their params are not
+    // touched via QGC's Fact system and including them only causes the
+    // initial-load progress bar to bounce and the retry queue to thrash
+    // when MAVLink bandwidth is contended.
+    static const QSet<int> kIgnoredComponentIds = { 100, 154 };
+    if (kIgnoredComponentIds.contains(componentId)) {
+        return;
+    }
 
     qCDebug(ParameterManagerVerbose1Log) << _logVehiclePrefix(componentId) <<
                                             "_parameterUpdate" <<
@@ -410,10 +420,26 @@ void ParameterManager::_ftpDownloadComplete(const QString &fileName, const QStri
         qCDebug(ParameterManagerLog) << "ParameterManager::_ftpDownloadComplete : Parameter file received:" << fileName;
         if (_parseParamFile(fileName)) {
             qCDebug(ParameterManagerLog) << "ParameterManager::_ftpDownloadComplete : Parsed!";
+            _ftpParseRetryCount = 0;
             return;
         } else {
             qCDebug(ParameterManagerLog) << "ParameterManager::_ftpDownloadComplete : Error in parameter file";
-            /* This should not happen... */
+            // Xplorer: the most likely cause is the AP_Filesystem_Param header/body
+            // count race in ArduPilot. By the time we retry, the FC's param table has
+            // typically settled and the next FTP file is internally consistent. Avoid
+            // falling back to slow per-param fetch until we've given FTP one more try.
+            if (_ftpParseRetryCount < _maxFtpParseRetry) {
+                _ftpParseRetryCount++;
+                qCDebug(ParameterManagerLog) << "ParameterManager::_ftpDownloadComplete : Retrying FTP after parse error (attempt"
+                                             << _ftpParseRetryCount << "of" << _maxFtpParseRetry << ")";
+                // Brief delay to let the FC's param table settle before re-requesting.
+                QTimer::singleShot(1000, this, [this]() {
+                    refreshAllParameters(MAV_COMP_ID_AUTOPILOT1);
+                });
+                return;
+            }
+            qCDebug(ParameterManagerLog) << "ParameterManager::_ftpDownloadComplete : FTP parse retries exhausted, falling back to per-param";
+            _ftpParseRetryCount = 0;
         }
     } else if (errorMsg.contains("File Not Found")) {
         qCDebug(ParameterManagerLog) << "ParameterManager-ftp: No Parameterfile on vehicle - Start Conventional Parameter Download";
@@ -1160,7 +1186,9 @@ void ParameterManager::_initialRequestTimeout()
 {
     if (!_disableAllRetries && (++_initialRequestRetryCount <= _maxInitialRequestListRetry)) {
         qCDebug(ParameterManagerLog) << _logVehiclePrefix(-1) << "Retrying initial parameter request list";
-        refreshAllParameters();
+        // Xplorer: target the retry at the autopilot only, not MAV_COMP_ID_ALL.
+        // The broadcast was waking up the camera and gimbal and creating contention.
+        refreshAllParameters(MAV_COMP_ID_AUTOPILOT1);
         _initialRequestTimeoutTimer.start();
     } else if (!_vehicle->genericFirmware()) {
         const QString errorMsg = tr("Vehicle %1 did not respond to request for parameters. "
@@ -1487,9 +1515,12 @@ bool ParameterManager::_parseParamFile(const QString& filename)
         qCDebug(ParameterManagerVerbose2Log) << "paramValue" << parameterValue;
 
         if (++no_of_parameters_found > num_params) {
+            // Xplorer: log the offending param name so we can identify which
+            // subsystem registered a param mid-FTP-walk on the firmware side.
             qCDebug(ParameterManagerLog) << "_parseParamFile: Error: more parameters in file than expected."
                                          << "Expected:" << num_params
-                                         << "Actual:" << no_of_parameters_found;
+                                         << "Actual:" << no_of_parameters_found
+                                         << "Offending param:" << parameterName;
             goto Error;
         }
 

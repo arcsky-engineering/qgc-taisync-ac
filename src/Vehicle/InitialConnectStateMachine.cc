@@ -19,6 +19,10 @@
 #include "GeoFenceManager.h"
 #include "RallyPointManager.h"
 #include "QGCLoggingCategory.h"
+#include "SettingsManager.h"
+#include "FlyViewSettings.h"
+
+#include <QtCore/QTimer>
 
 QGC_LOGGING_CATEGORY(InitialConnectStateMachineLog, "qgc.vehicle.initialconnectstatemachine")
 
@@ -305,6 +309,28 @@ void InitialConnectStateMachine::_stateRequestCompInfoComplete(void* requestAllC
     connectMachine->advance();
 }
 
+void InitialConnectStateMachine::_stateXplorerParamSettleDelay(StateMachine* stateMachine)
+{
+    InitialConnectStateMachine* connectMachine = static_cast<InitialConnectStateMachine*>(stateMachine);
+
+    // Xplorer: delay before requesting params so the FC's Lua scripts can
+    // finish their AP_Param add_param() loops before we kick off the FTP
+    // download of @PARAM/param.pck. Without this delay, the FTP file can be
+    // packed with a stale header count mid-Lua-add-loop, producing an
+    // off-by-one parse error in QGC. ParameterManager's retry handles
+    // recovery, but waiting up front avoids the retry round-trip on the
+    // boot-during-connect path.
+    //
+    // The delay only adds latency to the case where QGC was already open
+    // and the FC just powered on. When connecting to an already-booted FC,
+    // Lua has long since settled and the delay is harmless overhead.
+    static constexpr int kSettleDelayMs = 2500;
+    qCDebug(InitialConnectStateMachineLog) << "_stateXplorerParamSettleDelay: waiting" << kSettleDelayMs << "ms for FC Lua scripts to settle";
+    QTimer::singleShot(kSettleDelayMs, connectMachine, [connectMachine]() {
+        connectMachine->advance();
+    });
+}
+
 void InitialConnectStateMachine::_stateRequestParameters(StateMachine* stateMachine)
 {
     InitialConnectStateMachine* connectMachine  = static_cast<InitialConnectStateMachine*>(stateMachine);
@@ -331,6 +357,9 @@ void InitialConnectStateMachine::_stateRequestMission(StateMachine* stateMachine
     } else {
         if (sharedLink->linkConfiguration()->isHighLatency() || sharedLink->isLogReplay()) {
             qCDebug(InitialConnectStateMachineLog) << "_stateRequestMission: Skipping first mission load request due to link type";
+            vehicle->_firstMissionLoadComplete();
+        } else if (!SettingsManager::instance()->flyViewSettings()->autoLoadMissionOnConnect()->rawValue().toBool()) {
+            qCDebug(InitialConnectStateMachineLog) << "_stateRequestMission: Skipping due to autoLoadMissionOnConnect setting";
             vehicle->_firstMissionLoadComplete();
         } else {
             qCDebug(InitialConnectStateMachineLog) << "_stateRequestMission";

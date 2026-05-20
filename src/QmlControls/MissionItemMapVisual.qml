@@ -21,9 +21,15 @@ import QGroundControl.Controls
 Item {
     id: _root
 
-    property var map        ///< Map control to place item in
-    property var vehicle    ///< Vehicle associated with this item
+    property var  map        ///< Map control to place item in
+    property var  vehicle    ///< Vehicle associated with this item
     property bool interactive: true    ///< Vehicle associated with this item
+    // Set by Fly View's PlanMapItems Repeater so the visual can suppress
+    // its indicator dot when the user has chosen to hide intermediate
+    // waypoints. Defaults are false; the gating is bypassed in Plan View
+    // (which sets map.planView = true).
+    property bool isFirstItem: false
+    property bool isLastItem:  false
 
     signal clicked(int sequenceNumber)
 
@@ -50,6 +56,15 @@ Item {
 
             if (item.clicked) {
                 item.clicked.connect(_root.clicked)
+            }
+
+            // Only SimpleItemMapVisual declares these; skip silently on the
+            // other mission-visual types (Survey, Corridor, landing patterns).
+            if (item.isFirstItem !== undefined) {
+                item.isFirstItem = Qt.binding(() => _root.isFirstItem)
+            }
+            if (item.isLastItem !== undefined) {
+                item.isLastItem  = Qt.binding(() => _root.isLastItem)
             }
         }
     }
