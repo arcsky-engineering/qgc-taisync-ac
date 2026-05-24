@@ -10,6 +10,7 @@
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 
 import QGroundControl
 import QGroundControl.FactSystem
@@ -17,143 +18,191 @@ import QGroundControl.Controls
 import QGroundControl.ScreenTools
 import QGroundControl.MultiVehicleManager
 import QGroundControl.Palette
-import QGroundControl.AutoPilotPlugins.PX4
-import QGroundControl.AutoPilotPlugins.APM
 
+// Xplorer fork: the original tile-based summary showed mostly inert technical
+// detail (channel numbers, sensor IDs, monitor types, etc.) — none of which was
+// actionable for an end user. This is now a simple navigation grid: one large
+// button per setup section that takes you directly to that section's editor.
+// Calibration state is surfaced in the sidebar via the status dot on the
+// "Sensors" button (see ConfigButton.qml).
 Rectangle {
     id:             _summaryRoot
     anchors.fill:   parent
-    anchors.rightMargin: ScreenTools.defaultFontPixelWidth
-    anchors.leftMargin:  ScreenTools.defaultFontPixelWidth
     color:          qgcPal.window
 
-    property real _minSummaryW:     ScreenTools.isTinyScreen ? ScreenTools.defaultFontPixelWidth * 28 : ScreenTools.defaultFontPixelWidth * 36
-    property real _summaryBoxWidth: _minSummaryW
-    property real _summaryBoxSpace: ScreenTools.defaultFontPixelWidth * 2
+    property var _vehicle: QGroundControl.multiVehicleManager.activeVehicle
+    property var _components: _vehicle ? _vehicle.autopilotPlugin.vehicleComponents : []
 
-    function computeSummaryBoxSize() {
-        var sw  = 0
-        var rw  = 0
-        var idx = Math.floor(_summaryRoot.width / (_minSummaryW + ScreenTools.defaultFontPixelWidth))
-        if(idx < 1) {
-            _summaryBoxWidth = _summaryRoot.width
-            _summaryBoxSpace = 0
-        } else {
-            _summaryBoxSpace = 0
-            if(idx > 1) {
-                _summaryBoxSpace = ScreenTools.defaultFontPixelWidth * 2
-                sw = _summaryBoxSpace * (idx - 1)
-            }
-            rw = _summaryRoot.width - sw
-            _summaryBoxWidth = rw / idx
+    QGCPalette { id: qgcPal; colorGroupEnabled: true }
+
+    function componentByName(n) {
+        for (var i = 0; i < _components.length; i++) {
+            if (_components[i].name === n) return _components[i]
         }
+        return null
     }
 
-    function capitalizeWords(sentence) {
-        return sentence.replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); });
-    }
+    // Top-level banner driven by the autopilot plugin's setupComplete flag.
+    // This still surfaces "needs setup" if any component reports incomplete —
+    // useful for catching a sensors-needs-calibration condition.
+    property bool _setupComplete: _vehicle ? _vehicle.autopilotPlugin.setupComplete : true
 
-    QGCPalette {
-        id:                 qgcPal
-        colorGroupEnabled:  enabled
-    }
+    ColumnLayout {
+        anchors.fill:           parent
+        anchors.margins:        ScreenTools.defaultFontPixelWidth * 2
+        spacing:                ScreenTools.defaultFontPixelHeight
 
-    Component.onCompleted: {
-        computeSummaryBoxSize()
-    }
+        QGCLabel {
+            Layout.fillWidth:       true
+            wrapMode:               Text.WordWrap
+            color:                  _setupComplete ? qgcPal.text : qgcPal.warningText
+            font.bold:              true
+            horizontalAlignment:    Text.AlignHCenter
+            text:                   _setupComplete
+                                      ? qsTr("Select a setup section below or from the menu on the left.")
+                                      : qsTr("WARNING: Your vehicle requires setup prior to flight. Please resolve the items marked in red.")
+        }
 
-    onWidthChanged: {
-        computeSummaryBoxSize()
-    }
+        GridLayout {
+            Layout.alignment:   Qt.AlignHCenter
+            columns:            3
+            rowSpacing:         ScreenTools.defaultFontPixelHeight
+            columnSpacing:      ScreenTools.defaultFontPixelWidth * 2
 
-    QGCFlickable {
-        clip:               true
-        anchors.fill:       parent
-        contentHeight:      summaryColumn.height
-        contentWidth:       _summaryRoot.width
-        flickableDirection: Flickable.VerticalFlick
+            // Five vehicle-component tiles (Radio, RC Options, Sensors, Power, Safety).
+            Repeater {
+                model: [ "Radio", "RC Options", "Sensors", "Power", "Safety" ]
 
-        Column {
-            id:             summaryColumn
-            width:          _summaryRoot.width
-            spacing:        ScreenTools.defaultFontPixelHeight
+                SettingsButton {
+                    id:                     tileButton
+                    Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 22
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 4
+                    text:                   modelData
+                    icon.source:            _comp ? _comp.iconResource : ""
+                    enabled:                _comp !== null
 
-            QGCLabel {
-                width:			parent.width
-                wrapMode:		Text.WordWrap
-                color:			setupComplete ? qgcPal.text : qgcPal.warningText
-                font.bold:      true
-                horizontalAlignment: Text.AlignHCenter
-                text:           setupComplete ?
-                    qsTr("Below you will find a summary of the settings for your vehicle. To the left are the setup menus for each component.") :
-                    qsTr("WARNING: Your vehicle requires setup prior to flight. Please resolve the items marked in red using the menu on the left.")
+                    property var _comp: componentByName(modelData)
 
-                property bool setupComplete: QGroundControl.multiVehicleManager.activeVehicle ? QGroundControl.multiVehicleManager.activeVehicle.autopilotPlugin.setupComplete : false
-            }
+                    // Override SettingsButton background: rim Rectangle (always
+                    // visible) wraps a fill Rectangle (opacity-controlled by
+                    // hover/pressed/checked, matching stock SettingsButton feel).
+                    background: Rectangle {
+                        color:          "transparent"
+                        radius:         ScreenTools.defaultFontPixelWidth / 2
+                        border.color:   "white"
+                        border.width:   1
 
-            Flow {
-                id:         _flowCtl
-                width:      _summaryRoot.width
-                spacing:    _summaryBoxSpace
-
-                Repeater {
-                    model: QGroundControl.multiVehicleManager.activeVehicle ? QGroundControl.multiVehicleManager.activeVehicle.autopilotPlugin.vehicleComponents : undefined
-
-                    // Outer summary item rectangle
-                    Rectangle {
-                        width:      _summaryBoxWidth
-                        height:     ScreenTools.defaultFontPixelHeight * 13
-                        color:      qgcPal.windowShade
-                        visible:    modelData.name !== "Motors" && modelData.name !== "Tuning" && modelData.name !== "Remote Support" && modelData.name !== "Frame" && modelData.name !== "Camera"
-                        border.width: 1
-                        border.color: qgcPal.text
-                        Component.onCompleted: {
-                            border.color = Qt.rgba(border.color.r, border.color.g, border.color.b, 0.1)
-                        }
-
-                        readonly property real titleHeight: ScreenTools.defaultFontPixelHeight * 2
-
-                        // Title bar
-                        QGCButton {
-                            id:     titleBar
-                            width:  parent.width
-                            height: titleHeight
-                            text:   capitalizeWords(modelData.name)
-
-                            // Setup indicator
-                            Rectangle {
-                                anchors.rightMargin:    ScreenTools.defaultFontPixelWidth
-                                anchors.right:          parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                width:                  ScreenTools.defaultFontPixelWidth * 1.75
-                                height:                 width
-                                radius:                 width / 2
-                                color:                  modelData.setupComplete ? "#00d932" : "red"
-                                visible:                modelData.requiresSetup && modelData.setupSource !== ""
-                            }
-
-                            // onClicked : {
-                            //     //console.log(modelData.setupSource)
-                            //     if (modelData.setupSource !== "") {
-                            //         setupView.showVehicleComponentPanel(modelData)
-                            //     }
-                            // }
-                        }
-                        // Summary Qml
                         Rectangle {
-                            anchors.top:    titleBar.bottom
-                            width:          parent.width
-                            Loader {
-                                anchors.fill:       parent
-                                anchors.margins:    ScreenTools.defaultFontPixelWidth
-                                source:             modelData.summaryQmlSource
+                            anchors.fill:       parent
+                            anchors.margins:    parent.border.width
+                            color:              qgcPal.buttonHighlight
+                            radius:             parent.radius - parent.border.width
+                            opacity:            tileButton.checked || tileButton.pressed
+                                                    ? 1
+                                                    : (tileButton.enabled && tileButton.hovered ? 0.2 : 0)
+                        }
+                    }
 
-                                property var vehicleComponent: modelData
+                    // Center the icon + label within the tile (the stock
+                    // SettingsButton layout left-aligns them, which looks off
+                    // on a large square tile).
+                    contentItem: Item {
+                        Row {
+                            anchors.centerIn:   parent
+                            spacing:            ScreenTools.defaultFontPixelWidth
+
+                            QGCColoredImage {
+                                source:                 tileButton.icon.source
+                                color:                  tileButton.icon.color
+                                width:                  ScreenTools.defaultFontPixelHeight
+                                height:                 ScreenTools.defaultFontPixelHeight
+                                anchors.verticalCenter: parent.verticalCenter
                             }
+
+                            QGCLabel {
+                                text:                   tileButton.text
+                                color:                  tileButton.textColor
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                    }
+
+                    // Health dot: only show for components whose setupComplete signal
+                    // actually varies (Sensors). Others would render a permanent
+                    // green dot which is just visual noise.
+                    Rectangle {
+                        visible:                tileButton._comp && tileButton.text === "Sensors"
+                        width:                  ScreenTools.defaultFontPixelWidth * 1.1
+                        height:                 width
+                        radius:                 width / 2
+                        color:                  tileButton._comp && tileButton._comp.setupComplete ? "#00d932" : "red"
+                        border.color:           "white"
+                        border.width:           1
+                        anchors.right:          parent.right
+                        anchors.top:            parent.top
+                        anchors.rightMargin:    ScreenTools.defaultFontPixelWidth * 0.4
+                        anchors.topMargin:      ScreenTools.defaultFontPixelWidth * 0.4
+                    }
+
+                    onClicked: {
+                        if (_comp) {
+                            setupView.showVehicleComponentPanel(_comp)
                         }
                     }
                 }
             }
+
+            // Parameters tile uses a different navigation path.
+            SettingsButton {
+                id:                     paramsTile
+                Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 22
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 4
+                text:                   qsTr("Parameters")
+                icon.source:            "/qmlimages/subMenuButtonImage.png"
+
+                background: Rectangle {
+                    color:          "transparent"
+                    radius:         ScreenTools.defaultFontPixelWidth / 2
+                    border.color:   "white"
+                    border.width:   1
+
+                    Rectangle {
+                        anchors.fill:       parent
+                        anchors.margins:    parent.border.width
+                        color:              qgcPal.buttonHighlight
+                        radius:             parent.radius - parent.border.width
+                        opacity:            paramsTile.checked || paramsTile.pressed
+                                                ? 1
+                                                : (paramsTile.enabled && paramsTile.hovered ? 0.2 : 0)
+                    }
+                }
+
+                contentItem: Item {
+                    Row {
+                        anchors.centerIn:   parent
+                        spacing:            ScreenTools.defaultFontPixelWidth
+
+                        QGCColoredImage {
+                            source:                 paramsTile.icon.source
+                            color:                  paramsTile.icon.color
+                            width:                  ScreenTools.defaultFontPixelHeight
+                            height:                 ScreenTools.defaultFontPixelHeight
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        QGCLabel {
+                            text:                   paramsTile.text
+                            color:                  paramsTile.textColor
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+
+                onClicked:              setupView.showParametersPanel()
+            }
         }
+
+        // Filler so the grid stays near the top.
+        Item { Layout.fillHeight: true; Layout.fillWidth: true }
     }
 }

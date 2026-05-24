@@ -35,6 +35,19 @@ Item {
     property real   _distance:              _distanceSensors ? _distanceSensors.rotationPitch270.rawValue : NaN
     property bool   _isActive:              !isNaN(_distance)
 
+    // Variant-aware active-state input:
+    //   Xplorer (variant == 1): firmware broadcasts RFND_ST (see _statusFact below).
+    //   X55     (variant == 0): no firmware status broadcast — drive active state
+    //                           from a user-configured RC channel reading.
+    readonly property bool _isXplorer:          QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue === 1
+    readonly property var  _rcChannelSetting:   QGroundControl.settingsManager.flyViewSettings.rangefinderRCChannel
+    readonly property int  _rcChannel:          _rcChannelSetting ? _rcChannelSetting.rawValue : 0
+    readonly property var  _rcValues:           _activeVehicle ? _activeVehicle.rcChannelValues : []
+    readonly property real _rcPwm:              (_rcChannel > 0 && _rcChannel <= _rcValues.length)
+                                                    ? _rcValues[_rcChannel - 1] : NaN
+    readonly property bool _rcMonitoring:       !_isXplorer && _rcChannel > 0
+    readonly property bool _rcActive:           _rcMonitoring && !isNaN(_rcPwm) && _rcPwm > 1500
+
     // Soft-enable parameter resolved from a Loader so FactPanelController only constructs
     // once a real vehicle is connected (otherwise it latches onto the offline-editing vehicle).
     property Fact _btnFact:      paramLoader.item ? paramLoader.item.btnFact : null
@@ -79,7 +92,12 @@ Item {
             if (_liveStatus === 2) return qsTr("Standby")
             return qsTr("Active")
         }
-        // Legacy firmware fallback (no RFND_ST broadcast).
+        // X55: RC channel drives the active label.
+        if (_rcMonitoring) {
+            if (isNaN(_rcPwm))    return qsTr("No Data")
+            return _rcActive ? qsTr("Active") : qsTr("Standby")
+        }
+        // Legacy firmware fallback (no RFND_ST broadcast, no RC monitoring).
         if (_btnPresent && !_btnEnabled) {
             return qsTr("Disabled")
         }
@@ -90,13 +108,14 @@ Item {
     }
 
     // Dot color: gray=disabled, red=no data, orange=standby (enabled but
-    // surface tracking not engaged), green=active. Falls back to the legacy
-    // param-based coloring when no live status has arrived.
+    // surface tracking not engaged), green=active. Falls back to RC-channel
+    // monitoring on X55, then to the legacy param-based coloring.
     function getDotColor() {
         if (_liveStatus === 3) return qgcPal.colorGreen
         if (_liveStatus === 2) return qgcPal.colorOrange
         if (_liveStatus === 1) return qgcPal.colorRed
         if (_liveStatus === 0) return qgcPal.colorGrey
+        if (_rcMonitoring)     return _rcActive ? qgcPal.colorGreen : qgcPal.colorGrey
         return _btnEnabled ? qgcPal.colorGreen : qgcPal.colorGrey
     }
 
@@ -148,10 +167,13 @@ Item {
                     labelText:  _isActive ? _displayDistanceStr : qsTr("--")
                 }
 
+                // ON/OFF buttons drive RFND_BTN_EN — an Xplorer firmware construct.
+                // Hidden on X55, which uses RC channel monitoring (not a GCS button)
+                // for rangefinder enable/disable.
                 RowLayout {
                     Layout.fillWidth:   true
                     spacing:            ScreenTools.defaultFontPixelWidth
-                    visible:            _btnPresent
+                    visible:            _btnPresent && _isXplorer
 
                     QGCButton {
                         text:               qsTr("ON")
@@ -172,9 +194,11 @@ Item {
                 // terrain following: even with RFND_BTN_EN=0, if LAND_RNG_EN is
                 // set and the sensor is healthy, the autopilot will use the
                 // rangefinder to limit descent speed near the ground.
+                // Xplorer-only: the landing-altitude helper is part of the
+                // Xplorer surface tracking flow, not used on X55.
                 QGCCheckBox {
                     text:       qsTr("Use rangefinder for landing")
-                    visible:    !!_landEnFact
+                    visible:    !!_landEnFact && _isXplorer
                     checked:    _landEnabled
                     onClicked: {
                         if (_landEnFact) _landEnFact.rawValue = checked ? 1 : 0
@@ -183,10 +207,11 @@ Item {
 
                 // Land Altitude (LAND_RNG_ALT) — slider 2..15 m. Stored as cm
                 // in the autopilot. Only shown when LAND_RNG_EN is set.
+                // Xplorer-only (paired with the "Use rangefinder for landing" toggle).
                 ColumnLayout {
                     Layout.fillWidth:   true
                     spacing:            ScreenTools.defaultFontPixelHeight / 4
-                    visible:            !!_landAltFact && _landEnabled
+                    visible:            !!_landAltFact && _landEnabled && _isXplorer
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -239,9 +264,11 @@ Item {
                     }
                 }
 
+                // "Update firmware" warning — Xplorer-only since the GCS button is
+                // an Xplorer feature. X55 has no such button by design.
                 QGCLabel {
                     Layout.fillWidth:   true
-                    visible:            !_btnPresent
+                    visible:            !_btnPresent && _isXplorer
                     text:               qsTr("RFND_BTN_EN parameter not found. Update firmware to use the GCS button.")
                     wrapMode:           Text.WordWrap
                     color:              qgcPal.colorOrange
@@ -289,7 +316,7 @@ Item {
                 height:                 width
                 radius:                 width / 2
                 color:                  getDotColor()
-                visible:                _btnPresent || _liveStatusKnown
+                visible:                _btnPresent || _liveStatusKnown || _rcMonitoring
                 anchors.bottom:         rangefinderIcon.bottom
                 anchors.right:          rangefinderIcon.right
                 anchors.bottomMargin:   -height * 0.1

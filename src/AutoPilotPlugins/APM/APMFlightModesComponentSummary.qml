@@ -1,57 +1,39 @@
 import QtQuick
 import QtQuick.Controls
 
+import QGroundControl
 import QGroundControl.FactSystem
 import QGroundControl.FactControls
 import QGroundControl.Controls
 import QGroundControl.Palette
 
+// Xplorer fork: Switch Options summary for both variants. The only difference is
+// the channel range — Xplorer reserves RC5..RC8 for locked flight-mode aux switches
+// (AltHold/Loiter/RTL/Auto via defaults.parm) so operators only use RC9..RC16;
+// X55 has no reserved range so RC5..RC16 are all operator-assignable.
 Item {
     anchors.fill:   parent
 
     FactPanelController { id: controller; }
 
-    property var    _vehicle:       controller.vehicle
-    property bool   _roverFirmware: controller.parameterExists(-1, "MODE1") // This catches all usage of ArduRover firmware vehicle types: Rover, Boat...
-
-    property Fact flightMode1: controller.getParameterFact(-1, _roverFirmware ? "MODE1" : "FLTMODE1")
-    property Fact flightMode2: controller.getParameterFact(-1, _roverFirmware ? "MODE2" : "FLTMODE2")
-    property Fact flightMode3: controller.getParameterFact(-1, _roverFirmware ? "MODE3" : "FLTMODE3")
-    property Fact flightMode4: controller.getParameterFact(-1, _roverFirmware ? "MODE4" : "FLTMODE4")
-    property Fact flightMode5: controller.getParameterFact(-1, _roverFirmware ? "MODE5" : "FLTMODE5")
-    property Fact flightMode6: controller.getParameterFact(-1, _roverFirmware ? "MODE6" : "FLTMODE6")
+    readonly property bool _isXplorer:    QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue === 1
+    readonly property int  _rcStart:      _isXplorer ? 9 : 5
+    readonly property int  _rcCount:      16 - _rcStart + 1
 
     Column {
-        anchors.fill:       parent
+        anchors.fill: parent
 
-        VehicleSummaryRow {
-            labelText: qsTr("Flight Mode 1")
-            valueText: flightMode1.enumStringValue
-        }
+        Repeater {
+            model: _rcCount
 
-        VehicleSummaryRow {
-            labelText: qsTr("Flight Mode 2")
-            valueText: flightMode2.enumStringValue
-        }
-
-        VehicleSummaryRow {
-            labelText: qsTr("Flight Mode 3")
-            valueText: flightMode3.enumStringValue
-        }
-
-        VehicleSummaryRow {
-            labelText: qsTr("Flight Mode 4")
-            valueText: flightMode4.enumStringValue
-        }
-
-        VehicleSummaryRow {
-            labelText: qsTr("Flight Mode 5")
-            valueText: flightMode5.enumStringValue
-        }
-
-        VehicleSummaryRow {
-            labelText: qsTr("Flight Mode 6")
-            valueText: flightMode6.enumStringValue
+            VehicleSummaryRow {
+                labelText: qsTr("Channel %1").arg(index + _rcStart)
+                valueText: {
+                    var f = controller.getParameterFact(-1, "r.RC" + (index + _rcStart) + "_OPTION")
+                    if (!f) return qsTr("Unused")
+                    return f.enumStringValue ? f.enumStringValue : f.rawValue.toString()
+                }
+            }
         }
     }
 }

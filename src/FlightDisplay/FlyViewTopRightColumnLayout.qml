@@ -37,9 +37,14 @@ ColumnLayout {
     // Wrapped in a Loader so FactPanelController inside LidarControl is only constructed once a
     // real vehicle is connected — otherwise it latches onto the offline-editing vehicle and
     // PTRN_ params never resolve.
+    //
+    // Gated on showPayloadIndicator so the LiDAR Calibration panel and the toolbar
+    // payload indicator go hand-in-hand: if the operator turns off the payload
+    // indicator (no payload management), LiDAR calibration also disappears.
     Loader {
         Layout.alignment:   Qt.AlignTop | Qt.AlignRight
         active:             globals.activeVehicle
+                            && QGroundControl.settingsManager.flyViewSettings.showPayloadIndicator.value
                             && QGroundControl.settingsManager.flyViewSettings.payloadSelection.value === 2
         visible:            active
         sourceComponent:    lidarControlComponent

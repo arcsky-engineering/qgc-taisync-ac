@@ -156,6 +156,10 @@ ParameterEditorController::ParameterEditorController(QObject *parent)
     connect(this, &ParameterEditorController::currentGroupChanged,      this, &ParameterEditorController::_currentGroupChanged);
     connect(this, &ParameterEditorController::searchTextChanged,        this, &ParameterEditorController::_searchTextChanged);
     connect(this, &ParameterEditorController::showModifiedOnlyChanged,  this, &ParameterEditorController::_searchTextChanged);
+    // Xplorer: when the Standard-only toggle flips, rebuild the category tree
+    // so the side bar reflects the filter (not just the search results).
+    connect(this, &ParameterEditorController::showStandardOnlyChanged,  this, &ParameterEditorController::_rebuildLists);
+    connect(this, &ParameterEditorController::showStandardOnlyChanged,  this, &ParameterEditorController::_searchTextChanged);
     connect(&_searchTimer, &QTimer::timeout,                            this, &ParameterEditorController::_performSearch);
     connect(_parameterMgr, &ParameterManager::factAdded,                this, &ParameterEditorController::_factAdded);
 
@@ -172,6 +176,14 @@ void ParameterEditorController::_buildListsForComponent(int compId)
 {
     for (const QString& factName: _parameterMgr->parameterNames(compId)) {
         Fact* fact = _parameterMgr->getParameter(compId, factName);
+
+        // Xplorer: when "Standard params only" is enabled, skip Advanced-tagged
+        // facts during category tree construction. This makes the side bar
+        // groups respect the filter, not just the search results.
+        if (_showStandardOnly && fact->metaData() &&
+            fact->metaData()->category().compare(QStringLiteral("Standard"), Qt::CaseInsensitive) != 0) {
+            continue;
+        }
 
         // Use a single category for all parameters (no Advanced/Standard separation)
         static const QString singleCategoryName = QStringLiteral("Parameters");
@@ -199,6 +211,22 @@ void ParameterEditorController::_buildListsForComponent(int compId)
 
         group->facts.append(fact);
     }
+}
+
+void ParameterEditorController::_rebuildLists(void)
+{
+    // Xplorer: tear down the existing category/group tree and rebuild it
+    // from current params, honoring the _showStandardOnly filter inside
+    // _buildListsForComponent. Called when the Standard-only toggle flips.
+    _categories.clearAndDeleteContents();
+    _mapCategoryName2Category.clear();
+    _currentCategory = nullptr;
+    _currentGroup    = nullptr;
+
+    _buildLists();
+
+    ParameterEditorCategory* firstCategory = _categories.count() ? _categories.value<ParameterEditorCategory*>(0) : nullptr;
+    setCurrentCategory(firstCategory);
 }
 
 void ParameterEditorController::_buildLists(void)
@@ -253,6 +281,13 @@ void ParameterEditorController::_buildLists(void)
 
 void ParameterEditorController::_factAdded(int compId, Fact* fact)
 {
+    // Xplorer: same filter as _buildListsForComponent for incrementally-added
+    // facts (e.g. Lua script registrations).
+    if (_showStandardOnly && fact->metaData() &&
+        fact->metaData()->category().compare(QStringLiteral("Standard"), Qt::CaseInsensitive) != 0) {
+        return;
+    }
+
     // Use a single category for all parameters (no Advanced/Standard separation)
     static const QString singleCategoryName = QStringLiteral("Parameters");
 
@@ -470,6 +505,17 @@ void ParameterEditorController::resetAllToVehicleConfiguration(void)
 
 bool ParameterEditorController::_shouldShow(Fact* fact) const
 {
+    // Xplorer: filter to Standard-tagged params only. The category field on
+    // FactMetaData is populated from the firmware metadata @User attribute
+    // ("Standard" or "Advanced"). Default is on so operators see a curated
+    // simple list; can toggle off to reveal everything.
+    if (_showStandardOnly) {
+        const QString cat = fact->metaData() ? fact->metaData()->category() : QString();
+        if (cat.compare(QStringLiteral("Standard"), Qt::CaseInsensitive) != 0) {
+            return false;
+        }
+    }
+
     if (!_showModifiedOnly) {
         return true;
     }
@@ -488,6 +534,9 @@ void ParameterEditorController::_performSearch(void)
 
     QStringList rgSearchStrings = _searchText.split(' ', Qt::SkipEmptyParts);
 
+    // Xplorer: empty search uses the (pre-built, filtered) category tree.
+    // _buildListsForComponent already honors _showStandardOnly so we no longer
+    // need to force the slow per-param scan when the toggle is on.
     if (rgSearchStrings.isEmpty() && !_showModifiedOnly) {
         ParameterEditorCategory* category = _categories.count() ? _categories.value<ParameterEditorCategory*>(0) : nullptr;
         setCurrentCategory(category);

@@ -138,6 +138,9 @@ class ParameterEditorController : public FactPanelController
     Q_PROPERTY(QObject*             currentGroup            READ currentGroup               WRITE setCurrentGroup       NOTIFY currentGroupChanged)
     Q_PROPERTY(QAbstractTableModel* parameters              MEMBER _parameters                                          NOTIFY parametersChanged)
     Q_PROPERTY(bool                 showModifiedOnly        MEMBER _showModifiedOnly                                    NOTIFY showModifiedOnlyChanged)
+    // Xplorer: filter the param editor to params tagged "Standard" in metadata,
+    // hiding the vast Advanced bucket from typical operators. Toggleable.
+    Q_PROPERTY(bool                 showStandardOnly        MEMBER _showStandardOnly                                    NOTIFY showStandardOnlyChanged)
 
     // These property are related to the diff associated with a load from file
     Q_PROPERTY(bool                 diffOtherVehicle        MEMBER _diffOtherVehicle                                    NOTIFY diffOtherVehicleChanged)
@@ -168,6 +171,7 @@ signals:
     void currentCategoryChanged         (void);
     void currentGroupChanged            (void);
     void showModifiedOnlyChanged        (void);
+    void showStandardOnlyChanged        (void);
     void diffOtherVehicleChanged        (bool diffOtherVehicle);
     void diffMultipleComponentsChanged  (bool diffMultipleComponents);
     void parametersChanged              (void);
@@ -179,6 +183,7 @@ private slots:
     void _buildLists            (void);
     void _buildListsForComponent(int compId);
     void _factAdded             (int compId, Fact* fact);
+    void _rebuildLists          (void);
 
 private:
     bool _shouldShow(Fact *fact) const;
@@ -191,6 +196,7 @@ private:
     ParameterEditorCategory*    _currentCategory        = nullptr;
     ParameterEditorGroup*       _currentGroup           = nullptr;
     bool                        _showModifiedOnly       = false;
+    bool                        _showStandardOnly       = true;   // Xplorer: default ON
     bool                        _diffOtherVehicle       = false;
     bool                        _diffMultipleComponents = false;
 

@@ -77,7 +77,7 @@ public:
     int remapParamNameHigestMinorVersionNumber(int majorVersionNumber) const override;
     bool multiRotorCoaxialMotors(Vehicle* /*vehicle*/) const override { return _coaxialMotors; }
     bool multiRotorXConfig(Vehicle *vehicle) const override;
-    QString offlineEditingParamFile(Vehicle *vehicle) const override { Q_UNUSED(vehicle); return QStringLiteral(":/FirmwarePlugin/APM/Copter.OfflineEditing.params"); }
+    QString offlineEditingParamFile(Vehicle *vehicle) const override;
     QString pauseFlightMode() const override;
     QString landFlightMode() const override;
     QString takeControlFlightMode() const override;

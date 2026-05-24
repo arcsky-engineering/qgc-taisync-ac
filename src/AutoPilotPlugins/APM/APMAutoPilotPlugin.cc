@@ -93,6 +93,8 @@ const QVariantList &APMAutoPilotPlugin::vehicleComponents()
             _safetyComponent->setupTriggerSignals();
             _components.append(QVariant::fromValue(qobject_cast<VehicleComponent*>(_safetyComponent)));
 
+// Xplorer: Follow Me component disabled — not part of the curated operator surface.
+#if 0
 #ifdef QT_DEBUG
             if ((qobject_cast<ArduCopterFirmwarePlugin*>(_vehicle->firmwarePlugin()) || qobject_cast<ArduRoverFirmwarePlugin*>(_vehicle->firmwarePlugin())) &&
                     _vehicle->parameterManager()->parameterExists(-1, QStringLiteral("FOLL_ENABLE"))) {
@@ -100,6 +102,7 @@ const QVariantList &APMAutoPilotPlugin::vehicleComponents()
                 _followComponent->setupTriggerSignals();
                 _components.append(QVariant::fromValue(qobject_cast<VehicleComponent*>(_followComponent)));
             }
+#endif
 #endif
 
             if (_vehicle->vehicleType() == MAV_TYPE_HELICOPTER && (_vehicle->versionCompare(4, 0, 0) >= 0)) {

@@ -167,6 +167,14 @@ Item {
                 onClicked:  controller.showModifiedOnly = checked
                 visible:    QGroundControl.multiVehicleManager.activeVehicle.px4Firmware
             }
+
+            // Xplorer: simplify the param editor by default to Standard-tagged
+            // params only. Operators can untick to reveal Advanced params.
+            QGCCheckBox {
+                text:       qsTr("Standard params only")
+                checked:    controller.showStandardOnly
+                onClicked:  controller.showStandardOnly = checked
+            }
         }
 
         QGCButton {

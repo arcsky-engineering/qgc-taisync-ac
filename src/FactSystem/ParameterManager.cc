@@ -285,6 +285,44 @@ void ParameterManager::_handleParamValue(int componentId, const QString &paramet
     }
 
     (void) _waitingReadParamNameMap[componentId].remove(parameterName);
+
+    // Xplorer: detect firmware-side parameter rejection. If a PARAM_SET is outstanding
+    // for this name, compare the echoed value against what we requested. A mismatch
+    // means the vehicle refused our write — surface that to the user since otherwise
+    // the Fact silently snaps back to the old value with no UI indication.
+    if (_waitingWriteParamNameMap.contains(componentId)
+            && _waitingWriteParamNameMap[componentId].contains(parameterName)
+            && _pendingWriteValueMap.contains(componentId)
+            && _pendingWriteValueMap[componentId].contains(parameterName)) {
+        const QVariant requestedValue = _pendingWriteValueMap[componentId].take(parameterName);
+        bool valuesMatch = false;
+        const bool reqIsNumeric = requestedValue.canConvert<double>();
+        const bool ackIsNumeric = parameterValue.canConvert<double>();
+        if (reqIsNumeric && ackIsNumeric) {
+            // Tolerant compare for float types: param storage round-trips through float32
+            // so exact bit equality is not guaranteed even for accepted writes.
+            const double req = requestedValue.toDouble();
+            const double ack = parameterValue.toDouble();
+            const double diff = qAbs(req - ack);
+            const double scale = qMax(qAbs(req), qAbs(ack));
+            valuesMatch = (diff <= 1e-6) || (scale > 0.0 && diff / scale <= 1e-5);
+        } else {
+            valuesMatch = (requestedValue == parameterValue);
+        }
+        if (!valuesMatch) {
+            qCWarning(ParameterManagerLog) << _logVehiclePrefix(componentId)
+                << "Parameter write rejected by vehicle:" << parameterName
+                << "requested:" << requestedValue << "actual:" << parameterValue;
+            qgcApp()->showAppMessage(
+                tr("Parameter %1 write rejected by vehicle.\n\nRequested: %2\nActual: %3\n\n"
+                   "The vehicle refused the value (likely out of allowed range). "
+                   "See the vehicle messages panel for details.")
+                    .arg(parameterName)
+                    .arg(requestedValue.toString())
+                    .arg(parameterValue.toString()),
+                tr("Parameter Write Rejected"));
+        }
+    }
     (void) _waitingWriteParamNameMap[componentId].remove(parameterName);
     if (!_waitingReadParamIndexMap[componentId].isEmpty()) {
         qCDebug(ParameterManagerVerbose2Log) << _logVehiclePrefix(componentId) << "_waitingReadParamIndexMap:" << _waitingReadParamIndexMap[componentId];
@@ -386,6 +424,9 @@ void ParameterManager::_factRawValueUpdateWorker(int componentId, const QString 
             _waitingWriteParamBatchCount++;
         }
         _waitingWriteParamNameMap[componentId][name] = 0; // Add new entry and set retry count
+        // Xplorer: remember the value we asked for so we can detect a firmware-side
+        // rejection when the echoed PARAM_VALUE comes back unchanged.
+        _pendingWriteValueMap[componentId][name] = rawValue;
         _updateProgressBar();
         _waitingParamTimeoutTimer.start();
         _saveRequired = true;
@@ -721,6 +762,10 @@ void ParameterManager::_waitingParamTimeout()
                 } else {
                     // Exceeded max retry count, notify user
                     _waitingWriteParamNameMap[componentId].remove(paramName);
+                    // Xplorer: drop the matching pending-value entry so it can't leak.
+                    if (_pendingWriteValueMap.contains(componentId)) {
+                        _pendingWriteValueMap[componentId].remove(paramName);
+                    }
                     const QString errorMsg = tr("Parameter write failed: veh:%1 comp:%2 param:%3").arg(_vehicle->id()).arg(componentId).arg(paramName);
                     qCDebug(ParameterManagerLog) << errorMsg;
                     qgcApp()->showAppMessage(errorMsg);
@@ -1556,6 +1601,7 @@ Success:
     _waitingReadParamIndexMap[componentId] = QMap<int, int>();
     _waitingReadParamNameMap[componentId] = QMap<QString, int>();
     _waitingWriteParamNameMap[componentId] = QMap<QString, int>();
+    _pendingWriteValueMap[componentId] = QMap<QString, QVariant>();
     _checkInitialLoadComplete();
     _setLoadProgress(0.0);
     return true;

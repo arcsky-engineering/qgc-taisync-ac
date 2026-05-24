@@ -25,17 +25,17 @@ Item {
 
     property Fact _armingCheck:             controller.getParameterFact(-1, "ARMING_CHECK")
 
-    property Fact _batt1Monitor:            controller.getParameterFact(-1, "BATT_MONITOR")
-    property Fact _batt2Monitor:            controller.getParameterFact(-1, "BATT2_MONITOR", false /* reportMissing */)
-    property bool _batt2MonitorAvailable:   controller.parameterExists(-1, "BATT2_MONITOR")
+    property Fact _batt1Monitor:            controller.getParameterFact(-1, "BATT2_MONITOR")
+    property Fact _batt2Monitor:            controller.getParameterFact(-1, "BATT3_MONITOR", false /* reportMissing */)
+    property bool _batt2MonitorAvailable:   controller.parameterExists(-1, "BATT3_MONITOR")
     property bool _batt1MonitorEnabled:     _batt1Monitor.rawValue !== 0
     property bool _batt2MonitorEnabled:     _batt2MonitorAvailable && _batt2Monitor.rawValue !== 0
 
-    property Fact _batt1FSLowAct:           controller.getParameterFact(-1, "r.BATT_FS_LOW_ACT", false /* reportMissing */)
-    property Fact _batt1FSCritAct:          controller.getParameterFact(-1, "BATT_FS_CRT_ACT", false /* reportMissing */)
-    property Fact _batt2FSLowAct:           controller.getParameterFact(-1, "BATT2_FS_LOW_ACT", false /* reportMissing */)
-    property Fact _batt2FSCritAct:          controller.getParameterFact(-1, "BATT2_FS_CRT_ACT", false /* reportMissing */)
-    property bool _batt1FSCritActAvailable: controller.parameterExists(-1, "BATT_FS_CRT_ACT")
+    property Fact _batt1FSLowAct:           controller.getParameterFact(-1, "r.BATT2_FS_LOW_ACT", false /* reportMissing */)
+    property Fact _batt1FSCritAct:          controller.getParameterFact(-1, "BATT2_FS_CRT_ACT", false /* reportMissing */)
+    property Fact _batt2FSLowAct:           controller.getParameterFact(-1, "BATT3_FS_LOW_ACT", false /* reportMissing */)
+    property Fact _batt2FSCritAct:          controller.getParameterFact(-1, "BATT3_FS_CRT_ACT", false /* reportMissing */)
+    property bool _batt1FSCritActAvailable: controller.parameterExists(-1, "BATT2_FS_CRT_ACT")
 
     Column {
         anchors.fill:       parent

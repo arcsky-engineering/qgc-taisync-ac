@@ -10,6 +10,8 @@
 #include "ArduCopterFirmwarePlugin.h"
 #include "ParameterManager.h"
 #include "Vehicle.h"
+#include "SettingsManager.h"
+#include "AppSettings.h"
 
 ArduCopterStatusFactGroup::ArduCopterStatusFactGroup(QObject *parent)
     : FactGroup(0, parent)
@@ -160,6 +162,19 @@ QString ArduCopterFirmwarePlugin::followFlightMode() const
 QString ArduCopterFirmwarePlugin::stabilizedFlightMode() const
 {
     return _modeEnumToString.value(APMCopterMode::STABILIZE, _stabilizeFlightMode);
+}
+
+QString ArduCopterFirmwarePlugin::offlineEditingParamFile(Vehicle *vehicle) const
+{
+    Q_UNUSED(vehicle);
+    // Xplorer fork: route offline-editing defaults by vehicle variant.
+    //   vehicleVariant == 1 -> Xplorer (XplorerCopter.OfflineEditing.params)
+    //   vehicleVariant == 0 -> X55     (stock Copter3.6.OfflineEditing.params)
+    const int variant = SettingsManager::instance()->appSettings()->vehicleVariant()->rawValue().toInt();
+    if (variant == 1) {
+        return QStringLiteral(":/FirmwarePlugin/APM/Copter.OfflineEditing.params");
+    }
+    return QStringLiteral(":/FirmwarePlugin/APM/Copter.OfflineEditing.stock.params");
 }
 
 void ArduCopterFirmwarePlugin::updateAvailableFlightModes(FlightModeList &modeList)

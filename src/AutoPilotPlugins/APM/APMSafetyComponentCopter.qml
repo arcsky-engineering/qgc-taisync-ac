@@ -49,25 +49,26 @@ SetupPage {
             QGCPalette { id: ggcPal; colorGroupEnabled: true }
 
             property Fact _failsafeGCSEnable:               controller.getParameterFact(-1, "FS_GCS_ENABLE")
-            property Fact _failsafeBattLowAct:              controller.getParameterFact(-1, "r.BATT_FS_LOW_ACT", false /* reportMissing */)
-            property Fact _failsafeBattMah:                 controller.getParameterFact(-1, "r.BATT_LOW_MAH", false /* reportMissing */)
-            property Fact _failsafeBattVoltage:             controller.getParameterFact(-1, "r.BATT_LOW_VOLT", false /* reportMissing */)
+            property Fact _failsafeBattLowAct:              controller.getParameterFact(-1, "r.BATT2_FS_LOW_ACT", false /* reportMissing */)
+            property Fact _failsafeBattMah:                 controller.getParameterFact(-1, "r.BATT2_LOW_MAH", false /* reportMissing */)
+            property Fact _failsafeBattVoltage:             controller.getParameterFact(-1, "r.BATT2_LOW_VOLT", false /* reportMissing */)
             property Fact _failsafeThrEnable:               controller.getParameterFact(-1, "FS_THR_ENABLE")
             property Fact _failsafeThrValue:                controller.getParameterFact(-1, "FS_THR_VALUE")
 
-            property Fact _batt1Monitor:                    controller.getParameterFact(-1, "BATT_MONITOR")
-            property Fact _batt2Monitor:                    controller.getParameterFact(-1, "BATT2_MONITOR", false /* reportMissing */)
-            property bool _batt2MonitorAvailable:           controller.parameterExists(-1, "BATT2_MONITOR")
-            property bool _batt1MonitorEnabled:             _batt2MonitorAvailable ? _batt2Monitor.rawValue !== 0 : false
+            property Fact _batt1Monitor:                    controller.getParameterFact(-1, "BATT2_MONITOR")
+            property Fact _batt2Monitor:                    controller.getParameterFact(-1, "BATT3_MONITOR", false /* reportMissing */)
+            property bool _batt2MonitorAvailable:           controller.parameterExists(-1, "BATT3_MONITOR")
+            // Xplorer: Battery 1 = BATT2_* (smart battery 1), Battery 2 = BATT3_* (smart battery 2)
+            property bool _batt1MonitorEnabled:             _batt1Monitor.rawValue !== 0
             property bool _batt2MonitorEnabled:             _batt2MonitorAvailable ? _batt2Monitor.rawValue !== 0 : false
-            property bool _batt1ParamsAvailable:            controller.parameterExists(-1, "BATT_CAPACITY")
-            property bool _batt2ParamsAvailable:            controller.parameterExists(-1, "BATT2_CAPACITY")
+            property bool _batt1ParamsAvailable:            controller.parameterExists(-1, "BATT2_CAPACITY")
+            property bool _batt2ParamsAvailable:            controller.parameterExists(-1, "BATT3_CAPACITY")
 
-            property Fact _failsafeBattCritAct:             controller.getParameterFact(-1, "BATT_FS_CRT_ACT", false /* reportMissing */)
-            property Fact _failsafeBatt2LowAct:             controller.getParameterFact(-1, "BATT2_FS_LOW_ACT", false /* reportMissing */)
-            property Fact _failsafeBatt2CritAct:            controller.getParameterFact(-1, "BATT2_FS_CRT_ACT", false /* reportMissing */)
-            property Fact _failsafeBatt2Mah:                controller.getParameterFact(-1, "BATT2_LOW_MAH", false /* reportMissing */)
-            property Fact _failsafeBatt2Voltage:            controller.getParameterFact(-1, "BATT2_LOW_VOLT", false /* reportMissing */)
+            property Fact _failsafeBattCritAct:             controller.getParameterFact(-1, "BATT2_FS_CRT_ACT", false /* reportMissing */)
+            property Fact _failsafeBatt2LowAct:             controller.getParameterFact(-1, "BATT3_FS_LOW_ACT", false /* reportMissing */)
+            property Fact _failsafeBatt2CritAct:            controller.getParameterFact(-1, "BATT3_FS_CRT_ACT", false /* reportMissing */)
+            property Fact _failsafeBatt2Mah:                controller.getParameterFact(-1, "BATT3_LOW_MAH", false /* reportMissing */)
+            property Fact _failsafeBatt2Voltage:            controller.getParameterFact(-1, "BATT3_LOW_VOLT", false /* reportMissing */)
 
             property Fact _fenceAction: controller.getParameterFact(-1, "FENCE_ACTION")
             property Fact _fenceAltMax: controller.getParameterFact(-1, "FENCE_ALT_MAX")
@@ -95,7 +96,7 @@ SetupPage {
                 visible: _batt1MonitorEnabled && _batt1ParamsAvailable
 
                 QGCLabel {
-                    text:       qsTr("Battery1 Failsafe Triggers")
+                    text:       qsTr("Battery 1 Failsafe Triggers")
                     font.bold:   true
                 }
 
@@ -165,7 +166,7 @@ SetupPage {
                 visible:    _batt2MonitorEnabled && _batt2ParamsAvailable
 
                 QGCLabel {
-                    text:       qsTr("Battery2 Failsafe Triggers")
+                    text:       qsTr("Battery 2 Failsafe Triggers")
                     font.bold:   true
                 }
 

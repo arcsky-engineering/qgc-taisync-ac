@@ -39,6 +39,17 @@ TextField {
     Component.onCompleted: checkActiveFocus()
     onActiveFocusChanged: checkActiveFocus()
 
+    // Xplorer: when this field is destroyed while still flagged with a validation
+    // error (e.g. user collapsed the parent section, swapped pages, or navigated
+    // away mid-edit), release our slot of globals.validationErrorCount. Without
+    // this, the counter leaks and mainWindow.allowViewSwitch() returns false
+    // forever — sidebar clicks silently no-op for the rest of the session.
+    Component.onDestruction: {
+        if (validationError) {
+            clearValidationError()
+        }
+    }
+
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
 
     onEditingFinished: {

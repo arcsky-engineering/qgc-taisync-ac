@@ -21,7 +21,7 @@ public:
     QStringList setupCompleteChangedTriggerList() const final { return QStringList(); }
 
     QString name() const final { return _name; }
-    QString description() const final { return tr("Flight Modes Setup is used to configure the transmitter switches associated with Flight Modes."); }
+    QString description() const final { return tr("RC Options Setup is used to configure the auxiliary functions assigned to your transmitter switches."); }
     QString iconResource() const final { return QStringLiteral("/qmlimages/FlightModesComponentIcon.png"); }
     bool requiresSetup() const final { return true; }
     bool setupComplete() const final { return true; }
@@ -29,5 +29,5 @@ public:
     QUrl summaryQmlSource() const final { return QUrl::fromUserInput(QStringLiteral("qrc:/qml/QGroundControl/AutoPilotPlugins/APM/APMFlightModesComponentSummary.qml")); }
 
 private:
-    const QString _name = tr("Flight Modes");
+    const QString _name = tr("RC Options");
 };

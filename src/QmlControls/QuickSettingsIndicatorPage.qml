@@ -43,6 +43,12 @@ ToolIndicatorPage {
     property bool _misRestartEnabled: !!_misRestartFact && _misRestartFact.rawValue !== 0
     property bool _useAutoRtlSpeed:   !!_rtlSpeedFact && _rtlSpeedFact.rawValue === 0
 
+    // Xplorer-only toggles. CAM1_OPTIONS bit 1 (3D distance for camera trigger)
+    // and AUTO_RSM_CLIMB (climb to altitude when resuming mission) are Xplorer
+    // firmware behaviors that aren't present / aren't supported on the X55 build.
+    readonly property bool _isXplorer:
+        QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue === 1
+
     // Helper: is LOIT_SPEED currently set to the given preset (cm/s)?
     function _loitSpeedIs(target) {
         return !!_loitSpeedFact && _loitSpeedFact.rawValue === target
@@ -213,7 +219,7 @@ ToolIndicatorPage {
                 }
 
                 QGCCheckBox {
-                    text:    qsTr("Use Auto Flight Speed")
+                    text:    qsTr("Use Auto Flight Speed for RTL Speed")
                     visible: !!_rtlSpeedFact
                     checked: _useAutoRtlSpeed
                     onClicked: {
@@ -324,7 +330,7 @@ ToolIndicatorPage {
 
                 QGCCheckBox {
                     text:     qsTr("Use 3D distance for camera trigger")
-                    visible:  !!_camOptionsFact
+                    visible:  !!_camOptionsFact && _isXplorer
                     checked:  _cam3DEnabled
                     onClicked: {
                         if (!_camOptionsFact) return
@@ -351,7 +357,7 @@ ToolIndicatorPage {
                 // there but the UI doesn't prevent users from configuring it.
                 QGCCheckBox {
                     text:     qsTr("Climb to altitude when resuming mission")
-                    visible:  !!_autoRsmClimbFact
+                    visible:  !!_autoRsmClimbFact && _isXplorer
                     checked:  _autoRsmEnabled
                     opacity:  _misRestartEnabled ? 0.5 : 1.0
                     onClicked: {

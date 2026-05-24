@@ -506,7 +506,9 @@ void Vehicle::reloadMissionFromVehicle()
         emit loadProgressChanged(0.0f);
     };
 
-    *progressConn = connect(_missionManager, &MissionManager::progressPctChanged, this, &Vehicle::_gotProgressUpdate);
+    *progressConn = connect(_missionManager, &MissionManager::progressPctChanged, this, [this](double pct) {
+        _gotProgressUpdate(static_cast<float>(pct));
+    });
     *doneConn     = connect(_missionManager, &MissionManager::newMissionItemsAvailable, this, cleanup);
     *errorConn    = connect(_missionManager, &MissionManager::error, this, cleanup);
 

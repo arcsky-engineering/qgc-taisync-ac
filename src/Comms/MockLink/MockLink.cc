@@ -1487,18 +1487,21 @@ void MockLink::_respondWithAutopilotVersion()
 
 #ifndef QGC_NO_ARDUPILOT_DIALECT
     if (_firmwareType == MAV_AUTOPILOT_ARDUPILOTMEGA) {
+        // Xplorer: report ArduCopter 4.6.2 so QGC loads the 4.6 metadata
+        // (which has the Standard/Advanced user flags driving the curated
+        // parameter page). Was 3.6.0-DEV.
         if (_vehicleType == MAV_TYPE_FIXED_WING) {
-            flightVersion |= 9 << (8*2);
+            flightVersion |= 6 << (8*2);  // Plane minor: 4.6
         } else if (_vehicleType == MAV_TYPE_SUBMARINE ) {
-            flightVersion |= 5 << (8*2);
+            flightVersion |= 5 << (8*2);  // Sub minor: 4.5 (latest available)
         } else if (_vehicleType == MAV_TYPE_GROUND_ROVER ) {
-            flightVersion |= 5 << (8*2);
+            flightVersion |= 6 << (8*2);  // Rover minor: 4.6
         } else {
-            flightVersion |= 6 << (8*2);
+            flightVersion |= 6 << (8*2);  // Copter minor: 4.6
         }
-        flightVersion |= 3 << (8*3);    // Major
-        flightVersion |= 0 << (8*1);    // Patch
-        flightVersion |= FIRMWARE_VERSION_TYPE_DEV << (8*0);
+        flightVersion |= 4 << (8*3);                            // Major: 4
+        flightVersion |= 2 << (8*1);                            // Patch: 2
+        flightVersion |= FIRMWARE_VERSION_TYPE_OFFICIAL << (8*0);
     } else if (_firmwareType == MAV_AUTOPILOT_PX4) {
 #endif
         flightVersion |= 1 << (8*3);

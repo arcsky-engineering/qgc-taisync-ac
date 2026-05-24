@@ -13,6 +13,7 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
 
+import QGroundControl
 import QGroundControl.FactSystem
 import QGroundControl.FactControls
 import QGroundControl.Palette
@@ -35,13 +36,41 @@ SetupPage {
             width:      availableWidth
             spacing:    _margins
 
-            property Fact _batt1Monitor:            controller.getParameterFact(-1, "BATT_MONITOR")
-            property Fact _batt2Monitor:            controller.getParameterFact(-1, "BATT2_MONITOR", false /* reportMissing */)
-            property bool _batt2MonitorAvailable:   controller.parameterExists(-1, "BATT2_MONITOR")
-            property bool _batt1MonitorEnabled:     _batt1Monitor.rawValue !== 0
-            property bool _batt2MonitorEnabled:     _batt2MonitorAvailable && _batt2Monitor.rawValue !== 0
-            property bool _batt1ParamsAvailable:    controller.parameterExists(-1, "BATT_CAPACITY")
-            property bool _batt2ParamsAvailable:    controller.parameterExists(-1, "BATT2_CAPACITY")
+            // Xplorer fork: route battery instance labels by vehicleVariant.
+            //   Xplorer (variant == 1): BATT_ instance 0 is internal-use-only;
+            //     "Battery 1" -> BATT2_, "Battery 2" -> BATT3_.
+            //   X55 (variant == 0): conventional layout;
+            //     "Battery 1" -> BATT_,  "Battery 2" -> BATT2_.
+            readonly property bool _isXplorer:      QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue === 1
+            readonly property string _battPrefix1:  _isXplorer ? "BATT2" : "BATT"
+            readonly property string _battPrefix2:  _isXplorer ? "BATT3" : "BATT2"
+
+            property Fact _batt1Monitor:            controller.getParameterFact(-1, _battPrefix1 + "_MONITOR")
+            property Fact _batt2Monitor:            controller.getParameterFact(-1, _battPrefix2 + "_MONITOR", false /* reportMissing */)
+            // On X55 only one user-facing battery exists (BATT_); Battery 2 is always
+            // suppressed even if the firmware happens to expose BATT2_* params (e.g.
+            // when the X55 GUI is connected to an Xplorer-firmware test board).
+            property bool _batt2MonitorAvailable:   _isXplorer && controller.parameterExists(-1, _battPrefix2 + "_MONITOR")
+
+            // Xplorer: honor the AP_BattMonitor InternalUseOnly flag (BATT*_OPTIONS bit 8 = 256).
+            // The firmware uses this to suppress BATTERY_STATUS streaming for instances meant
+            // only for internal monitoring (not failsafe). Mirror that in the Power Setup page
+            // so the operator only sees user-facing batteries here.
+            //
+            // The InternalUseOnly check is gated on _isXplorer. On X55, BATT_ (instance 0) is
+            // the user-facing battery and the bit must be ignored — otherwise an X55 GUI
+            // talking to an Xplorer-firmware test board would incorrectly hide the only
+            // battery the user has.
+            property Fact _batt1Options:            controller.getParameterFact(-1, _battPrefix1 + "_OPTIONS",  false /* reportMissing */)
+            property Fact _batt2Options:            controller.getParameterFact(-1, _battPrefix2 + "_OPTIONS", false /* reportMissing */)
+            readonly property int _internalUseOnly: 256
+            property bool _batt1InternalOnly:       _isXplorer && ((_batt1Options ? (_batt1Options.rawValue & _internalUseOnly) : 0) !== 0)
+            property bool _batt2InternalOnly:       _isXplorer && ((_batt2Options ? (_batt2Options.rawValue & _internalUseOnly) : 0) !== 0)
+
+            property bool _batt1MonitorEnabled:     _batt1Monitor.rawValue !== 0 && !_batt1InternalOnly
+            property bool _batt2MonitorEnabled:     _batt2MonitorAvailable && _batt2Monitor.rawValue !== 0 && !_batt2InternalOnly
+            property bool _batt1ParamsAvailable:    controller.parameterExists(-1, _battPrefix1 + "_CAPACITY")
+            property bool _batt2ParamsAvailable:    controller.parameterExists(-1, _battPrefix2 + "_CAPACITY")
             property bool _showBatt1Reboot:         _batt1MonitorEnabled && !_batt1ParamsAvailable
             property bool _showBatt2Reboot:         _batt2MonitorEnabled && !_batt2ParamsAvailable
             property bool _escCalibrationAvailable: controller.parameterExists(-1, "ESC_CALIBRATION")
@@ -123,25 +152,27 @@ SetupPage {
                         anchors.left:       parent.left
                         sourceComponent:    _batt1FullSettings.visible ? powerSetupComponent : undefined
 
-                        property Fact armVoltMin:       controller.getParameterFact(-1, "r.BATT_ARM_VOLT", false /* reportMissing */)
-                        //property Fact battAmpPerVolt:   controller.getParameterFact(-1, "r.BATT_AMP_PERVLT", false /* reportMissing */)
-                        //property Fact battAmpOffset:    controller.getParameterFact(-1, "BATT_AMP_OFFSET", false /* reportMissing */)
-                        property Fact battCapacity:     controller.getParameterFact(-1, "BATT_CAPACITY", false /* reportMissing */)
-                        //property Fact battCurrPin:      controller.getParameterFact(-1, "BATT_CURR_PIN", false /* reportMissing */)
-                        //property Fact battMonitor:      controller.getParameterFact(-1, "BATT_MONITOR", false /* reportMissing */)
-                        //property Fact battVoltMult:     controller.getParameterFact(-1, "BATT_VOLT_MULT", false /* reportMissing */)
-                        //property Fact battVoltPin:      controller.getParameterFact(-1, "BATT_VOLT_PIN", false /* reportMissing */)
-                        property FactGroup  _batteryFactGroup:  _batt1FullSettings.visible ? controller.vehicle.getFactGroup("battery0") : null
+                        property Fact armVoltMin:       controller.getParameterFact(-1, "r." + _battPrefix1 + "_ARM_VOLT", false /* reportMissing */)
+                        //property Fact battAmpPerVolt:   controller.getParameterFact(-1, "r.BATT2_AMP_PERVLT", false /* reportMissing */)
+                        //property Fact battAmpOffset:    controller.getParameterFact(-1, "BATT2_AMP_OFFSET", false /* reportMissing */)
+                        property Fact battCapacity:     controller.getParameterFact(-1, _battPrefix1 + "_CAPACITY", false /* reportMissing */)
+                        //property Fact battCurrPin:      controller.getParameterFact(-1, "BATT2_CURR_PIN", false /* reportMissing */)
+                        //property Fact battMonitor:      controller.getParameterFact(-1, "BATT2_MONITOR", false /* reportMissing */)
+                        //property Fact battVoltMult:     controller.getParameterFact(-1, "BATT2_VOLT_MULT", false /* reportMissing */)
+                        //property Fact battVoltPin:      controller.getParameterFact(-1, "BATT2_VOLT_PIN", false /* reportMissing */)
+                        property FactGroup  _batteryFactGroup:  _batt1FullSettings.visible ? controller.vehicle.getFactGroup("battery1") : null
                         //property Fact vehicleVoltage:   _batteryFactGroup ? _batteryFactGroup.voltage : null
                         //property Fact vehicleCurrent:   _batteryFactGroup ? _batteryFactGroup.current : null
                     }
                 }
             }
 
-            // Battery2 Monitor settings only - used when only monitor param is available
+            // Battery2 Monitor settings only - used when only monitor param is available.
+            // Gated on _batt2MonitorAvailable so X55 (which forces it to false) skips the
+            // entire block including the "Battery 2" header.
             Column {
                 spacing: _margins / 2
-                visible: !_batt2MonitorEnabled || !_batt2ParamsAvailable
+                visible: _batt2MonitorAvailable && (!_batt2MonitorEnabled || !_batt2ParamsAvailable)
 
                 QGCLabel {
                     text:       qsTr("Battery 2")
@@ -210,15 +241,15 @@ SetupPage {
                         anchors.left:       parent.left
                         sourceComponent:    batt2FullSettings.visible ? powerSetupComponent : undefined
 
-                        property Fact armVoltMin:       controller.getParameterFact(-1, "r.BATT2_ARM_VOLT", false /* reportMissing */)
-                        //property Fact battAmpPerVolt:   controller.getParameterFact(-1, "r.BATT2_AMP_PERVLT", false /* reportMissing */)
-                        //property Fact battAmpOffset:    controller.getParameterFact(-1, "BATT2_AMP_OFFSET", false /* reportMissing */)
-                        property Fact battCapacity:     controller.getParameterFact(-1, "BATT2_CAPACITY", false /* reportMissing */)
-                        //property Fact battCurrPin:      controller.getParameterFact(-1, "BATT2_CURR_PIN", false /* reportMissing */)
-                        //property Fact battMonitor:      controller.getParameterFact(-1, "BATT2_MONITOR", false /* reportMissing */)
-                        //property Fact battVoltMult:     controller.getParameterFact(-1, "BATT2_VOLT_MULT", false /* reportMissing */)
-                        //property Fact battVoltPin:      controller.getParameterFact(-1, "BATT2_VOLT_PIN", false /* reportMissing */)
-                        property FactGroup  _batteryFactGroup:  batt2FullSettings.visible ? controller.vehicle.getFactGroup("battery1") : null
+                        property Fact armVoltMin:       controller.getParameterFact(-1, "r." + _battPrefix2 + "_ARM_VOLT", false /* reportMissing */)
+                        //property Fact battAmpPerVolt:   controller.getParameterFact(-1, "r.BATT3_AMP_PERVLT", false /* reportMissing */)
+                        //property Fact battAmpOffset:    controller.getParameterFact(-1, "BATT3_AMP_OFFSET", false /* reportMissing */)
+                        property Fact battCapacity:     controller.getParameterFact(-1, _battPrefix2 + "_CAPACITY", false /* reportMissing */)
+                        //property Fact battCurrPin:      controller.getParameterFact(-1, "BATT3_CURR_PIN", false /* reportMissing */)
+                        //property Fact battMonitor:      controller.getParameterFact(-1, "BATT3_MONITOR", false /* reportMissing */)
+                        //property Fact battVoltMult:     controller.getParameterFact(-1, "BATT3_VOLT_MULT", false /* reportMissing */)
+                        //property Fact battVoltPin:      controller.getParameterFact(-1, "BATT3_VOLT_PIN", false /* reportMissing */)
+                        property FactGroup  _batteryFactGroup:  batt2FullSettings.visible ? controller.vehicle.getFactGroup("battery2") : null
                         //property Fact vehicleVoltage:   _batteryFactGroup ? _batteryFactGroup.voltage : null
                         //property Fact vehicleCurrent:   _batteryFactGroup ? _batteryFactGroup.current : null
                     }

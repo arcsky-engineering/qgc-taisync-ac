@@ -151,7 +151,7 @@
 {
     "name":         "rangefinderRCChannel",
     "shortDesc":    "RC channel for down rangefinder enable/disable",
-    "longDesc":     "RC channel used to control down rangefinder enable/disable state. When the channel value is above 1500, rangefinder is shown as active. Set to 0 to disable RC channel monitoring.",
+    "longDesc":     "X55 only. RC channel used to drive the down rangefinder active-state dot. When the channel value is above 1500, the indicator is shown as active. Set to 0 to disable RC channel monitoring. Ignored on Xplorer, which uses firmware-broadcast RFND_ST instead.",
     "type":         "uint32",
     "min":          0,
     "max":          18,
@@ -160,7 +160,7 @@
 {
     "name":         "forwardRangefinderRCChannel",
     "shortDesc":    "RC channel for forward rangefinder enable/disable",
-    "longDesc":     "RC channel used to control forward rangefinder enable/disable state. When the channel value is above 1500, rangefinder is shown as active. Set to 0 to disable RC channel monitoring.",
+    "longDesc":     "X55 only. RC channel used to drive the forward rangefinder active-state dot. When the channel value is above 1500, the indicator is shown as active. Set to 0 to disable RC channel monitoring. Ignored on Xplorer, which uses firmware-broadcast FWD_ST instead.",
     "type":         "uint32",
     "min":          0,
     "max":          18,

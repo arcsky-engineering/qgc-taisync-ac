@@ -183,11 +183,20 @@ SettingsPage {
             property Fact _showDownRangefinder: _flyViewSettings.showDownRangefinder
         }
 
+        // RC-channel-based active-state inputs for the rangefinder indicators.
+        // X55 (variant 0) needs these — its firmware does not broadcast the
+        // RFND_ST / FWD_ST named-value-ints, so the dot is driven by reading
+        // the configured RC channel (value > 1500 = active).
+        // Xplorer (variant 1) hides these — its indicators use the firmware
+        // status broadcast instead.
+        readonly property bool _showRcRangefinderInputs:
+            QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue !== 1
+
         LabelledFactTextField {
             Layout.fillWidth:   true
             label:              qsTr("Down Rangefinder RC Channel (0=off)")
             fact:               _rangefinderRCChannel
-            visible:            _rangefinderRCChannel.visible
+            visible:            _showRcRangefinderInputs && _rangefinderRCChannel.visible
             property Fact _rangefinderRCChannel: _flyViewSettings.rangefinderRCChannel
         }
 
@@ -195,7 +204,7 @@ SettingsPage {
             Layout.fillWidth:   true
             label:              qsTr("Forward Rangefinder RC Channel (0=off)")
             fact:               _forwardRangefinderRCChannel
-            visible:            _forwardRangefinderRCChannel.visible
+            visible:            _showRcRangefinderInputs && _forwardRangefinderRCChannel.visible
             property Fact _forwardRangefinderRCChannel: _flyViewSettings.forwardRangefinderRCChannel
         }
 
@@ -230,6 +239,17 @@ SettingsPage {
             fact:               _payloadVioBaud
             visible:            _payloadVioBaud.visible && _flyViewSettings.showPayloadIndicator.value
             property Fact _payloadVioBaud: _flyViewSettings.payloadVioBaud
+        }
+
+        QGCButton {
+            Layout.fillWidth:   true
+            text:               qsTr("Reset payload defaults")
+            visible:            _flyViewSettings.showPayloadIndicator.value
+            onClicked: {
+                _flyViewSettings.payloadSerialPort.rawValue = _flyViewSettings.payloadSerialPort.rawDefaultValue
+                _flyViewSettings.payloadIlxBaud.rawValue    = _flyViewSettings.payloadIlxBaud.rawDefaultValue
+                _flyViewSettings.payloadVioBaud.rawValue    = _flyViewSettings.payloadVioBaud.rawDefaultValue
+            }
         }
 
         FactCheckBoxSlider {

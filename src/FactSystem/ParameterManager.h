@@ -185,6 +185,7 @@ private:
     QMap<int, QMap<int, int>> _waitingReadParamIndexMap;        ///< Key: Component id, Value: Map { Key: parameter index still waiting for, Value: retry count }
     QMap<int, QMap<QString, int>> _waitingReadParamNameMap;     ///< Key: Component id, Value: Map { Key: parameter name still waiting for, Value: retry count }
     QMap<int, QMap<QString, int>> _waitingWriteParamNameMap;    ///< Key: Component id, Value: Map { Key: parameter name still waiting for, Value: retry count }
+    QMap<int, QMap<QString, QVariant>> _pendingWriteValueMap;   ///< Xplorer: requested value for outstanding PARAM_SET, used to detect firmware-side rejection (vehicle echoes back the unchanged value)
     QMap<int, QList<int>> _failedReadParamIndexMap;             ///< Key: Component id, Value: failed parameter index
 
     int _totalParamCount = 0;                   ///< Number of parameters across all components

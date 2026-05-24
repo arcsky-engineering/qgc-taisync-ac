@@ -12,6 +12,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import QGroundControl
 import QGroundControl.FactSystem
 import QGroundControl.FactControls
 import QGroundControl.Palette
@@ -23,6 +24,12 @@ SetupPage {
     id:             flightModePage
     pageComponent:  flightModePageComponent
 
+    // Xplorer fork: variant-aware presentation.
+    //   Xplorer (variant == 1): only the curated Switch Options block (RC9..RC16) shows.
+    //   X55     (variant == 0): a minimal Flight Modes block (FLTMODE1..6) shows in
+    //                           addition to the Switch Options block.
+    readonly property bool _isXplorer: QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue === 1
+
     readonly property string _modeChannelParam: controller.modeChannelParam
     readonly property string _modeParamPrefix:  controller.modeParamPrefix
     readonly property var    _pwmStrings:       [ "PWM 0 - 1230", "PWM 1231 - 1360", "PWM 1361 - 1490", "PWM 1491 - 1620", "PWM 1621 - 1749", "PWM 1750 +"]
@@ -32,8 +39,13 @@ SetupPage {
     property bool   _fltmodeChExists:           controller.parameterExists(-1, _modeChannelParam)
     property Fact   _fltmodeCh:                 _fltmodeChExists ? controller.getParameterFact(-1, _modeChannelParam) : _nullFact
     property bool   _ch7OptAvailable:           controller.parameterExists(-1, "CH7_OPT")
-    property int    _rcOptionStart:             _ch7OptAvailable ? 7 : 6
-    property int    _rcOptionStop:              _ch7OptAvailable ? 12 : 16
+    // Variant-aware RC option range:
+    //   Xplorer: channels 5-8 are reserved for flight mode aux switches
+    //     (AltHold/Loiter/RTL/Auto) and locked via defaults.parm. Operators
+    //     only assign aux functions to RC9..RC16.
+    //   X55: no reserved range — operators can assign aux functions to RC5..RC16.
+    property int    _rcOptionStart:             _isXplorer ? 9 : 5
+    property int    _rcOptionStop:              16
     property bool   _customSimpleMode:          controller.simpleMode === APMFlightModesComponentController.SimpleModeCustom
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
@@ -216,7 +228,8 @@ SetupPage {
 
                                 FactComboBox {
                                     id:         optCombo
-                                    width:      ScreenTools.defaultFontPixelWidth * 15
+                                    // Width sized for longest curated entry (e.g. "Camera Record Video", "RangeFinder Enable").
+                                    width:      ScreenTools.defaultFontPixelWidth * 28
                                     fact:       controller.getParameterFact(-1, "r.RC" + index + "_OPTION")
                                     indexModel: false
                                 }

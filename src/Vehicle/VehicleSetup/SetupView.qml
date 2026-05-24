@@ -280,6 +280,10 @@ Rectangle {
                 ConfigButton {
                     icon.source:        modelData.iconResource
                     setupComplete:      modelData.setupComplete
+                    // Status dot only on components whose setupComplete signal actually
+                    // varies (compass / accelerometer calibration). Others hard-return
+                    // true and a permanent green dot is just visual noise.
+                    showStatusDot:      modelData.name === "Sensors"
                     text:               modelData.name
                     visible:            modelData.name !== "Motors" && modelData.name !== "Tuning" && modelData.name !== "Remote Support" && modelData.name !== "Frame" && modelData.name !== "Camera"
                     Layout.fillWidth:   true
