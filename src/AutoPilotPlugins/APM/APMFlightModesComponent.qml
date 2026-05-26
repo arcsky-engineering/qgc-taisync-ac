@@ -223,7 +223,12 @@ SetupPage {
                                 QGCLabel {
                                     anchors.baseline:   optCombo.baseline
                                     text:               qsTr("Channel option %1 :").arg(index)
-                                    color:              controller.channelOptionEnabled[modelData + (_ch7OptAvailable ? 1 : 0)] ? "yellow" : qgcPal.text
+                                    // controller.channelOptionEnabled[k] is true when RC channel (k+5)
+                                    // is high (see APMFlightModesComponentController: pwmValues[i+4]).
+                                    // So the array index for displayed channel `index` is `index - 5`.
+                                    // Using modelData here was only correct on legacy CH7_OPT firmware;
+                                    // on modern firmware it offset the highlight by _rcOptionStart-6.
+                                    color:              controller.channelOptionEnabled[index - 5] ? "yellow" : qgcPal.text
                                 }
 
                                 FactComboBox {

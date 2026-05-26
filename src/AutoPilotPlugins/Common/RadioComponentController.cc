@@ -845,15 +845,9 @@ void RadioComponentController::_rcCalSave()
 
 void RadioComponentController::_loadSettings()
 {
-    QSettings settings;
-
-    settings.beginGroup(_settingsGroup);
-    _transmitterMode = settings.value(_settingsKeyTransmitterMode, 2).toInt();
-    settings.endGroup();
-
-    if (!(_transmitterMode == 1 || _transmitterMode == 2)) {
-        _transmitterMode = 2;
-    }
+    // Our system always uses Mode 2. The Mode 1/Mode 2 selector was removed from
+    // the UI, so force Mode 2 here regardless of any previously persisted value.
+    _transmitterMode = 2;
 }
 
 void RadioComponentController::_storeSettings()

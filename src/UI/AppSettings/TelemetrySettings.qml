@@ -35,22 +35,9 @@ SettingsPage {
 
     TelemetryLogManager { id: telemetryLogManager }
 
-    SettingsGroupLayout {
-        Layout.fillWidth:   true
-        heading:            qsTr("Ground Station")
-
-        LabelledFactTextField {
-            Layout.fillWidth:   true
-            label:              qsTr("MAVLink System ID")
-            fact:               _mavlinkSettings.gcsMavlinkSystemID
-        }
-
-        FactCheckBoxSlider {
-            Layout.fillWidth:   true
-            text:               qsTr("Emit heartbeat")
-            fact:               _mavlinkSettings.sendGCSHeartbeat
-        }
-    }
+    // Ground Station section (MAVLink System ID + Emit heartbeat) intentionally
+    // hidden. These must stay at their defaults for our system to work; exposing
+    // them only invites misconfiguration.
 
     SettingsGroupLayout {
         Layout.fillWidth:   true

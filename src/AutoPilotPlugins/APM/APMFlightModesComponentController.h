@@ -76,7 +76,9 @@ private:
     QVariantList _superSimpleModeEnabled;
 
     static constexpr uint8_t _allSimpleBits = 0x3F;
-    static constexpr int _cChannelOptions = 11;
+    // Tracks RC channels 5..16 (12 entries). channelOptionEnabled[i] maps to
+    // RC channel (i+5). Starts at 5 (not 6) so X55's RC5 aux option highlights.
+    static constexpr int _cChannelOptions = 12;
     static constexpr int _cSimpleModeBits = 8;
     static constexpr int _cFltModes = 6;
 

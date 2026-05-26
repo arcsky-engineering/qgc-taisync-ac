@@ -408,21 +408,8 @@ SetupPage {
                 width:          ScreenTools.defaultFontPixelWidth * 40
                 spacing:        ScreenTools.defaultFontPixelHeight / 2
 
-                Row {
-                    spacing: ScreenTools.defaultFontPixelWidth
-
-                    QGCRadioButton {
-                        text:       qsTr("Mode 1")
-                        checked:    controller.transmitterMode == 1
-                        onClicked:  controller.transmitterMode = 1
-                    }
-
-                    QGCRadioButton {
-                        text:       qsTr("Mode 2")
-                        checked:    controller.transmitterMode == 2
-                        onClicked:  controller.transmitterMode = 2
-                    }
-                }
+                // Transmitter mode selection removed — our system always uses
+                // Mode 2 (forced in RadioComponentController::_loadSettings).
 
                 Image {
                     width:      parent.width

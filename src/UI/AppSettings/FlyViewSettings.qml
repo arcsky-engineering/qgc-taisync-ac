@@ -39,6 +39,13 @@ SettingsPage {
     property Fact   _goToLocationRequiresConfirmInGuided:   _flyViewSettings.goToLocationRequiresConfirmInGuided
     property var    _viewer3DSettings:                      _settingsManager.viewer3DSettings
     property Fact   _viewer3DEnabled:                       _viewer3DSettings.enabled
+    // RC-channel-based active-state inputs for the rangefinder indicators.
+    // X55 (variant 0) needs these — its firmware does not broadcast the
+    // RFND_ST / FWD_ST named-value-ints, so the dot is driven by reading the
+    // configured RC channel (value > 1500 = active). Xplorer (variant 1) hides
+    // these — its indicators use the firmware status broadcast instead.
+    // Declared at root scope so the rangefinder RC-channel fields can see it.
+    readonly property bool _showRcRangefinderInputs: _settingsManager.appSettings.vehicleVariant.rawValue !== 1
     property Fact   _viewer3DOsmFilePath:                   _viewer3DSettings.osmFilePath
     property Fact   _viewer3DBuildingLevelHeight:           _viewer3DSettings.buildingLevelHeight
     property Fact   _viewer3DAltitudeBias:                  _viewer3DSettings.altitudeBias
@@ -182,15 +189,6 @@ SettingsPage {
             visible:            _showDownRangefinder.visible
             property Fact _showDownRangefinder: _flyViewSettings.showDownRangefinder
         }
-
-        // RC-channel-based active-state inputs for the rangefinder indicators.
-        // X55 (variant 0) needs these — its firmware does not broadcast the
-        // RFND_ST / FWD_ST named-value-ints, so the dot is driven by reading
-        // the configured RC channel (value > 1500 = active).
-        // Xplorer (variant 1) hides these — its indicators use the firmware
-        // status broadcast instead.
-        readonly property bool _showRcRangefinderInputs:
-            QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue !== 1
 
         LabelledFactTextField {
             Layout.fillWidth:   true

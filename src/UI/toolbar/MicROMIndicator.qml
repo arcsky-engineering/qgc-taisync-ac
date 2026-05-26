@@ -346,7 +346,7 @@ Item {
         width:                  height
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom
-        source:                 "/qmlimages/CameraComponentIcon.svg"
+        source:                 "/qmlimages/CameraIcon.svg"
         fillMode:               Image.PreserveAspectFit
         sourceSize.height:      height
         color:                  qgcPal.buttonText
