@@ -33,6 +33,13 @@ Rectangle {
     property var _vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var _components: _vehicle ? _vehicle.autopilotPlugin.vehicleComponents : []
 
+    // Xplorer (variant 1) hides the Power tab — and therefore its summary tile.
+    // The arming threshold moves to Safety. X55 keeps the full tile set.
+    readonly property bool _isXplorer: QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue === 1
+    readonly property var _tileNames: _isXplorer
+                                        ? [ "Radio", "RC Options", "Sensors", "Safety" ]
+                                        : [ "Radio", "RC Options", "Sensors", "Power", "Safety" ]
+
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
     function componentByName(n) {
@@ -69,9 +76,9 @@ Rectangle {
             rowSpacing:         ScreenTools.defaultFontPixelHeight
             columnSpacing:      ScreenTools.defaultFontPixelWidth * 2
 
-            // Five vehicle-component tiles (Radio, RC Options, Sensors, Power, Safety).
+            // Vehicle-component tiles. Power is omitted on Xplorer (see _tileNames).
             Repeater {
-                model: [ "Radio", "RC Options", "Sensors", "Power", "Safety" ]
+                model: _tileNames
 
                 SettingsButton {
                     id:                     tileButton

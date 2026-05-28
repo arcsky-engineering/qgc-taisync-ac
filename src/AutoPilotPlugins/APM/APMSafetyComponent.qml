@@ -35,6 +35,24 @@ SetupPage {
         return meters * 100.0
     }
 
+    // Battery percentage <-> pack voltage conversion (Xplorer only).
+    // Mirrors the BMS firmware's linear 6S SOC map: 0% = 17.8V, 100% = 25.2V
+    // (Xplorer-BMS-FW main.c). A stored voltage of 0 means the threshold is
+    // disabled (ArduCopter convention) and is shown as 0%.
+    readonly property real _battVoltMin:  17.8
+    readonly property real _battVoltMax:  25.2
+    readonly property real _battVoltSpan: _battVoltMax - _battVoltMin   // 7.4 V
+
+    function battVoltToPercent(volt) {
+        if (volt <= 0) return 0
+        return (volt - _battVoltMin) / _battVoltSpan * 100.0
+    }
+
+    function battPercentToVolt(pct) {
+        if (pct <= 0) return 0
+        return _battVoltMin + (pct / 100.0) * _battVoltSpan
+    }
+
     Component {
         id: safetyPageComponent
 
@@ -74,6 +92,10 @@ SetupPage {
             property Fact _failsafeBatt2LowVoltage:         controller.getParameterFact(-1, _battPrefix2 + "_LOW_VOLT", false /* reportMissing */)
             property Fact _failsafeBatt1CritVoltage:        controller.getParameterFact(-1, _battPrefix1 + "_CRT_VOLT", false /* reportMissing */)
             property Fact _failsafeBatt2CritVoltage:        controller.getParameterFact(-1, _battPrefix2 + "_CRT_VOLT", false /* reportMissing */)
+            // Minimum arming voltage — surfaced here (under the failsafe thresholds)
+            // for Xplorer since the Power tab is hidden. As a percentage, full range.
+            property Fact _failsafeBatt1ArmVoltage:         controller.getParameterFact(-1, _battPrefix1 + "_ARM_VOLT", false /* reportMissing */)
+            property Fact _failsafeBatt2ArmVoltage:         controller.getParameterFact(-1, _battPrefix2 + "_ARM_VOLT", false /* reportMissing */)
 
             property Fact _armingCheck: controller.getParameterFact(-1, "ARMING_CHECK")
 
@@ -110,34 +132,124 @@ SetupPage {
                             Layout.fillWidth:   true
                         }
 
-                        QGCLabel { text: qsTr("Low voltage threshold:") }
+                        // ── X55: raw pack-voltage thresholds ──
+
+                        QGCLabel {
+                            text:       qsTr("Low voltage threshold:")
+                            visible:    !_isXplorer
+                        }
                         FactTextField {
                             fact:               failsafeBattLowVoltage
                             showUnits:          true
                             Layout.fillWidth:   true
+                            visible:            !_isXplorer
                         }
 
-
-                        QGCLabel { text: qsTr("Critical voltage threshold:") }
+                        QGCLabel {
+                            text:       qsTr("Critical voltage threshold:")
+                            visible:    !_isXplorer
+                        }
                         FactTextField {
                             fact:               failsafeBattCritVoltage
                             showUnits:          true
                             Layout.fillWidth:   true
+                            visible:            !_isXplorer
                         }
 
-                        // QGCLabel { text: qsTr("Low mAh threshold:") }
-                        // FactTextField {
-                        //     fact:               failsafeBattLowMah
-                        //     showUnits:          true
-                        //     Layout.fillWidth:   true
-                        // }
+                        // ── Xplorer: battery-percentage thresholds ──
+                        // Backed by the same *_LOW_VOLT / *_CRT_VOLT / *_ARM_VOLT
+                        // voltage params; converted via the firmware's linear 6S
+                        // SOC map. Entering 0 disables the threshold (writes 0V).
 
-                        // QGCLabel { text: qsTr("Critical mAh threshold:") }
-                        // FactTextField {
-                        //     fact:               failsafeBattCritMah
-                        //     showUnits:          true
-                        //     Layout.fillWidth:   true
-                        // }
+                        QGCLabel {
+                            text:       qsTr("Low battery percentage:")
+                            visible:    _isXplorer
+                        }
+                        QGCTextField {
+                            id:                 lowPctField
+                            visible:            _isXplorer
+                            Layout.fillWidth:   true
+                            inputMethodHints:   Qt.ImhDigitsOnly
+                            showUnits:          true
+                            unitsLabel:         "%"
+                            function _sync() { text = failsafeBattLowVoltage ? Math.round(battVoltToPercent(failsafeBattLowVoltage.rawValue)).toString() : "--" }
+                            Component.onCompleted: _sync()
+                            onEditingFinished: {
+                                if (!failsafeBattLowVoltage) return
+                                var pct = parseInt(text)
+                                if (isNaN(pct) || pct <= 0) {
+                                    failsafeBattLowVoltage.rawValue = 0     // disable
+                                } else {
+                                    pct = Math.max(5, Math.min(50, pct))
+                                    failsafeBattLowVoltage.rawValue = battPercentToVolt(pct)
+                                }
+                                _sync()
+                            }
+                            Connections {
+                                target: failsafeBattLowVoltage
+                                function onRawValueChanged() { lowPctField._sync() }
+                            }
+                        }
+
+                        QGCLabel {
+                            text:       qsTr("Critical battery percentage:")
+                            visible:    _isXplorer
+                        }
+                        QGCTextField {
+                            id:                 critPctField
+                            visible:            _isXplorer
+                            Layout.fillWidth:   true
+                            inputMethodHints:   Qt.ImhDigitsOnly
+                            showUnits:          true
+                            unitsLabel:         "%"
+                            function _sync() { text = failsafeBattCritVoltage ? Math.round(battVoltToPercent(failsafeBattCritVoltage.rawValue)).toString() : "--" }
+                            Component.onCompleted: _sync()
+                            onEditingFinished: {
+                                if (!failsafeBattCritVoltage) return
+                                var pct = parseInt(text)
+                                if (isNaN(pct) || pct <= 0) {
+                                    failsafeBattCritVoltage.rawValue = 0    // disable
+                                } else {
+                                    pct = Math.max(5, Math.min(50, pct))
+                                    failsafeBattCritVoltage.rawValue = battPercentToVolt(pct)
+                                }
+                                _sync()
+                            }
+                            Connections {
+                                target: failsafeBattCritVoltage
+                                function onRawValueChanged() { critPctField._sync() }
+                            }
+                        }
+
+                        QGCLabel {
+                            text:       qsTr("Minimum arming percentage:")
+                            visible:    _isXplorer && failsafeBattArmVoltage
+                        }
+                        QGCTextField {
+                            id:                 armPctField
+                            visible:            _isXplorer && failsafeBattArmVoltage
+                            Layout.fillWidth:   true
+                            inputMethodHints:   Qt.ImhDigitsOnly
+                            showUnits:          true
+                            unitsLabel:         "%"
+                            function _sync() { text = failsafeBattArmVoltage ? Math.round(battVoltToPercent(failsafeBattArmVoltage.rawValue)).toString() : "--" }
+                            Component.onCompleted: _sync()
+                            onEditingFinished: {
+                                if (!failsafeBattArmVoltage) return
+                                var pct = parseInt(text)
+                                if (isNaN(pct) || pct <= 0) {
+                                    failsafeBattArmVoltage.rawValue = 0     // disable
+                                } else {
+                                    pct = Math.min(100, pct)                // full range, no low cap
+                                    failsafeBattArmVoltage.rawValue = battPercentToVolt(pct)
+                                }
+                                _sync()
+                            }
+                            Connections {
+                                target: failsafeBattArmVoltage
+                                function onRawValueChanged() { armPctField._sync() }
+                            }
+                        }
                     } // GridLayout
                 } // Column
             }
@@ -188,6 +300,7 @@ SetupPage {
                         property Fact failsafeBattCritMah:      _failsafeBatt1CritMah
                         property Fact failsafeBattLowVoltage:   _failsafeBatt1LowVoltage
                         property Fact failsafeBattCritVoltage:  _failsafeBatt1CritVoltage
+                        property Fact failsafeBattArmVoltage:   _failsafeBatt1ArmVoltage
                     }
                 } // Rectangle
             } // Column - Battery Failsafe Settings
@@ -222,6 +335,7 @@ SetupPage {
                         property Fact failsafeBattCritMah:      _failsafeBatt2CritMah
                         property Fact failsafeBattLowVoltage:   _failsafeBatt2LowVoltage
                         property Fact failsafeBattCritVoltage:  _failsafeBatt2CritVoltage
+                        property Fact failsafeBattArmVoltage:   _failsafeBatt2ArmVoltage
                     }
                 } // Rectangle
             } // Column - Battery Failsafe Settings
@@ -361,6 +475,14 @@ SetupPage {
                     property Fact _failsafeThrEnable:               controller.getParameterFact(-1, "FS_THR_ENABLE")
                     property Fact _failsafeThrValue:                controller.getParameterFact(-1, "FS_THR_VALUE")
 
+                    // Fixed width so the closed combobox (and therefore this whole
+                    // General Failsafe group) keeps a stable width regardless of the
+                    // current selection — otherwise the group reflows in the parent
+                    // Flow layout. Sized for the realistic options; the removed-in-4.0
+                    // GCS option is ~70 chars and not selectable on current firmware.
+                    // Declared on the component root so the comboboxes can see it.
+                    readonly property real _failsafeComboWidth: ScreenTools.defaultFontPixelWidth * 34
+
                     QGCLabel {
                         text:       qsTr("General Failsafe Triggers")
                         font.bold:   true
@@ -385,17 +507,17 @@ SetupPage {
 
                                 QGCLabel { text: qsTr("Ground Station failsafe:") }
                                 FactComboBox {
-                                    fact:               _failsafeGCSEnable
-                                    indexModel:         false
-                                    Layout.fillWidth:   true
+                                    fact:                   _failsafeGCSEnable
+                                    indexModel:             false
+                                    Layout.preferredWidth:  _failsafeComboWidth
                                 }
 
                                 QGCLabel { text: qsTr("Radio failsafe:") }
                                 QGCComboBox {
-                                    model:              [qsTr("Disabled"), qsTr("Always RTL"),
+                                    model:                  [qsTr("Disabled"), qsTr("Always RTL"),
                                         qsTr("Continue with Mission in Auto Mode"), qsTr("Always Land")]
-                                    currentIndex:       _failsafeThrEnable.value
-                                    Layout.fillWidth:   true
+                                    currentIndex:           _failsafeThrEnable.value
+                                    Layout.preferredWidth:  _failsafeComboWidth
 
                                     onActivated: (index) => { _failsafeThrEnable.value = index }
                                 }

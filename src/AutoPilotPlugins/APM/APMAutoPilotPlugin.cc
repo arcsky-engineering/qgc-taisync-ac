@@ -27,6 +27,8 @@
 #include "QGCLoggingCategory.h"
 #include "Vehicle.h"
 #include "VehicleComponent.h"
+#include "SettingsManager.h"
+#include "AppSettings.h"
 #ifdef QT_DEBUG
 #include "APMFollowComponent.h"
 #include "ArduCopterFirmwarePlugin.h"
@@ -79,9 +81,15 @@ const QVariantList &APMAutoPilotPlugin::vehicleComponents()
             _sensorsComponent->setupTriggerSignals();
             _components.append(QVariant::fromValue(qobject_cast<VehicleComponent*>(_sensorsComponent)));
 
-            _powerComponent = new APMPowerComponent(_vehicle, this);
-            _powerComponent->setupTriggerSignals();
-            _components.append(QVariant::fromValue(qobject_cast<VehicleComponent*>(_powerComponent)));
+            // Xplorer (variant 1) hides the Power tab entirely — battery capacity
+            // is fixed for the platform and the arming threshold moves to the
+            // Safety tab as a percentage. X55 keeps the Power tab unchanged.
+            const bool isXplorer = SettingsManager::instance()->appSettings()->vehicleVariant()->rawValue().toInt() == 1;
+            if (!isXplorer) {
+                _powerComponent = new APMPowerComponent(_vehicle, this);
+                _powerComponent->setupTriggerSignals();
+                _components.append(QVariant::fromValue(qobject_cast<VehicleComponent*>(_powerComponent)));
+            }
 
             if (!_vehicle->sub() || (_vehicle->sub() && (_vehicle->versionCompare(3, 5, 3) >= 0))) {
                 _motorComponent = new APMMotorComponent(_vehicle, this);
