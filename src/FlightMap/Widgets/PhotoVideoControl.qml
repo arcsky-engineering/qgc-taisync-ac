@@ -42,7 +42,7 @@ Rectangle {
     property bool   _photoCaptureIntervalIdle:  _camera.photoCaptureStatus === MavlinkCameraControl.PHOTO_CAPTURE_INTERVAL_IDLE
     property bool   _photoCaptureIdle:          _photoCaptureSingleIdle || _photoCaptureIntervalIdle
 
-    // payloadSelection is the authoritative source of truth (0=ILX, 1=VIO, 2=LiDAR).
+    // payloadSelection is the authoritative source of truth (0=ILX, 1=VIO, 2=LiDAR, 3=MAVLink Camera).
     // Heartbeat/PARAM_EXT detection is only used as a fallback when the user hasn't yet
     // picked a payload (covered by payloadSelection==0 default) and the autopilot is
     // explicitly advertising a different payload. This prevents stale ILX detection

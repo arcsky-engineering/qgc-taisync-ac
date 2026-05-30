@@ -65,7 +65,12 @@ AppSettings::LanguageInfo_t AppSettings::_rgLanguageInfo[] = {
 DECLARE_SETTINGGROUP(App, "")
 {
     qmlRegisterUncreatableType<AppSettings>("QGroundControl.SettingsManager", 1, 0, "AppSettings", "Reference only");
-    QGCPalette::setGlobalTheme(indoorPalette()->rawValue().toBool() ? QGCPalette::Dark : QGCPalette::Light);
+    // Color scheme is locked to Indoor (Dark) — the user-facing Outdoor toggle
+    // was removed from GeneralSettings.qml. Force the stored value back to
+    // Indoor on every launch so users who previously picked Outdoor are
+    // brought back without needing migration code.
+    indoorPalette()->setRawValue(1);
+    QGCPalette::setGlobalTheme(QGCPalette::Dark);
 
     QSettings settings;
 

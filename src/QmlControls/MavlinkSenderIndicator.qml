@@ -14,7 +14,8 @@ Item {
     width: indicatorRow.width
     anchors.top: parent.top
     anchors.bottom: parent.bottom
-    // Hide while armed for ILX (0) and VIO (1) — there's no in-flight info or action needed.
+    // Hide while armed for ILX (0), VIO (1), and generic MAVLink Camera (3) —
+    // there's no in-flight info or action needed for camera payloads.
     // Keep visible for LiDAR (2) so the pattern start buttons remain reachable in flight.
     property int  _selectedPayload:  QGroundControl.settingsManager.flyViewSettings.payloadSelection.value
     property bool _vehicleArmed:     activeVehicle && activeVehicle.armed

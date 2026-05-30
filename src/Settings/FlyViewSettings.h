@@ -46,6 +46,8 @@ public:
     DEFINE_SETTINGFACT(payloadSerialPort)
     DEFINE_SETTINGFACT(payloadIlxBaud)
     DEFINE_SETTINGFACT(payloadVioBaud)
+    DEFINE_SETTINGFACT(payloadMavlinkCamType)
+    DEFINE_SETTINGFACT(payloadMavlinkCamBaud)
     DEFINE_SETTINGFACT(payloadSelection)
     DEFINE_SETTINGFACT(enableMicROM)
 };

@@ -239,14 +239,33 @@ SettingsPage {
             property Fact _payloadVioBaud: _flyViewSettings.payloadVioBaud
         }
 
+        LabelledFactComboBox {
+            Layout.fillWidth:   true
+            label:              qsTr("MAVLink Camera Type")
+            fact:               _payloadMavlinkCamType
+            indexModel:         false
+            visible:            _payloadMavlinkCamType.visible && _flyViewSettings.showPayloadIndicator.value
+            property Fact _payloadMavlinkCamType: _flyViewSettings.payloadMavlinkCamType
+        }
+
+        LabelledFactTextField {
+            Layout.fillWidth:   true
+            label:              qsTr("MAVLink Camera Baud Value")
+            fact:               _payloadMavlinkCamBaud
+            visible:            _payloadMavlinkCamBaud.visible && _flyViewSettings.showPayloadIndicator.value
+            property Fact _payloadMavlinkCamBaud: _flyViewSettings.payloadMavlinkCamBaud
+        }
+
         QGCButton {
             Layout.fillWidth:   true
             text:               qsTr("Reset payload defaults")
             visible:            _flyViewSettings.showPayloadIndicator.value
             onClicked: {
-                _flyViewSettings.payloadSerialPort.rawValue = _flyViewSettings.payloadSerialPort.rawDefaultValue
-                _flyViewSettings.payloadIlxBaud.rawValue    = _flyViewSettings.payloadIlxBaud.rawDefaultValue
-                _flyViewSettings.payloadVioBaud.rawValue    = _flyViewSettings.payloadVioBaud.rawDefaultValue
+                _flyViewSettings.payloadSerialPort.rawValue       = _flyViewSettings.payloadSerialPort.rawDefaultValue
+                _flyViewSettings.payloadIlxBaud.rawValue          = _flyViewSettings.payloadIlxBaud.rawDefaultValue
+                _flyViewSettings.payloadVioBaud.rawValue          = _flyViewSettings.payloadVioBaud.rawDefaultValue
+                _flyViewSettings.payloadMavlinkCamType.rawValue   = _flyViewSettings.payloadMavlinkCamType.rawDefaultValue
+                _flyViewSettings.payloadMavlinkCamBaud.rawValue   = _flyViewSettings.payloadMavlinkCamBaud.rawDefaultValue
             }
         }
 

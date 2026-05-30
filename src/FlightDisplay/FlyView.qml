@@ -74,23 +74,37 @@ Item {
                     // without a payload at all. We do NOT auto-set LiDAR from it. LiDAR
                     // remains a user-driven choice via the toolbar dropdown.
                     //
-                    // CAM1_TYPE==5 (ILX) or ==6 (VIO) is a clearer signal: those values
-                    // indicate the autopilot is set up for a specific payload, so we
-                    // sync payloadSelection and auto-fix the serial baud if it drifted.
+                    // CAM1_TYPE==5 (MAVLink) and ==6 (MAVLinkCamV2) overlap with both the
+                    // built-in payloads (ILX=5, VIO=6) AND the generic MAVLink Camera option
+                    // (sel=3, user-chosen type). If the user has already picked the generic
+                    // option, we leave sel alone — they own that payload's params. Otherwise
+                    // we sync sel to ILX/VIO and auto-fix the serial baud if it drifted.
                     switch (camFact.rawValue) {
-                        case 5:   // ILX-LR1
-                            if (!baudFact) return
-                            if (baudFact.rawValue !== fvs.payloadIlxBaud.value) {
-                                baudFact.rawValue = fvs.payloadIlxBaud.value
+                        case 5:   // MAVLink — ILX-LR1 (or generic if sel==3)
+                            if (sel.value === 3) {
+                                if (baudFact && baudFact.rawValue !== fvs.payloadMavlinkCamBaud.value) {
+                                    baudFact.rawValue = fvs.payloadMavlinkCamBaud.value
+                                }
+                            } else {
+                                if (!baudFact) return
+                                if (baudFact.rawValue !== fvs.payloadIlxBaud.value) {
+                                    baudFact.rawValue = fvs.payloadIlxBaud.value
+                                }
+                                if (sel.value !== 0) sel.value = 0
                             }
-                            if (sel.value !== 0) sel.value = 0
                             break
-                        case 6:   // VIO
-                            if (!baudFact) return
-                            if (baudFact.rawValue !== fvs.payloadVioBaud.value) {
-                                baudFact.rawValue = fvs.payloadVioBaud.value
+                        case 6:   // MAVLinkCamV2 — VIO (or generic if sel==3)
+                            if (sel.value === 3) {
+                                if (baudFact && baudFact.rawValue !== fvs.payloadMavlinkCamBaud.value) {
+                                    baudFact.rawValue = fvs.payloadMavlinkCamBaud.value
+                                }
+                            } else {
+                                if (!baudFact) return
+                                if (baudFact.rawValue !== fvs.payloadVioBaud.value) {
+                                    baudFact.rawValue = fvs.payloadVioBaud.value
+                                }
+                                if (sel.value !== 1) sel.value = 1
                             }
-                            if (sel.value !== 1) sel.value = 1
                             break
                         // case 0 (camera disabled) and any other value: leave persisted alone
                     }

@@ -29,15 +29,23 @@ SettingsPage {
     property bool   _disableAllDataPersistence: _appSettings.disableAllPersistence.rawValue
     property var    _activeVehicle:             QGroundControl.multiVehicleManager.activeVehicle
     property string _notConnectedStr:           qsTr("Not Connected")
-    property bool   _isAPM:                     _activeVehicle ? _activeVehicle.apmFirmware : true
-    property bool   _showAPMStreamRates:        QGroundControl.apmFirmwareSupported && _settingsManager.apmMavlinkStreamRateSettings.visible && _isAPM
-    property var    _apmStartMavlinkStreams:    _mavlinkSettings.apmStartMavlinkStreams
-
     TelemetryLogManager { id: telemetryLogManager }
 
-    // Ground Station section (MAVLink System ID + Emit heartbeat) intentionally
-    // hidden. These must stay at their defaults for our system to work; exposing
-    // them only invites misconfiguration.
+    // Ground Station: only the MAVLink System ID is exposed (range 245..255,
+    // enforced by the fact's min/max metadata). Needed when running a second
+    // GCS on the same link so the autopilot can distinguish them. "Emit
+    // heartbeat" stays hidden — it must remain true for the autopilot's GCS
+    // failsafe to behave correctly.
+    SettingsGroupLayout {
+        Layout.fillWidth:   true
+        heading:            qsTr("Ground Station")
+
+        LabelledFactTextField {
+            Layout.fillWidth:   true
+            label:              qsTr("MAVLink System ID")
+            fact:               _mavlinkSettings.gcsMavlinkSystemID
+        }
+    }
 
     SettingsGroupLayout {
         Layout.fillWidth:   true
@@ -333,75 +341,8 @@ SettingsPage {
         }
     }
 
-    SettingsGroupLayout {
-        Layout.fillWidth:   true
-        heading:            qsTr("Stream Rates (ArduPilot Only)")
-        visible:            _showAPMStreamRates
-
-        QGCCheckBoxSlider {
-            id:                 controllerByVehicleCheckBox
-            Layout.fillWidth:   true
-            text:               qsTr("Controlled By vehicle")
-            checked:            !_apmStartMavlinkStreams.rawValue
-            onClicked:          _apmStartMavlinkStreams.rawValue = !checked
-        }
-
-        LabelledFactComboBox {
-            Layout.fillWidth:   true
-            label:              qsTr("Raw Sensors")
-            fact:               _settingsManager.apmMavlinkStreamRateSettings.streamRateRawSensors
-            indexModel:         false
-            enabled:            !controllerByVehicleCheckBox.checked
-        }
-
-        LabelledFactComboBox {
-            Layout.fillWidth:   true
-            label:              qsTr("Extended Status")
-            fact:               _settingsManager.apmMavlinkStreamRateSettings.streamRateExtendedStatus
-            indexModel:         false
-            enabled:            !controllerByVehicleCheckBox.checked
-        }
-
-        LabelledFactComboBox {
-            Layout.fillWidth:   true
-            label:              qsTr("RC Channels")
-            fact:               _settingsManager.apmMavlinkStreamRateSettings.streamRateRCChannels
-            indexModel:         false
-            enabled:            !controllerByVehicleCheckBox.checked
-        }
-
-        LabelledFactComboBox {
-            Layout.fillWidth:   true
-            label:              qsTr("Position")
-            fact:               _settingsManager.apmMavlinkStreamRateSettings.streamRatePosition
-            indexModel:         false
-            enabled:            !controllerByVehicleCheckBox.checked
-        }
-
-        LabelledFactComboBox {
-            Layout.fillWidth:   true
-            label:              qsTr("Extra 1")
-            fact:               _settingsManager.apmMavlinkStreamRateSettings.streamRateExtra1
-            indexModel:         false
-            enabled:            !controllerByVehicleCheckBox.checked
-        }
-
-        LabelledFactComboBox {
-            Layout.fillWidth:   true
-            label:              qsTr("Extra 2")
-            fact:               _settingsManager.apmMavlinkStreamRateSettings.streamRateExtra2
-            indexModel:         false
-            enabled:            !controllerByVehicleCheckBox.checked
-        }
-
-        LabelledFactComboBox {
-            Layout.fillWidth:   true
-            label:              qsTr("Extra 3")
-            fact:               _settingsManager.apmMavlinkStreamRateSettings.streamRateExtra3
-            indexModel:         false
-            enabled:            !controllerByVehicleCheckBox.checked
-        }
-    }
+    // Stream Rates section removed — operators should not tune ArduPilot
+    // stream rates from the GUI; the vehicle defaults are kept.
 
     SettingsGroupLayout {
         Layout.fillWidth:   true
@@ -438,46 +379,5 @@ SettingsPage {
         }
     }
 
-    SettingsGroupLayout {
-        id:                 mavlink2SigningGroup
-        Layout.fillWidth:   true
-        heading:            qsTr("MAVLink 2 Signing")
-        headingDescription: qsTr("Signing keys should only be sent to the vehicle over secure links.")
-        visible:            _mavlink2SigningKey.visible
-
-        property Fact _mavlink2SigningKey: _mavlinkSettings.mavlink2SigningKey
-
-        Connections {
-            target:             mavlink2SigningGroup._mavlink2SigningKey
-            onRawValueChanged:  sendToVehiclePrompt.visible = true
-        }
-
-        RowLayout {
-            spacing: ScreenTools.defaultFontPixelWidth
-
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    ScreenTools.defaultFontPixelWidth * 32
-                label:                      qsTr("Key")
-                fact:                       mavlink2SigningGroup._mavlink2SigningKey
-            }
-
-            QGCButton {
-                text:       qsTr("Send to Vehicle")
-                enabled:    _activeVehicle
-
-                onClicked: {
-                    sendToVehiclePrompt.visible = false
-                    _activeVehicle.sendSetupSigning()
-                }
-            }
-        }
-
-        QGCLabel {
-            id:                 sendToVehiclePrompt
-            Layout.fillWidth:   true
-            text:               qsTr("Signing key has changed. Don't forget to send to Vehicle(s) if needed.")
-            visible:            false
-        }
-    }
+    // MAVLink 2 Signing section removed — not user-configurable in this build.
 }

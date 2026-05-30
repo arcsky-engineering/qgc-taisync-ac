@@ -16,6 +16,8 @@
 #include "MAVLinkProtocol.h"
 #include "QGCLoggingCategory.h"
 
+#include <cmath>
+
 QGC_LOGGING_CATEGORY(RemoteIDManagerLog, "RemoteIDManagerLog")
 
 #define AREA_COUNT 1
@@ -26,6 +28,15 @@ QGC_LOGGING_CATEGORY(RemoteIDManagerLog, "RemoteIDManagerLog")
 #define SENDING_RATE_MSEC 1000
 #define ALLOWED_GPS_DELAY 5000
 #define RID_TIMEOUT 2500 // Messages should be arriving at 1 Hz, so we set a 2 second timeout
+
+// How long to wait for an initial GCS GPS fix before falling back to using
+// the drone's position as the operator location (test-only behavior; see
+// _sendSystem state machine).
+#define INITIAL_GCS_WAIT_MS         (4 * 60 * 1000)
+// Once we've had a GCS fix at least once, we won't auto-fall-back to the
+// drone again unless the drone has been disarmed AND we've been without a
+// fresh GCS fix for at least this long.
+#define DRONE_FALLBACK_RE_ELIGIBLE_MS (4 * 60 * 1000)
 
 const uint8_t* RemoteIDManager::_id_or_mac_unknown = new uint8_t[MAVLINK_MSG_OPEN_DRONE_ID_OPERATOR_ID_FIELD_ID_OR_MAC_LEN]();
 
@@ -74,17 +85,24 @@ RemoteIDManager::RemoteIDManager(Vehicle* vehicle)
         operatorIDGoodChanged();
     }
 
-    // Check if we should force-enable RID on connection without waiting for ARM_STATUS
-    AppSettings* appSettings = SettingsManager::instance()->appSettings();
-    if (appSettings->enableRIDOnConnect()->rawValue().toBool()) {
-        _available = true;
-        _commsGood = true;
-        _checkGCSBasicID();
-        _sendMessagesTimer.start();
-        emit availableChanged();
-        emit commsGoodChanged();
-        qCDebug(RemoteIDManagerLog) << "RID force-enabled on vehicle connect (enableRIDOnConnect setting)";
+    // "Fixed" operator location is no longer user-selectable; ensure we always
+    // start in LiveGNSS mode even if a previous app version stored FIXED.
+    if (_settings->locationType()->rawValue().toUInt() != LocationTypes::LiveGNSS) {
+        _settings->locationType()->setRawValue(static_cast<uint>(LocationTypes::LiveGNSS));
     }
+
+    // Track construction time for the initial-GCS-wait timer in _sendSystem.
+    _startupTime = QDateTime::currentDateTime().currentDateTimeUtc();
+
+    // RID is unconditionally force-enabled on connect (no longer gated by a
+    // user-facing setting; the toggle was removed from GeneralSettings.qml).
+    _available = true;
+    _commsGood = true;
+    _checkGCSBasicID();
+    _sendMessagesTimer.start();
+    emit availableChanged();
+    emit commsGoodChanged();
+    qCDebug(RemoteIDManagerLog) << "RID force-enabled on vehicle connect";
 }
 
 void RemoteIDManager::mavlinkMessageReceived(mavlink_message_t& message )
@@ -286,54 +304,120 @@ void RemoteIDManager::_sendOperatorID()
 
 void RemoteIDManager::_sendSystem()
 {
-    QGeoCoordinate      gcsPosition;
-    QGeoPositionInfo    geoPositionInfo;
-    // Location types:
-    // 0 -> TAKEOFF (not supported yet)
-    // 1 -> LIVE GNNS
-    // 2 -> FIXED
-    if (_settings->locationType()->rawValue().toUInt() == LocationTypes::FIXED) {
-        // For FIXED location, we first check that the values are valid. Then we populate our position
-        if (_settings->latitudeFixed()->rawValue().toFloat() >= -90 && _settings->latitudeFixed()->rawValue().toFloat() <= 90 && _settings->longitudeFixed()->rawValue().toFloat() >= -180 && _settings->longitudeFixed()->rawValue().toFloat() <= 180) {
-            gcsPosition = QGeoCoordinate(_settings->latitudeFixed()->rawValue().toFloat(), _settings->longitudeFixed()->rawValue().toFloat(), _settings->altitudeFixed()->rawValue().toFloat());
-            geoPositionInfo = QGeoPositionInfo(gcsPosition, QDateTime::currentDateTime().currentDateTimeUtc());
-            if (!_gcsGPSGood) {
-                _gcsGPSGood = true;
-                emit gcsGPSGoodChanged();
-            }
-        } else {
-            gcsPosition = QGeoCoordinate(0,0,0);
-            geoPositionInfo = QGeoPositionInfo(gcsPosition, QDateTime::currentDateTime().currentDateTimeUtc());
-            if (_gcsGPSGood) {
-                _gcsGPSGood = false;
-                emit gcsGPSGoodChanged();
-                qCDebug(RemoteIDManagerLog) << "The provided coordinates for FIXED position are invalid.";
-            }
+    // Operator-location source selection. The FAA / OpenDroneID protocol
+    // expects the operator's position. We prefer the Android GCS GPS, but
+    // it can take a long time to acquire. For test purposes we allow falling
+    // back to the drone's position when the GCS hasn't produced a fix.
+    //
+    // States (driven each tick):
+    //   1. GCS currently has a fresh, valid fix -> send GCS position.
+    //   2. Drone-fallback active (we previously decided to use the drone)
+    //      -> send drone coordinate (if valid); otherwise unknown.
+    //   3. GCS has never been good yet -> wait. If startup-wait expired and
+    //      the drone has a valid position, switch to drone-fallback.
+    //   4. GCS was good before but is currently stale -> keep sending the
+    //      last-known good GCS position. While the drone is disarmed, run a
+    //      re-eligibility timer; when it elapses without GCS recovery,
+    //      switch to drone-fallback. While armed, the timer is reset.
+
+    const QDateTime now = QDateTime::currentDateTime().currentDateTimeUtc();
+    const QGeoCoordinate currentGcsPosition = QGCPositionManager::instance()->gcsPosition();
+    const QGeoPositionInfo currentGeoInfo   = QGCPositionManager::instance()->geoPositionInfo();
+
+    bool gcsCurrentlyGood = false;
+    if (!currentGeoInfo.isValid()) {
+        qCDebug(RemoteIDManagerLog) << "GCS GPS data is not valid.";
+    } else if (_lastGeoPositionTimeStamp.msecsTo(now) > ALLOWED_GPS_DELAY) {
+        qCDebug(RemoteIDManagerLog) << "GCS GPS data is older than 5 seconds";
+    } else if ((_settings->region()->rawValue().toInt() == Region::FAA) && !(currentGcsPosition.altitude() >= 0)) {
+        qCDebug(RemoteIDManagerLog) << "GCS GPS data error (no altitude): Altitude data is mandatory for GCS GPS data in FAA regions.";
+    } else {
+        gcsCurrentlyGood = true;
+    }
+
+    QGeoCoordinate vehicleCoord = _vehicle->coordinate();
+    const bool droneCoordValid  = vehicleCoord.isValid() && !std::isnan(vehicleCoord.altitude());
+
+    QGeoCoordinate positionToSend;
+    bool positionValid = false;
+
+    if (gcsCurrentlyGood) {
+        // State 1: fresh GCS fix. Always wins, and clears any fallback latch.
+        positionToSend                    = currentGcsPosition;
+        positionValid                     = true;
+        _lastGoodGcsPosition              = currentGcsPosition;
+        _gcsEverGood                      = true;
+        _droneFallbackEligibleStartTime   = QDateTime();
+        if (_droneFallbackActive) {
+            _droneFallbackActive = false;
+            qCDebug(RemoteIDManagerLog) << "GCS fix recovered — switching operator location back to GCS";
+        }
+    } else if (_droneFallbackActive) {
+        // State 2: latched into drone fallback. The drone position is meant
+        // to *approximate* the operator's location on the ground — so we
+        // only refresh from the drone while it's disarmed. Once armed, the
+        // last broadcast value is frozen so the operator location doesn't
+        // track the drone's flight path.
+        if (!_vehicle->armed() && droneCoordValid) {
+            positionToSend  = vehicleCoord;
+            positionValid   = true;
+        } else if (_broadcastPositionValid) {
+            positionToSend  = _broadcastPosition;
+            positionValid   = true;
+        }
+    } else if (!_gcsEverGood) {
+        // State 3: pre-first-fix. After the initial wait, fall back to the
+        // drone — but only if it's still on the ground (disarmed). Capturing
+        // a mid-flight drone position as the operator location would be
+        // misleading, so we'd rather keep waiting in that case.
+        if (_startupTime.msecsTo(now) >= INITIAL_GCS_WAIT_MS && droneCoordValid && !_vehicle->armed()) {
+            _droneFallbackActive = true;
+            positionToSend  = vehicleCoord;
+            positionValid   = true;
+            qCDebug(RemoteIDManagerLog) << "Initial GCS-wait expired with no fix — falling back to drone position for operator location";
         }
     } else {
-        // For Live GNSS we take QGC GPS data
-        gcsPosition = QGCPositionManager::instance()->gcsPosition();
-        geoPositionInfo = QGCPositionManager::instance()->geoPositionInfo();
-
-        // Determine if GPS data meets all requirements
-        bool gpsDataGood = false;
-
-        if (!geoPositionInfo.isValid()) {
-            qCDebug(RemoteIDManagerLog) << "GCS GPS data is not valid.";
-        } else if (_lastGeoPositionTimeStamp.msecsTo(QDateTime::currentDateTime().currentDateTimeUtc()) > ALLOWED_GPS_DELAY) {
-            qCDebug(RemoteIDManagerLog) << "GCS GPS data is older than 5 seconds";
-        } else if ((_settings->region()->rawValue().toInt() == Region::FAA) && !(gcsPosition.altitude() >= 0)) {
-            qCDebug(RemoteIDManagerLog) << "GCS GPS data error (no altitude): Altitude data is mandatory for GCS GPS data in FAA regions.";
+        // State 4: GCS was good, currently stale. Keep last-known GCS fix.
+        if (_lastGoodGcsPosition.isValid()) {
+            positionToSend  = _lastGoodGcsPosition;
+            positionValid   = true;
+        }
+        // Re-eligibility for drone-fallback: only while the drone is disarmed.
+        if (!_vehicle->armed()) {
+            if (!_droneFallbackEligibleStartTime.isValid()) {
+                _droneFallbackEligibleStartTime = now;
+            } else if (_droneFallbackEligibleStartTime.msecsTo(now) >= DRONE_FALLBACK_RE_ELIGIBLE_MS) {
+                _droneFallbackEligibleStartTime = QDateTime();
+                if (droneCoordValid) {
+                    _droneFallbackActive = true;
+                    positionToSend  = vehicleCoord;
+                    positionValid   = true;
+                    qCDebug(RemoteIDManagerLog) << "GCS fix lost while disarmed for >4min — re-falling-back to drone position";
+                }
+            }
         } else {
-            // All checks passed
-            gpsDataGood = true;
+            // Armed: reset the re-eligibility timer.
+            _droneFallbackEligibleStartTime = QDateTime();
         }
+    }
 
-        // Update flag only if state changed
-        if (gpsDataGood != _gcsGPSGood) {
-            _gcsGPSGood = gpsDataGood;
-            emit gcsGPSGoodChanged();
-        }
+    if (positionValid != _gcsGPSGood) {
+        _gcsGPSGood = positionValid;
+        emit gcsGPSGoodChanged();
+    }
+
+    // Track the broadcast position + source so the QML settings page can
+    // display whatever's actually going out on the wire (GCS or drone).
+    const bool usingDrone = positionValid && _droneFallbackActive;
+    const bool broadcastChanged =
+            (positionValid != _broadcastPositionValid) ||
+            (usingDrone    != _broadcastUsingDrone)    ||
+            (positionValid && _broadcastPosition != positionToSend);
+    _broadcastPosition       = positionToSend;
+    _broadcastPositionValid  = positionValid;
+    _broadcastUsingDrone     = usingDrone;
+    if (broadcastChanged) {
+        emit broadcastPositionChanged();
     }
 
     WeakLinkInterfacePtr weakLink = _vehicle->vehicleLinkManager()->primaryLink();
@@ -351,15 +435,15 @@ void RemoteIDManager::_sendSystem()
                                                     _id_or_mac_unknown,
                                                     _settings->locationType()->rawValue().toUInt(),
                                                     _settings->classificationType()->rawValue().toUInt(),
-                                                    _gcsGPSGood ? ( gcsPosition.latitude()  * 1.0e7 ) : MAVLINK_UNKNOWN_LAT,
-                                                    _gcsGPSGood ? ( gcsPosition.longitude() * 1.0e7 ) : MAVLINK_UNKNOWN_LON,
+                                                    positionValid ? ( positionToSend.latitude()  * 1.0e7 ) : MAVLINK_UNKNOWN_LAT,
+                                                    positionValid ? ( positionToSend.longitude() * 1.0e7 ) : MAVLINK_UNKNOWN_LON,
                                                     AREA_COUNT,
                                                     AREA_RADIUS,
                                                     MAVLINK_UNKNOWN_METERS,
                                                     MAVLINK_UNKNOWN_METERS,
                                                     _settings->categoryEU()->rawValue().toUInt(),
                                                     _settings->classEU()->rawValue().toUInt(),
-                                                    _gcsGPSGood ? gcsPosition.altitude() : MAVLINK_UNKNOWN_METERS,
+                                                    positionValid ? positionToSend.altitude() : MAVLINK_UNKNOWN_METERS,
                                                     _timestamp2019()), // Time stamp needs to be since 00:00:00 1/1/2019
         _vehicle->sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
     }
@@ -508,4 +592,10 @@ void RemoteIDManager::_updateLastGCSPositionInfo(QGeoPositionInfo update)
     if (update.isValid()) {
         _lastGeoPositionTimeStamp = update.timestamp().toUTC();
     }
+}
+
+QString RemoteIDManager::positionSourceTag() const
+{
+    if (!_broadcastPositionValid) return QString();
+    return _broadcastUsingDrone ? QStringLiteral("D") : QStringLiteral("G");
 }

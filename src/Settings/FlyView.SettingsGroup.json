@@ -197,9 +197,25 @@
     "default":      115
 },
 {
+    "name":         "payloadMavlinkCamType",
+    "shortDesc":    "Generic MAVLink camera CAM1_TYPE value",
+    "longDesc":     "CAM1_TYPE value written when selecting the generic MAVLink Camera payload. 5=MAVLink, 6=MAVLinkCamV2.",
+    "type":         "uint32",
+    "enumStrings":  "MAVLink (5),MAVLinkCamV2 (6)",
+    "enumValues":   "5,6",
+    "default":      5
+},
+{
+    "name":         "payloadMavlinkCamBaud",
+    "shortDesc":    "Generic MAVLink camera baud rate parameter value",
+    "longDesc":     "The SERIALx_BAUD parameter value written for a generic MAVLink camera payload (e.g. Sentera 65R).",
+    "type":         "uint32",
+    "default":      115
+},
+{
     "name":         "payloadSelection",
     "shortDesc":    "Selected payload type",
-    "longDesc":     "Persisted payload selection: 0=ILX-LR1, 1=VIO, 2=LiDAR.",
+    "longDesc":     "Persisted payload selection: 0=ILX-LR1, 1=VIO, 2=LiDAR, 3=MAVLink Camera (generic).",
     "type":         "uint32",
     "default":      0
 },

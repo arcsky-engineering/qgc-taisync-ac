@@ -13,6 +13,7 @@
 #include <QtCore/QDateTime>
 #include <QtCore/QTimer>
 #include <QtPositioning/QGeoPositionInfo>
+#include <QtPositioning/QGeoCoordinate>
 #include <QtCore/QLoggingCategory>
 
 #include "MAVLinkLib.h"
@@ -39,6 +40,13 @@ public:
     Q_PROPERTY(bool    emergencyDeclared    READ emergencyDeclared  NOTIFY emergencyDeclaredChanged)
     Q_PROPERTY(bool    operatorIDGood       READ operatorIDGood     NOTIFY operatorIDGoodChanged)
 
+    // Position currently being broadcast as the operator location. Source can
+    // be either the GCS GPS or the drone (fallback). Tag is "G", "D", or "".
+    Q_PROPERTY(double   broadcastLatitude       READ broadcastLatitude      NOTIFY broadcastPositionChanged)
+    Q_PROPERTY(double   broadcastLongitude      READ broadcastLongitude     NOTIFY broadcastPositionChanged)
+    Q_PROPERTY(double   broadcastAltitude       READ broadcastAltitude      NOTIFY broadcastPositionChanged)
+    Q_PROPERTY(bool     broadcastPositionValid  READ broadcastPositionValid NOTIFY broadcastPositionChanged)
+    Q_PROPERTY(QString  positionSourceTag       READ positionSourceTag      NOTIFY broadcastPositionChanged)
 
     Q_INVOKABLE void checkOperatorID(const QString& operatorID);
     Q_INVOKABLE void setOperatorID();
@@ -54,6 +62,12 @@ public:
     bool    basicIDGood         (void) const { return _basicIDGood; }
     bool    emergencyDeclared   (void) const { return _emergencyDeclared;}
     bool    operatorIDGood      (void) const { return _operatorIDGood; }
+
+    double  broadcastLatitude       (void) const { return _broadcastPosition.latitude(); }
+    double  broadcastLongitude      (void) const { return _broadcastPosition.longitude(); }
+    double  broadcastAltitude       (void) const { return _broadcastPosition.altitude(); }
+    bool    broadcastPositionValid  (void) const { return _broadcastPositionValid; }
+    QString positionSourceTag       (void) const;
 
     void mavlinkMessageReceived (mavlink_message_t& message);
 
@@ -77,6 +91,7 @@ signals:
     void basicIDGoodChanged();
     void emergencyDeclaredChanged();
     void operatorIDGoodChanged();
+    void broadcastPositionChanged();
 
 private slots:
     void _odidTimeout();
@@ -124,6 +139,24 @@ private:
 
     // After emergency cleared, this makes sure the non emergency selfID message makes it to the vehicle
     bool        _enforceSendingSelfID;
+
+    // Operator-location source state machine. We prefer the GCS (Android)
+    // GPS, but it can take a long time to acquire. After the initial wait
+    // expires we fall back to broadcasting the *drone's* position as the
+    // operator location for testing. Once the GCS has provided a fix at any
+    // point, we won't fall back to the drone again unless the drone has been
+    // disarmed for a sustained period without a GCS fix. See _sendSystem().
+    bool        _gcsEverGood                    = false;   // latched true on first valid GCS fix
+    bool        _droneFallbackActive            = false;   // true while we're broadcasting the drone's coordinate
+    QGeoCoordinate _lastGoodGcsPosition;                   // most recent good GCS fix (used while stale, post-first-fix)
+    QDateTime   _droneFallbackEligibleStartTime;           // set while drone disarmed AND GCS stale post-first-fix; cleared otherwise
+    QDateTime   _startupTime;                              // construction time, for the initial-wait timer
+
+    // Currently-broadcast operator position (mirrors what's going out on the
+    // wire; exposed to QML for the Remote ID settings page readouts).
+    QGeoCoordinate _broadcastPosition;
+    bool        _broadcastPositionValid         = false;
+    bool        _broadcastUsingDrone            = false;   // false → GCS, true → drone
 
     static const uint8_t* _id_or_mac_unknown;
 

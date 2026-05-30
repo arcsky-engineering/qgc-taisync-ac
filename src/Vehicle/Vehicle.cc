@@ -1221,7 +1221,12 @@ void Vehicle::_handleBatteryStatus(mavlink_message_t& message)
 
     if (!batteryMessage.isEmpty()) {
         QString batteryIdStr("%1");
-        if (_batteryFactGroupListModel.count() > 1) {
+        // Xplorer reports its packs as BATT2_/BATT3_ (MAVLink ids 1 and 2), which
+        // would otherwise be announced as "battery 2/3". Suppress the number so
+        // they're just announced as "battery level low/critical/..." like a
+        // single-battery vehicle.
+        const bool isXplorer = SettingsManager::instance()->appSettings()->vehicleVariant()->rawValue().toInt() == 1;
+        if (_batteryFactGroupListModel.count() > 1 && !isXplorer) {
             batteryIdStr = batteryIdStr.arg(batteryStatus.id + 1);
         } else {
             batteryIdStr = batteryIdStr.arg("");

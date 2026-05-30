@@ -113,6 +113,37 @@ SetupPage {
                 Column {
                     spacing: _margins
 
+                    // Xplorer: parallel-pack mirroring. When the primary fact
+                    // changes (either user edit or PARAM_VALUE load), copy to
+                    // the secondary pack so BATT2/BATT3 stay in lockstep. If
+                    // they're already equal, Fact's setter is a no-op so no
+                    // spurious PARAM_SET goes out.
+                    Connections {
+                        target:  failsafeBattLowAct
+                        enabled: !!mirrorBattLowAct
+                        function onRawValueChanged() { mirrorBattLowAct.rawValue = failsafeBattLowAct.rawValue }
+                    }
+                    Connections {
+                        target:  failsafeBattCritAct
+                        enabled: !!mirrorBattCritAct
+                        function onRawValueChanged() { mirrorBattCritAct.rawValue = failsafeBattCritAct.rawValue }
+                    }
+                    Connections {
+                        target:  failsafeBattLowVoltage
+                        enabled: !!mirrorBattLowVoltage
+                        function onRawValueChanged() { mirrorBattLowVoltage.rawValue = failsafeBattLowVoltage.rawValue }
+                    }
+                    Connections {
+                        target:  failsafeBattCritVoltage
+                        enabled: !!mirrorBattCritVoltage
+                        function onRawValueChanged() { mirrorBattCritVoltage.rawValue = failsafeBattCritVoltage.rawValue }
+                    }
+                    Connections {
+                        target:  failsafeBattArmVoltage
+                        enabled: !!mirrorBattArmVoltage
+                        function onRawValueChanged() { mirrorBattArmVoltage.rawValue = failsafeBattArmVoltage.rawValue }
+                    }
+
                     GridLayout {
                         id:             gridLayout
                         columnSpacing:  _margins
@@ -276,7 +307,7 @@ SetupPage {
                 visible: _batt1MonitorEnabled
 
                 QGCLabel {
-                    text:       _isXplorer ? qsTr("Battery 1 Failsafe Triggers") : qsTr("Battery Failsafe Triggers")
+                    text:       _isXplorer ? qsTr("Battery Failsafe Settings") : qsTr("Battery Failsafe Triggers")
                     font.bold:   true
                 }
 
@@ -301,6 +332,14 @@ SetupPage {
                         property Fact failsafeBattLowVoltage:   _failsafeBatt1LowVoltage
                         property Fact failsafeBattCritVoltage:  _failsafeBatt1CritVoltage
                         property Fact failsafeBattArmVoltage:   _failsafeBatt1ArmVoltage
+                        // Xplorer: BATT2/BATT3 packs run in parallel, so the user
+                        // edits one set of values and we mirror writes to the
+                        // second pack. Null for non-Xplorer (no mirroring).
+                        property Fact mirrorBattLowAct:         _isXplorer ? _failsafeBatt2LowAct      : null
+                        property Fact mirrorBattCritAct:        _isXplorer ? _failsafeBatt2CritAct     : null
+                        property Fact mirrorBattLowVoltage:     _isXplorer ? _failsafeBatt2LowVoltage  : null
+                        property Fact mirrorBattCritVoltage:    _isXplorer ? _failsafeBatt2CritVoltage : null
+                        property Fact mirrorBattArmVoltage:     _isXplorer ? _failsafeBatt2ArmVoltage  : null
                     }
                 } // Rectangle
             } // Column - Battery Failsafe Settings
@@ -308,7 +347,7 @@ SetupPage {
 
             Column {
                 spacing: _margins / 2
-                visible: _batt2MonitorEnabled
+                visible: _batt2MonitorEnabled && !_isXplorer
 
                 QGCLabel {
                     text:       qsTr("Battery 2 Failsafe Triggers")
@@ -336,6 +375,16 @@ SetupPage {
                         property Fact failsafeBattLowVoltage:   _failsafeBatt2LowVoltage
                         property Fact failsafeBattCritVoltage:  _failsafeBatt2CritVoltage
                         property Fact failsafeBattArmVoltage:   _failsafeBatt2ArmVoltage
+                        // Mirror properties intentionally null on this loader.
+                        // The shared batteryFailsafeComponent references these
+                        // names in Connections blocks; they need to resolve
+                        // here even though nothing is mirrored from the
+                        // second battery.
+                        property Fact mirrorBattLowAct:         null
+                        property Fact mirrorBattCritAct:        null
+                        property Fact mirrorBattLowVoltage:     null
+                        property Fact mirrorBattCritVoltage:    null
+                        property Fact mirrorBattArmVoltage:     null
                     }
                 } // Rectangle
             } // Column - Battery Failsafe Settings

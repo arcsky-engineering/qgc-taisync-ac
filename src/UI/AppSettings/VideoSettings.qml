@@ -132,12 +132,8 @@ SettingsPage {
             visible:            !_videoAutoStreamConfig && _isStreamSource && _videoSettings.aspectRatio.visible
         }
 
-        FactCheckBoxSlider {
-            Layout.fillWidth:   true
-            text:               qsTr("Stop recording when disarmed")
-            fact:               _videoSettings.disableWhenDisarmed
-            visible:            !_videoAutoStreamConfig && _isStreamSource && fact.visible
-        }
+        // "Stop recording when disarmed" removed — recording-related settings
+        // are not user-configurable in this build.
 
         FactCheckBoxSlider {
             Layout.fillWidth:   true
@@ -156,30 +152,6 @@ SettingsPage {
         }
     }
 
-    SettingsGroupLayout {
-        Layout.fillWidth: true
-        heading:            qsTr("Local Video Storage")
-
-        LabelledFactComboBox {
-            Layout.fillWidth:   true
-            label:              qsTr("Record File Format")
-            fact:               _videoSettings.recordingFormat
-            visible:            _videoSettings.recordingFormat.visible
-        }
-
-        FactCheckBoxSlider {
-            Layout.fillWidth:   true
-            text:               qsTr("Auto-Delete Saved Recordings")
-            fact:               _videoSettings.enableStorageLimit
-            visible:            fact.visible
-        }
-
-        LabelledFactTextField {
-            Layout.fillWidth:   true
-            label:              qsTr("Max Storage Usage")
-            fact:               _videoSettings.maxVideoSize
-            visible:            fact.visible
-            enabled:            _videoSettings.enableStorageLimit.rawValue
-        }
-    }
+    // Local Video Storage section removed — recording-related settings are
+    // not user-configurable in this build.
 }

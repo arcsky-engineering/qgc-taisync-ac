@@ -169,11 +169,12 @@ Item {
             }
 
             // Xplorer: simplify the param editor by default to Standard-tagged
-            // params only. Operators can untick to reveal Advanced params.
+            // params only. Inverted UX: operators tick "Show Advanced" to reveal
+            // Advanced params (underlying showStandardOnly defaults to true).
             QGCCheckBox {
-                text:       qsTr("Standard params only")
-                checked:    controller.showStandardOnly
-                onClicked:  controller.showStandardOnly = checked
+                text:       qsTr("Show Advanced")
+                checked:    !controller.showStandardOnly
+                onClicked:  controller.showStandardOnly = !checked
             }
         }
 

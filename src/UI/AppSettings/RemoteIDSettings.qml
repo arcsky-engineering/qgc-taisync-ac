@@ -74,41 +74,31 @@ SettingsPage {
 
     QGCPalette { id: qgcPal }
 
-    // GPS status helper function
+    // GPS status helper function. Reflects the *broadcast* position, which
+    // may come from the GCS or (after the initial-wait fallback) the drone.
     function getGpsStatusText() {
-        if (_locationType === RemoteIDSettings.LocationType.FIXED) {
-            return qsTr("Using Fixed Location")
+        if (_activeRID && _remoteIDManager.broadcastPositionValid) {
+            return qsTr("GPS Fix OK")
         }
+        // No valid broadcast position. Diagnose based on the GCS GPS reading.
         if (!gcsPosition || !gcsPosition.isValid) {
             return qsTr("Waiting for GPS fix...")
         }
-        if (_activeRID && !_remoteIDManager.gcsGPSGood) {
-            // Check if we have position but it's stale or missing altitude
-            if (gcsPosition.isValid) {
-                if (isNaN(gcsPosition.altitude) || gcsPosition.altitude < 0) {
-                    return qsTr("GPS Error: No altitude data")
-                }
-                return qsTr("GPS Error: Position data stale")
+        if (_activeRID) {
+            // GCS reports a position but it's not broadcast-good (stale / no altitude).
+            if (isNaN(gcsPosition.altitude) || gcsPosition.altitude < 0) {
+                return qsTr("GPS Error: No altitude data")
             }
-            return qsTr("GPS Error: Invalid position")
-        }
-        if (_activeRID && _remoteIDManager.gcsGPSGood) {
-            return qsTr("GPS Fix OK")
+            return qsTr("GPS Error: Position data stale")
         }
         // No active vehicle connected
-        if (gcsPosition && gcsPosition.isValid) {
-            if (isNaN(gcsPosition.altitude) || gcsPosition.altitude < 0) {
-                return qsTr("GPS: No altitude (connect vehicle to verify)")
-            }
-            return qsTr("GPS: Position available (connect vehicle to verify)")
+        if (isNaN(gcsPosition.altitude) || gcsPosition.altitude < 0) {
+            return qsTr("GPS: No altitude (connect vehicle to verify)")
         }
-        return qsTr("Waiting for GPS fix...")
+        return qsTr("GPS: Position available (connect vehicle to verify)")
     }
 
     function getGpsStatusColor() {
-        if (_locationType === RemoteIDSettings.LocationType.FIXED) {
-            return qgcPal.colorGreen
-        }
         if (_activeRID && _remoteIDManager.gcsGPSGood) {
             return qgcPal.colorGreen
         }
@@ -260,48 +250,19 @@ SettingsPage {
             spacing:            ScreenTools.defaultFontPixelHeight / 2
             Layout.alignment:   Qt.AlignTop
             SettingsGroupLayout {
-                heading:            qsTr("GroundStation Location")
+                id:                 operatorLocationGroup
+                heading:            qsTr("Operator Location")
                 Layout.fillWidth:   true
                 outerBorderColor : _activeRID ? (_remoteIDManager.gcsGPSGood ? defaultBorderColor : qgcPal.colorRed) : defaultBorderColor
-                LabelledFactComboBox {
-                    label:              locationTypeFact.shortDescription
-                    fact:               locationTypeFact
-                    indexModel:         false
-                    Layout.fillWidth:   true
-                }
+                // Location-type selector + Fixed lat/lon/alt fields removed —
+                // operator location is always Live GNSS. Position source can
+                // be GCS or the drone (fallback); see RemoteIDManager._sendSystem.
 
-                LabelledFactTextField {
-                    label:                      _fact.shortDescription
-                    fact:                       _fact
-                    textField.maximumLength:    20
-                    visible:                    locationTypeFact.rawValue === RemoteIDSettings.LocationType.FIXED
-                    Layout.fillWidth:           true
-                    textFieldPreferredWidth:    textFieldWidth
-
-                    property Fact _fact: remoteIDSettings.latitudeFixed
-                }
-
-                LabelledFactTextField {
-                    label:                      _fact.shortDescription
-                    fact:                       _fact
-                    textField.maximumLength:    20
-                    visible:                    locationTypeFact.rawValue === RemoteIDSettings.LocationType.FIXED
-                    Layout.fillWidth:           true
-                    textFieldPreferredWidth:    textFieldWidth
-
-                    property Fact _fact: remoteIDSettings.longitudeFixed
-                }
-
-                LabelledFactTextField {
-                    label:                      _fact.shortDescription
-                    fact:                       _fact
-                    textField.maximumLength:    20
-                    visible:                    locationTypeFact.rawValue === RemoteIDSettings.LocationType.FIXED
-                    Layout.fillWidth:           true
-                    textFieldPreferredWidth:    textFieldWidth
-
-                    property Fact _fact: remoteIDSettings.altitudeFixed
-                }
+                // The values below come from RemoteIDManager's broadcast
+                // properties so they reflect *whatever's actually being sent*,
+                // not just the GCS GPS reading.
+                property bool   _hasBroadcastPosition: _activeRID && _remoteIDManager.broadcastPositionValid
+                property string _sourceTag:            _activeRID ? _remoteIDManager.positionSourceTag : ""
 
                 // GPS Status display
                 RowLayout {
@@ -320,27 +281,38 @@ SettingsPage {
                         Layout.fillWidth:   true
                         font.bold:          true
                     }
+
+                    // Subtle one-letter source tag: G = GCS, D = drone fallback.
+                    QGCLabel {
+                        text:           operatorLocationGroup._sourceTag
+                        visible:        text !== ""
+                        opacity:        0.55
+                        font.bold:      true
+                        font.pointSize: ScreenTools.smallFontPointSize
+                    }
                 }
 
-                // Live GPS coordinates display - shown when Live GNSS is selected
                 LabelledLabel {
                     label:              qsTr("Latitude")
-                    labelText:          gcsPosition && gcsPosition.isValid ? gcsPosition.latitude.toFixed(7) : qsTr("--")
-                    visible:            locationTypeFact.rawValue === RemoteIDSettings.LocationType.LIVE
+                    labelText:          operatorLocationGroup._hasBroadcastPosition
+                                            ? _remoteIDManager.broadcastLatitude.toFixed(7)
+                                            : qsTr("--")
                     Layout.fillWidth:   true
                 }
 
                 LabelledLabel {
                     label:              qsTr("Longitude")
-                    labelText:          gcsPosition && gcsPosition.isValid ? gcsPosition.longitude.toFixed(7) : qsTr("--")
-                    visible:            locationTypeFact.rawValue === RemoteIDSettings.LocationType.LIVE
+                    labelText:          operatorLocationGroup._hasBroadcastPosition
+                                            ? _remoteIDManager.broadcastLongitude.toFixed(7)
+                                            : qsTr("--")
                     Layout.fillWidth:   true
                 }
 
                 LabelledLabel {
                     label:              qsTr("Altitude")
-                    labelText:          gcsPosition && gcsPosition.isValid && !isNaN(gcsPosition.altitude) ? gcsPosition.altitude.toFixed(1) + " m" : qsTr("--")
-                    visible:            locationTypeFact.rawValue === RemoteIDSettings.LocationType.LIVE
+                    labelText:          operatorLocationGroup._hasBroadcastPosition && !isNaN(_remoteIDManager.broadcastAltitude)
+                                            ? _remoteIDManager.broadcastAltitude.toFixed(1) + " m"
+                                            : qsTr("--")
                     Layout.fillWidth:   true
                 }
 

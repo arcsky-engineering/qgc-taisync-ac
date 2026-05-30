@@ -26,6 +26,8 @@ ToolIndicatorPage {
     property string _serialParamName:   "SERIAL" + _flyViewSettings.payloadSerialPort.value + "_BAUD"
     property int    _ilxBaud:           _flyViewSettings.payloadIlxBaud.value
     property int    _vioBaud:           _flyViewSettings.payloadVioBaud.value
+    property int    _mavCamBaud:        _flyViewSettings.payloadMavlinkCamBaud.value
+    property int    _mavCamType:        _flyViewSettings.payloadMavlinkCamType.value
 
     //--------------------------------------
     // Payload-related parameters
@@ -34,7 +36,7 @@ ToolIndicatorPage {
     property Fact _camTypeFact
     property int payloadType: 0   // 0=unknown, 1=ILX, 2=VIO
 
-    // Payload selection: 0=ILX-LR1, 1=VIO, 2=LiDAR  (persisted across restarts)
+    // Payload selection: 0=ILX-LR1, 1=VIO, 2=LiDAR, 3=MAVLink Camera (generic)
     // _selectedPayload reflects the authoritative persisted value — all other UI depends on this.
     // _pendingPayload is the combo-box in-flight choice; only persisted when user hits Apply.
     // Closing the drawer without applying discards _pendingPayload (property is re-initialised on reopen).
@@ -99,7 +101,10 @@ ToolIndicatorPage {
     //--------------------------------------
     // Apply payload configuration
     //--------------------------------------
-    function applyPayloadConfig(baud, camtype) {
+    // rtspOverride: if non-empty, write this URL into videoSettings.rtspUrl2.
+    // Empty means leave the user's existing RTSP setting alone (used for the
+    // generic MAVLink Camera payload where we don't know the stream URL).
+    function applyPayloadConfig(baud, camtype, rtspOverride) {
 
         if (!activeVehicle || !_serialBaudFact || !_camTypeFact) {
             mainWindow.showMessageDialog(
@@ -121,14 +126,9 @@ ToolIndicatorPage {
             changed = true
         }
 
-        // Update RTSP automatically based on payload type.
-        // VIO and ILX (Sony) each have their own dedicated stream URL.
-        if (baud === _vioBaud)
-            QGroundControl.settingsManager.videoSettings.rtspUrl2.value =
-                "rtsp://192.168.144.10:8554/vio"
-        else if (baud === _ilxBaud)
-            QGroundControl.settingsManager.videoSettings.rtspUrl2.value =
-                "rtsp://192.168.144.122/stream-1.sdp"
+        if (rtspOverride && rtspOverride.length > 0) {
+            QGroundControl.settingsManager.videoSettings.rtspUrl2.value = rtspOverride
+        }
 
         if (changed) {
             mainWindow.showMessageDialog("Payload Info", "Payload parameters changed, rebooting...")
@@ -164,7 +164,7 @@ ToolIndicatorPage {
                     QGCComboBox {
                         id:                 payloadCombo
                         Layout.fillWidth:   true
-                        model:              ["ILX-LR1", "VIO", "LiDAR"]
+                        model:              ["ILX-LR1", "VIO", "LiDAR", "MAVLink Camera"]
                         currentIndex:       _pendingPayload
                         onActivated: function(index) { _pendingPayload = index }
                     }
@@ -176,9 +176,9 @@ ToolIndicatorPage {
                         onClicked: {
                             _savePayloadSelection(_pendingPayload)
                             if (_pendingPayload === 0)
-                                applyPayloadConfig(_ilxBaud, 5)
+                                applyPayloadConfig(_ilxBaud, 5, "rtsp://192.168.144.122/stream-1.sdp")
                             else
-                                applyPayloadConfig(_vioBaud, 6)
+                                applyPayloadConfig(_vioBaud, 6, "rtsp://192.168.144.10:8554/vio")
                         }
                     }
 
@@ -201,6 +201,19 @@ ToolIndicatorPage {
                                 mainWindow.showMessageDialog("Payload Info",
                                     "LiDAR payload already active")
                             }
+                        }
+                    }
+
+                    // Generic MAVLink Camera (e.g. Sentera 65R): writes the user-configured
+                    // CAM1_TYPE (5 or 6) and SERIALx_BAUD from FlyView settings. No RTSP
+                    // override — the user manages the stream URL themselves in Video settings.
+                    QGCButton {
+                        text:               "Apply"
+                        Layout.fillWidth:   true
+                        visible:            _pendingPayload === 3
+                        onClicked: {
+                            _savePayloadSelection(_pendingPayload)
+                            applyPayloadConfig(_mavCamBaud, _mavCamType, "")
                         }
                     }
                 }

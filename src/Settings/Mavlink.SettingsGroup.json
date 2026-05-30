@@ -75,9 +75,10 @@
 {
     "name":         "gcsMavlinkSystemID",
     "shortDesc":    "GCS MAVLink System ID",
+    "longDesc":     "MAVLink sysid this GCS announces. Keep 255 for single-GCS setups; use a different value in 245..255 only when running a second GCS on the same link, so the autopilot can tell them apart.",
     "type":         "uint32",
     "default":      255,
-    "min":          1,
+    "min":          245,
     "max":          255
 },
 {

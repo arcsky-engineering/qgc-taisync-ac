@@ -48,18 +48,107 @@ SettingsPage {
             visible:    _appSettings.qLocaleLanguage.visible
         }
 
-        LabelledFactComboBox {
-            label:      qsTr("Color Scheme")
-            fact:       _appSettings.indoorPalette
-            indexModel: false
-            visible:    _appSettings.indoorPalette.visible
-        }
+        // Color Scheme toggle removed — locked to Indoor (Dark) in AppSettings.cc.
 
-        LabelledFactComboBox {
-            label:      qsTr("Vehicle Variant")
-            fact:       _appSettings.vehicleVariant
-            indexModel: false
-            visible:    _appSettings.vehicleVariant.visible
+        // Vehicle Variant change is password-gated. We use a custom QGCComboBox
+        // here (not LabelledFactComboBox) so we never write the fact until the
+        // password is confirmed — otherwise the qgcRebootRequired warning fires
+        // on selection even if the user later cancels.
+        RowLayout {
+            Layout.fillWidth:   true
+            spacing:            ScreenTools.defaultFontPixelWidth * 2
+            visible:            _appSettings.vehicleVariant.visible
+
+            QGCLabel {
+                Layout.fillWidth:   true
+                text:               qsTr("Vehicle Variant")
+            }
+
+            QGCComboBox {
+                id:                 vehicleVariantCombo
+                sizeToContents:     true
+
+                readonly property Fact   _fact:             _appSettings.vehicleVariant
+                readonly property string _requiredPassword: "ac2026pw"
+
+                model: _fact.enumStrings
+
+                function _syncFromFact() {
+                    currentIndex = _fact ? _fact.enumIndex : 0
+                }
+
+                Component.onCompleted: _syncFromFact()
+
+                Connections {
+                    target: vehicleVariantCombo._fact
+                    function onRawValueChanged() { vehicleVariantCombo._syncFromFact() }
+                }
+
+                onActivated: (index) => {
+                    var newValue = _fact.enumValues[index]
+                    if (newValue === _fact.value) return
+                    // Stash the user's pick, prompt for the password, and
+                    // immediately revert the visual selection. The fact is
+                    // only touched if/when the dialog is accepted with the
+                    // correct password — so qgcRebootRequired and any other
+                    // value-change side effects never fire on cancel.
+                    variantPasswordDialog._pendingValue = newValue
+                    variantPasswordField.text = ""
+                    variantPasswordDialog.open()
+                    _syncFromFact()
+                }
+
+                Dialog {
+                    id:                 variantPasswordDialog
+                    title:              qsTr("Vehicle Variant Change")
+                    modal:              true
+                    anchors.centerIn:   Overlay.overlay
+                    standardButtons:    Dialog.Ok | Dialog.Cancel
+
+                    property var _pendingValue: undefined
+
+                    ColumnLayout {
+                        spacing: ScreenTools.defaultFontPixelHeight * 0.5
+
+                        QGCLabel {
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 40
+                            wrapMode:               Text.WordWrap
+                            text:                   qsTr("Enter password to change the vehicle variant. This affects firmware defaults and UI behavior; an app restart is required.")
+                        }
+
+                        QGCTextField {
+                            id:                     variantPasswordField
+                            Layout.fillWidth:       true
+                            echoMode:               TextInput.Password
+                            placeholderText:        qsTr("Password")
+                            onAccepted:             variantPasswordDialog.accept()
+                        }
+                    }
+
+                    onAccepted: {
+                        var pwOk = variantPasswordField.text === vehicleVariantCombo._requiredPassword
+                        if (pwOk && _pendingValue !== undefined) {
+                            vehicleVariantCombo._fact.value = _pendingValue
+                        } else if (!pwOk) {
+                            variantPasswordErrorDialog.open()
+                        }
+                        _pendingValue = undefined
+                        variantPasswordField.text = ""
+                    }
+                    onRejected: {
+                        // Fact was never touched; combo already reverted via _syncFromFact().
+                        _pendingValue = undefined
+                        variantPasswordField.text = ""
+                    }
+                }
+
+                MessageDialog {
+                    id:         variantPasswordErrorDialog
+                    title:      qsTr("Vehicle Variant Change")
+                    text:       qsTr("Incorrect password. Vehicle variant was not changed.")
+                    buttons:    MessageDialog.Ok
+                }
+            }
         }
 
         FactCheckBoxSlider {
@@ -91,12 +180,8 @@ SettingsPage {
             }
         }
 
-        FactCheckBoxSlider {
-            Layout.fillWidth: true
-            text:       qsTr("Enable RID on vehicle connect")
-            fact:       _appSettings.enableRIDOnConnect
-            visible:    _appSettings.enableRIDOnConnect.visible
-        }
+        // "Enable RID on vehicle connect" toggle removed — RID is now always
+        // force-enabled on connect; see RemoteIDManager.cc.
 
         // UI Scaling
         RowLayout {
