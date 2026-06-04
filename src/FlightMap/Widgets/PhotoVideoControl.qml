@@ -556,9 +556,15 @@ Rectangle {
                         property real _stepBtnW: ScreenTools.defaultFontPixelWidth * 5
                         property bool _showAdvanced: false
 
-                        // AUTO_TILT_EN fact for the "Auto NADIR (Down)" toggle. Reactive on
+                        // AUTO_TILT_EN is a classic ArduPilot param on the autopilot. Reactive on
                         // factAdded so the checkbox appears as soon as the param arrives, even
-                        // if it lands after this widget is instantiated.
+                        // if it lands after this widget is instantiated. Explicitly requested via
+                        // getMissingParameters so we don't depend on a component-wide initial sync.
+                        //
+                        // Geotag-on-landing is NOT a classic param — it's TG_LAND_DET on the TAG-E,
+                        // delivered via PARAM_EXT_VALUE on component 100. Decoded in Vehicle.cc and
+                        // exposed as _activeVehicle.apLandDetect (-1 unknown / 0 off / 1 on). No
+                        // FactPanelController hookup needed for it.
                         FactPanelController { id: ilxController }
                         property int _factReload: 0
                         property Fact _autoTiltEnFact: (_factReload, true)
@@ -569,6 +575,16 @@ Rectangle {
                             function onFactAdded(componentId, fact) {
                                 if (fact && fact.name === "AUTO_TILT_EN") apControls._factReload++
                             }
+                        }
+
+                        function _requestIlxParams() {
+                            if (!_activeVehicle) return
+                            ilxController.getMissingParameters(["AUTO_TILT_EN"])
+                        }
+                        Component.onCompleted: _requestIlxParams()
+                        Connections {
+                            target: globals
+                            function onActiveVehicleChanged() { apControls._requestIlxParams() }
                         }
 
                         // ── command helpers ──
@@ -591,6 +607,70 @@ Rectangle {
                             fact:               apControls._autoTiltEnFact
                             checkedValue:       1
                             uncheckedValue:     0
+                        }
+
+                        // ── GEOTAG ON LANDING — toggles TG_LAND_DET via PARAM_EXT ──
+                        // Default (checked / =1): TAG-E geotags the session automatically on landing.
+                        // Unchecked (=0): operator-driven flow — show the manual Geotag Now and
+                        // Reset Session buttons below. Geotagging itself always runs on the TAG-E;
+                        // these controls only govern when tags are *written* and let the operator
+                        // start a fresh session between flights.
+                        //
+                        // apSetLandDetect also sends FW_SAVE_CFG=1 after a short delay so the
+                        // choice persists across TAG-E reboots — hence the "Setting is persistent"
+                        // hint below the checkbox.
+                        //
+                        // Hidden until the TAG-E publishes the first PARAM_EXT_VALUE for TG_LAND_DET
+                        // (apLandDetect stays -1 until then), so we don't render a stale state.
+                        ColumnLayout {
+                            Layout.fillWidth:   true
+                            spacing:            0
+                            visible:            _activeVehicle && _activeVehicle.apLandDetect >= 0
+
+                            QGCCheckBox {
+                                id:                 landDetectCheck
+                                Layout.fillWidth:   true
+                                text:               "  " + qsTr("Geotag on Landing")
+                                checked:            _activeVehicle && _activeVehicle.apLandDetect === 1
+                                onClicked:          if (_activeVehicle) _activeVehicle.apSetLandDetect(checked)
+                            }
+                            QGCLabel {
+                                Layout.fillWidth:       true
+                                Layout.leftMargin:      ScreenTools.defaultFontPixelWidth * 2
+                                text:                   qsTr("(Setting is persistent)")
+                                font.pointSize:         ScreenTools.smallFontPointSize
+                                opacity:                0.7
+                            }
+                        }
+
+                        // Manual geotag session controls — only relevant when landing-detect is off.
+                        ColumnLayout {
+                            Layout.fillWidth:   true
+                            spacing:            _smallMargins
+                            visible:            _activeVehicle && _activeVehicle.apLandDetect === 0
+
+                            QGCButton {
+                                Layout.fillWidth:   true
+                                text:               qsTr("Geotag Now")
+                                onClicked:          if (_activeVehicle) _activeVehicle.apGeotagNow()
+                            }
+
+                            QGCButton {
+                                Layout.fillWidth:   true
+                                text:               qsTr("Reset Geotagging Session")
+                                onClicked:          resetSessionConfirm.open()
+
+                                MessageDialog {
+                                    id:         resetSessionConfirm
+                                    title:      qsTr("Reset Geotagging Session")
+                                    text:       qsTr("This drops all logged geotag data and starts a fresh session on the TAG-E. Continue?")
+                                    buttons:    MessageDialog.Yes | MessageDialog.No
+                                    onButtonClicked: function (button) {
+                                        if (button === MessageDialog.Yes) apControls.cfg(260)
+                                        resetSessionConfirm.close()
+                                    }
+                                }
+                            }
                         }
 
                         // ── ADVANCED TOGGLE ──
@@ -764,6 +844,22 @@ Rectangle {
                                     }
                                     apFormatConfirm.close()
                                 }
+                            }
+                        }
+
+                        // ── EXPORT PROCESSING LOG ──
+                        // Tells the TAG-E to write its processing log to the microSD card in its
+                        // own slot. Non-destructive; useful for diagnostics when geotagging fails.
+                        // Per the dev, DO_DIGICAM_CONFIGURE p1=1100 is the documented command, but
+                        // current TAG-E firmware may not implement it yet — verify with the device
+                        // logs / SD card output, and check console for the cfg send line below.
+                        QGCButton {
+                            text:               qsTr("Export Processing Log to SD")
+                            Layout.fillWidth:   true
+                            visible:            apControls._showAdvanced
+                            onClicked: {
+                                console.log("[AP_EXPORT_LOG] sending DO_DIGICAM_CONFIGURE p1=1100 to compId", _apCompId)
+                                apControls.cfg(1100)
                             }
                         }
                     }

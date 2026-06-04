@@ -54,6 +54,7 @@ SetupPage {
             property Fact _failsafeBattVoltage:             controller.getParameterFact(-1, "r.BATT2_LOW_VOLT", false /* reportMissing */)
             property Fact _failsafeThrEnable:               controller.getParameterFact(-1, "FS_THR_ENABLE")
             property Fact _failsafeThrValue:                controller.getParameterFact(-1, "FS_THR_VALUE")
+            property Fact _failsafeOptions:                 controller.getParameterFact(-1, "FS_OPTIONS")
 
             property Fact _batt1Monitor:                    controller.getParameterFact(-1, "BATT2_MONITOR")
             property Fact _batt2Monitor:                    controller.getParameterFact(-1, "BATT3_MONITOR", false /* reportMissing */)
@@ -267,10 +268,33 @@ SetupPage {
                             QGCComboBox {
                                 model:              [qsTr("Disabled"), qsTr("Always RTL"),
                                     qsTr("Continue with Mission in Auto Mode"), qsTr("Always Land")]
-                                currentIndex:       _failsafeThrEnable.value
+                                // "Continue with Mission" is driven by FS_OPTIONS bit 0 (Continue if in Auto on
+                                // RC failsafe), not the legacy FS_THR_ENABLE=2 (removed in firmware 4.0+).
+                                currentIndex:       (_failsafeOptions.rawValue & 1) ? 2 :
+                                                        (_failsafeThrEnable.value === 0 ? 0 :
+                                                            (_failsafeThrEnable.value === 3 ? 3 : 1))
                                 Layout.fillWidth:   true
 
-                                onActivated: (index) => { _failsafeThrEnable.value = index }
+                                onActivated: (index) => {
+                                    switch (index) {
+                                    case 0: // Disabled
+                                        _failsafeThrEnable.value = 0
+                                        _failsafeOptions.rawValue = 8
+                                        break
+                                    case 1: // Always RTL
+                                        _failsafeThrEnable.value = 1
+                                        _failsafeOptions.rawValue = 8
+                                        break
+                                    case 2: // Continue with Mission in Auto Mode
+                                        _failsafeThrEnable.value = 1
+                                        _failsafeOptions.rawValue = 11
+                                        break
+                                    case 3: // Always Land
+                                        _failsafeThrEnable.value = 3
+                                        _failsafeOptions.rawValue = 8
+                                        break
+                                    }
+                                }
                             }
 
                             QGCLabel { text: qsTr("PWM threshold:") }

@@ -176,7 +176,7 @@ ToolIndicatorPage {
                         onClicked: {
                             _savePayloadSelection(_pendingPayload)
                             if (_pendingPayload === 0)
-                                applyPayloadConfig(_ilxBaud, 5, "rtsp://192.168.144.122/stream-1.sdp")
+                                applyPayloadConfig(_ilxBaud, 5, "rtsp://192.168.144.121:8554/main.264")
                             else
                                 applyPayloadConfig(_vioBaud, 6, "rtsp://192.168.144.10:8554/vio")
                         }

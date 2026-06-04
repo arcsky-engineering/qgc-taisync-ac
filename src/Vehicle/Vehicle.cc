@@ -1557,6 +1557,12 @@ void Vehicle::_handleAirPixelParamValue(const mavlink_param_ext_value_t& value)
         // TAG-E always reads back 0 for IMGRES — don't let it clobber optimistic value
         if (res > 0 && _apImgRes != res) { _apImgRes = res; changed = true; }
     }
+    else if (name == QStringLiteral("TG_LAND_DET")) {
+        // TAG-E landing-detect flag. param_type is uint8 (1) per console logs,
+        // but accept either size by reading the first byte.
+        int ld = static_cast<int>(static_cast<uint8_t>(value.param_value[0]));
+        if (_apLandDetect != ld) { _apLandDetect = ld; changed = true; }
+    }
 
     if (changed) emit apCameraChanged();
 }
@@ -1584,6 +1590,36 @@ void Vehicle::_sendParamExtToComponent(int compId, const QString& name, const vo
         &msg,
         &p);
     sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
+}
+
+// Classic PARAM_SET for one-shot action params (e.g. FW_SAVE_CFG=1 to persist TAG-E config).
+// Does not interact with the parameter manager cache — fire and forget. UINT8 only since
+// that's all we currently need; extend the helper if other types come up.
+void Vehicle::_sendClassicParamSetUint8(int compId, const QString& name, uint8_t value)
+{
+    SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
+    if (!sharedLink) return;
+
+    mavlink_param_set_t p{};
+    mavlink_param_union_t u{};
+    u.param_uint8 = value;
+
+    p.target_system    = static_cast<uint8_t>(id());
+    p.target_component = static_cast<uint8_t>(compId);
+    p.param_value      = u.param_float;
+    p.param_type       = MAV_PARAM_TYPE_UINT8;
+    strncpy(p.param_id, name.toUtf8().constData(), sizeof(p.param_id));
+
+    mavlink_message_t msg{};
+    mavlink_msg_param_set_encode_chan(
+        static_cast<uint8_t>(MAVLinkProtocol::instance()->getSystemId()),
+        static_cast<uint8_t>(MAVLinkProtocol::getComponentId()),
+        sharedLink->mavlinkChannel(),
+        &msg,
+        &p);
+    sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
+
+    qDebug() << "[CLASSIC_PARAM_SET] name:" << name << "value:" << value << "compId:" << compId;
 }
 
 void Vehicle::_apSendParamExt(const QString& name, const void* value, size_t valueSize, uint8_t paramType)
@@ -1626,6 +1662,32 @@ void Vehicle::apSetImgRes(int res)
     _apImgRes = res;
     emit apCameraChanged();
     apSetParamUint(QStringLiteral("TG_IMGRES"), static_cast<quint32>(res));
+}
+
+void Vehicle::apSetLandDetect(bool on)
+{
+    int desired = on ? 1 : 0;
+    if (_apLandDetect != desired) {
+        _apLandDetect = desired;
+        emit apCameraChanged();
+    }
+    uint8_t val = static_cast<uint8_t>(desired);
+    _apSendParamExt(QStringLiteral("TG_LAND_DET"), &val, sizeof(val), 1);   // MAV_PARAM_EXT_TYPE_UINT8
+
+    // Persist the change across TAG-E reboots. Without this, TG_LAND_DET resets to 1
+    // on every boot. Sent 200 ms after the SET so the TAG-E has a moment to apply the
+    // new value before we tell it to commit. Per the AirPixel dev, FW_SAVE_CFG uses
+    // the classic PARAM protocol (not PARAM_EXT) — but lives on the TAG-E component
+    // since it's saving the TAG-E's own config, not anything autopilot-side.
+    QTimer::singleShot(200, this, [this]() {
+        _sendClassicParamSetUint8(airPixelComponentId(), QStringLiteral("FW_SAVE_CFG"), 1);
+    });
+}
+
+// Manually trigger the TAG-E to write EXIF for the current session.
+void Vehicle::apGeotagNow()
+{
+    sendMavCommand(airPixelComponentId(), MAV_CMD_DO_DIGICAM_CONFIGURE, true, 133, 0, 0, 0, 0, 0, 0);
 }
 
 void Vehicle::apFormatCard()

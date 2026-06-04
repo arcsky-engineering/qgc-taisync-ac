@@ -342,12 +342,15 @@ public:
     Q_PROPERTY(int    apExpMode         READ apExpMode         NOTIFY apCameraChanged)
     Q_PROPERTY(int    apAFMode          READ apAFMode          NOTIFY apCameraChanged)
     Q_PROPERTY(int    apImgRes          READ apImgRes          NOTIFY apCameraChanged)
+    Q_PROPERTY(int    apLandDetect      READ apLandDetect      NOTIFY apCameraChanged)  // -1 unknown, 0 off, 1 on
 
     Q_INVOKABLE void apSetParamUint (const QString& name, quint32 value);
     Q_INVOKABLE void apSetParamFloat(const QString& name, float value);
     Q_INVOKABLE void apSetExpMode(int mode);
     Q_INVOKABLE void apSetAFMode(int mode);
     Q_INVOKABLE void apSetImgRes(int res);
+    Q_INVOKABLE void apSetLandDetect(bool on);
+    Q_INVOKABLE void apGeotagNow();
     Q_INVOKABLE void apFormatCard();
 
     // VIO camera (component 101)
@@ -724,6 +727,7 @@ public:
     int    apExpMode()         const { return _apExpMode; }
     int    apAFMode()          const { return _apAFMode; }
     int    apImgRes()          const { return _apImgRes; }
+    int    apLandDetect()      const { return _apLandDetect; }
 
     // VIO camera readback
     bool   vioDetected()      const { return _vioDetected; }
@@ -1108,6 +1112,9 @@ private slots:
     void _handleVioParamValue(const mavlink_param_ext_value_t& value);
     void _apSendParamExt(const QString& name, const void* value, size_t valueSize, uint8_t paramType);
     void _sendParamExtToComponent(int compId, const QString& name, const void* value, size_t valueSize, uint8_t paramType);
+    // Classic PARAM_SET (not PARAM_EXT). One-shot send that bypasses the param manager
+    // cache — useful for "action" params that don't need to land in the Fact system.
+    void _sendClassicParamSetUint8(int compId, const QString& name, uint8_t value);
     void _checkGeoCompletion();
     void _updateUnifiedImageCount();
 
@@ -1422,6 +1429,7 @@ private:
     int    _apExpMode         = 0;      // lower 16 bits of TG_EXPMODE (1=M,2=P,3=A,4=S)
     int    _apAFMode          = 0;
     int    _apImgRes          = 0;      // TG_IMGRES (0=L,1=M,2=S)
+    int    _apLandDetect      = -1;     // TG_LAND_DET (-1=unknown until first PARAM_EXT_VALUE, 0=off, 1=on)
 
     // VIO camera readback
     bool _vioDetected      = false;
