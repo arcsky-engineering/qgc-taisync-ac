@@ -85,6 +85,40 @@ Rectangle {
         presetTimer.restart()
     }
 
+    // ════════════════════════════════════════════
+    //  ILX (Z3) encoder temperature polling
+    //  The Sony ILX video encoder exposes a CGI stats endpoint over the network —
+    //  separate from the MAVLink/serial payload link. Polling is done in C++
+    //  (EncoderTempPoller) rather than a QML XMLHttpRequest: the app enables system
+    //  proxy config globally, which XHR cannot bypass, and that broke direct device
+    //  polling on-device (status 0) whenever a proxy or WPAD auto-detect was active.
+    //  The poller forces NoProxy. It POSTs action=TempStatus then GETs the stats JSON,
+    //  parsing temp_status_str, e.g. " LENS 29 CPU 78.700 FPGA 89.8 OK".
+    //  Polled every 5s while ILX is the selected payload (independent of whether the
+    //  settings popup is open). The Z3 exposes its HTTP CGI and its RTSP stream on the
+    //  same host (192.168.144.122); the management URL is hardcoded here rather than
+    //  derived from the rtspUrl2 setting.
+    // ════════════════════════════════════════════
+    EncoderTempPoller {
+        id:     encoderTemp
+        url:    "http://192.168.144.122/cgi-bin/control.cgi"
+        active: _isAirPixel     // poll only while ILX is the selected payload
+    }
+
+    // Warn thresholds (°C): amber at warn, red at crit. Reference output showed
+    // CPU ~78 / FPGA ~89 as normal-running; thresholds sit above that headroom.
+    readonly property real _encCpuWarn:   85
+    readonly property real _encCpuCrit:   95
+    readonly property real _encFpgaWarn:  95
+    readonly property real _encFpgaCrit: 100
+
+    function _encTempColor(temp, warn, crit) {
+        if (!encoderTemp.valid || isNaN(temp)) return qgcPal.text
+        if (temp >= crit) return qgcPal.colorRed
+        if (temp >= warn) return qgcPal.colorOrange
+        return qgcPal.colorGreen
+    }
+
     // Force photo mode on startup
     property bool _photoModeForced: false
     onVisibleChanged: {
@@ -673,6 +707,32 @@ Rectangle {
                             }
                         }
 
+                        // ── AUTOFOCUS ──
+                        // Tap-to-focus arms the video feed: a tap on the payload
+                        // (secondary/CAM) video sends the tapped point to the TAG-E as an
+                        // AF point (DO_DIGICAM_CONFIGURE p1=1101, X/Y in percent) followed
+                        // by an AF trigger (p1=135). The tap capture itself lives in
+                        // FlyViewVideo.qml; this switch only arms it. "Autofocus Now" fires
+                        // the half-press AF trigger directly at the current focus point.
+                        // Camera must be in an AF mode (AF-S / AF-C) for the trigger to act.
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder }
+                        QGCLabel { text: qsTr("AUTOFOCUS"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            QGCLabel { text: qsTr("Tap to Focus"); Layout.fillWidth: true }
+                            QGCSwitch {
+                                checked:    QGroundControl.settingsManager.flyViewSettings.tapToFocusEnabled.rawValue
+                                onClicked:  QGroundControl.settingsManager.flyViewSettings.tapToFocusEnabled.rawValue = checked
+                            }
+                        }
+
+                        QGCButton {
+                            Layout.fillWidth:   true
+                            text:               qsTr("Autofocus Now")
+                            onClicked:          apControls.cfg(135)
+                        }
+
                         // ── ADVANCED TOGGLE ──
                         RowLayout {
                             Layout.fillWidth: true
@@ -861,6 +921,57 @@ Rectangle {
                                 console.log("[AP_EXPORT_LOG] sending DO_DIGICAM_CONFIGURE p1=1100 to compId", _apCompId)
                                 apControls.cfg(1100)
                             }
+                        }
+
+                        // ── ENCODER TEMP ──
+                        // Live temps from the Z3 video encoder, polled over HTTP in C++
+                        // (see EncoderTempPoller / id: encoderTemp at root). Values colour
+                        // amber/red past the warn/crit thresholds; "--" with a stale note
+                        // when unreachable.
+                        Rectangle { Layout.fillWidth: true; height: 1; color: qgcPal.groupBorder; visible: apControls._showAdvanced }
+                        QGCLabel { text: qsTr("ENCODER TEMP"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true; visible: apControls._showAdvanced }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced
+                            QGCLabel { text: qsTr("CPU"); Layout.preferredWidth: apControls._lblW }
+                            QGCLabel {
+                                Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
+                                text:  encoderTemp.valid ? encoderTemp.cpuTemp.toFixed(1) + " °C" : "--"
+                                color: _encTempColor(encoderTemp.cpuTemp, _encCpuWarn, _encCpuCrit)
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced && !isNaN(encoderTemp.fpgaTemp)
+                            QGCLabel { text: qsTr("FPGA"); Layout.preferredWidth: apControls._lblW }
+                            QGCLabel {
+                                Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
+                                text:  encoderTemp.valid ? encoderTemp.fpgaTemp.toFixed(1) + " °C" : "--"
+                                color: _encTempColor(encoderTemp.fpgaTemp, _encFpgaWarn, _encFpgaCrit)
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced && !isNaN(encoderTemp.lensTemp)
+                            QGCLabel { text: qsTr("LENS"); Layout.preferredWidth: apControls._lblW }
+                            QGCLabel {
+                                Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
+                                text:  encoderTemp.valid ? encoderTemp.lensTemp.toFixed(1) + " °C" : "--"
+                                color: qgcPal.text
+                            }
+                        }
+
+                        QGCLabel {
+                            Layout.fillWidth:   true
+                            visible:            apControls._showAdvanced && !encoderTemp.valid
+                            text:               encoderTemp.lastError !== "" ? qsTr("(no encoder response: ") + encoderTemp.lastError + ")" : qsTr("(no encoder response)")
+                            font.pointSize:     ScreenTools.smallFontPointSize
+                            color:              qgcPal.colorOrange
+                            opacity:            0.8
+                            wrapMode:           Text.WordWrap
                         }
                     }
 

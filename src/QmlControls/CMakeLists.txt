@@ -2,6 +2,8 @@ target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
         EditPositionDialogController.cc
         EditPositionDialogController.h
+        EncoderTempPoller.cc
+        EncoderTempPoller.h
         FactValueGrid.cc
         FactValueGrid.h
         FlightPathSegment.cc

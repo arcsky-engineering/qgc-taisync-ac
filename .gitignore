@@ -96,3 +96,4 @@ CMakeUserPresets.json
 cpm_modules
 nul
 ArcskyControl_Setup.exe
+/android/.gradle

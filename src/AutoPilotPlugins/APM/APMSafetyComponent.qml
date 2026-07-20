@@ -53,6 +53,13 @@ SetupPage {
         return _battVoltMin + (pct / 100.0) * _battVoltSpan
     }
 
+    // Master toggle for the percentage-based battery threshold UI (Xplorer).
+    // Currently OFF — we revert to direct voltage entry while the
+    // voltage<->SOC mapping is reworked. The percentage QGCTextField rows
+    // and the helper functions above are deliberately left in place so the
+    // feature can be re-enabled by flipping this flag back to true.
+    readonly property bool _useBatteryPercentageInputs: false
+
     Component {
         id: safetyPageComponent
 
@@ -163,42 +170,61 @@ SetupPage {
                             Layout.fillWidth:   true
                         }
 
-                        // ── X55: raw pack-voltage thresholds ──
+                        // ── Voltage thresholds ──
+                        // Shown for X55 always, and for Xplorer when the
+                        // percentage UI is disabled (current default).
 
                         QGCLabel {
                             text:       qsTr("Low voltage threshold:")
-                            visible:    !_isXplorer
+                            visible:    !_isXplorer || !_useBatteryPercentageInputs
                         }
                         FactTextField {
                             fact:               failsafeBattLowVoltage
                             showUnits:          true
                             Layout.fillWidth:   true
-                            visible:            !_isXplorer
+                            visible:            !_isXplorer || !_useBatteryPercentageInputs
                         }
 
                         QGCLabel {
                             text:       qsTr("Critical voltage threshold:")
-                            visible:    !_isXplorer
+                            visible:    !_isXplorer || !_useBatteryPercentageInputs
                         }
                         FactTextField {
                             fact:               failsafeBattCritVoltage
                             showUnits:          true
                             Layout.fillWidth:   true
-                            visible:            !_isXplorer
+                            visible:            !_isXplorer || !_useBatteryPercentageInputs
                         }
 
-                        // ── Xplorer: battery-percentage thresholds ──
+                        // Minimum arming voltage — surfaced on the Safety tab
+                        // for Xplorer (Power tab is hidden for that variant).
+                        // X55 keeps its arming-voltage input on the Power tab.
+                        QGCLabel {
+                            text:       qsTr("Minimum arming voltage:")
+                            visible:    _isXplorer && !_useBatteryPercentageInputs && failsafeBattArmVoltage
+                        }
+                        FactTextField {
+                            fact:               failsafeBattArmVoltage
+                            showUnits:          true
+                            Layout.fillWidth:   true
+                            visible:            _isXplorer && !_useBatteryPercentageInputs && failsafeBattArmVoltage
+                        }
+
+                        // ── Xplorer: battery-percentage thresholds (disabled) ──
                         // Backed by the same *_LOW_VOLT / *_CRT_VOLT / *_ARM_VOLT
                         // voltage params; converted via the firmware's linear 6S
                         // SOC map. Entering 0 disables the threshold (writes 0V).
+                        // Kept here so flipping _useBatteryPercentageInputs back
+                        // to true restores the percentage UI without re-typing
+                        // any of this.
 
                         QGCLabel {
                             text:       qsTr("Low battery percentage:")
-                            visible:    _isXplorer
+                            visible:    _isXplorer && _useBatteryPercentageInputs
                         }
                         QGCTextField {
                             id:                 lowPctField
-                            visible:            _isXplorer
+                            visible:            _isXplorer && _useBatteryPercentageInputs
                             Layout.fillWidth:   true
                             inputMethodHints:   Qt.ImhDigitsOnly
                             showUnits:          true
@@ -224,11 +250,11 @@ SetupPage {
 
                         QGCLabel {
                             text:       qsTr("Critical battery percentage:")
-                            visible:    _isXplorer
+                            visible:    _isXplorer && _useBatteryPercentageInputs
                         }
                         QGCTextField {
                             id:                 critPctField
-                            visible:            _isXplorer
+                            visible:            _isXplorer && _useBatteryPercentageInputs
                             Layout.fillWidth:   true
                             inputMethodHints:   Qt.ImhDigitsOnly
                             showUnits:          true
@@ -254,11 +280,11 @@ SetupPage {
 
                         QGCLabel {
                             text:       qsTr("Minimum arming percentage:")
-                            visible:    _isXplorer && failsafeBattArmVoltage
+                            visible:    _isXplorer && _useBatteryPercentageInputs && failsafeBattArmVoltage
                         }
                         QGCTextField {
                             id:                 armPctField
-                            visible:            _isXplorer && failsafeBattArmVoltage
+                            visible:            _isXplorer && _useBatteryPercentageInputs && failsafeBattArmVoltage
                             Layout.fillWidth:   true
                             inputMethodHints:   Qt.ImhDigitsOnly
                             showUnits:          true
@@ -523,6 +549,17 @@ SetupPage {
                     property Fact _failsafeBattVoltage:             controller.getParameterFact(-1, "r." + _battPrefix1 + "_LOW_VOLT", false /* reportMissing */)
                     property Fact _failsafeThrEnable:               controller.getParameterFact(-1, "FS_THR_ENABLE")
                     property Fact _failsafeThrValue:                controller.getParameterFact(-1, "FS_THR_VALUE")
+                    property Fact _failsafeOptions:                 controller.getParameterFact(-1, "FS_OPTIONS")
+
+                    // "Continue with Mission in Auto Mode" is driven by FS_OPTIONS, not the legacy
+                    // FS_THR_ENABLE=2 / FS_GCS_ENABLE=2 enum values (removed in firmware 4.0+).
+                    //   bit 0 (1)  = Continue if in Auto on RC/throttle failsafe
+                    //   bit 1 (2)  = Continue if in Auto on GCS failsafe
+                    //   bit 3 (8)  = Continue if landing on any failsafe (kept as the baseline)
+                    // Selecting "Continue" on either combo writes the combined value 11; any other
+                    // action writes the 8 baseline. The two continue options are therefore coupled.
+                    readonly property int _fsOptionsBaseline:       8
+                    readonly property int _fsOptionsContinueAuto:   11
 
                     // Fixed width so the closed combobox (and therefore this whole
                     // General Failsafe group) keeps a stable width regardless of the
@@ -555,20 +592,69 @@ SetupPage {
                                 columns:        2
 
                                 QGCLabel { text: qsTr("Ground Station failsafe:") }
-                                FactComboBox {
-                                    fact:                   _failsafeGCSEnable
-                                    indexModel:             false
+                                QGCComboBox {
+                                    model:                  [qsTr("Disabled/NoAction"), qsTr("RTL"),
+                                        qsTr("Continue with Mission in Auto Mode"), qsTr("Land")]
+                                    // If GCS failsafe is disabled it stays "Disabled" regardless of the
+                                    // FS_OPTIONS continue bit (which the radio failsafe may have set via 11).
+                                    // Otherwise: Continue in Auto is FS_OPTIONS bit 1; else map by FS_GCS_ENABLE.
+                                    currentIndex:           (_failsafeGCSEnable.value === 0) ? 0 :
+                                                                ((_failsafeOptions.rawValue & 2) ? 2 :
+                                                                    (_failsafeGCSEnable.value === 5 ? 3 : 1))
                                     Layout.preferredWidth:  _failsafeComboWidth
+
+                                    onActivated: (index) => {
+                                        switch (index) {
+                                        case 0: // Disabled/NoAction
+                                            _failsafeGCSEnable.value = 0
+                                            _failsafeOptions.rawValue = _fsOptionsBaseline
+                                            break
+                                        case 1: // RTL
+                                            _failsafeGCSEnable.value = 1
+                                            _failsafeOptions.rawValue = _fsOptionsBaseline
+                                            break
+                                        case 2: // Continue with Mission in Auto Mode
+                                            _failsafeGCSEnable.value = 1
+                                            _failsafeOptions.rawValue = _fsOptionsContinueAuto
+                                            break
+                                        case 3: // Land
+                                            _failsafeGCSEnable.value = 5
+                                            _failsafeOptions.rawValue = _fsOptionsBaseline
+                                            break
+                                        }
+                                    }
                                 }
 
                                 QGCLabel { text: qsTr("Radio failsafe:") }
                                 QGCComboBox {
                                     model:                  [qsTr("Disabled"), qsTr("Always RTL"),
                                         qsTr("Continue with Mission in Auto Mode"), qsTr("Always Land")]
-                                    currentIndex:           _failsafeThrEnable.value
+                                    // Continue in Auto is FS_OPTIONS bit 0; otherwise map by FS_THR_ENABLE.
+                                    currentIndex:           (_failsafeOptions.rawValue & 1) ? 2 :
+                                                                (_failsafeThrEnable.value === 0 ? 0 :
+                                                                    (_failsafeThrEnable.value === 3 ? 3 : 1))
                                     Layout.preferredWidth:  _failsafeComboWidth
 
-                                    onActivated: (index) => { _failsafeThrEnable.value = index }
+                                    onActivated: (index) => {
+                                        switch (index) {
+                                        case 0: // Disabled
+                                            _failsafeThrEnable.value = 0
+                                            _failsafeOptions.rawValue = _fsOptionsBaseline
+                                            break
+                                        case 1: // Always RTL
+                                            _failsafeThrEnable.value = 1
+                                            _failsafeOptions.rawValue = _fsOptionsBaseline
+                                            break
+                                        case 2: // Continue with Mission in Auto Mode
+                                            _failsafeThrEnable.value = 1
+                                            _failsafeOptions.rawValue = _fsOptionsContinueAuto
+                                            break
+                                        case 3: // Always Land
+                                            _failsafeThrEnable.value = 3
+                                            _failsafeOptions.rawValue = _fsOptionsBaseline
+                                            break
+                                        }
+                                    }
                                 }
 
                                 // QGCLabel { text: qsTr("PWM threshold:") }

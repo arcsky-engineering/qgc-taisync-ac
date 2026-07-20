@@ -185,9 +185,9 @@
 {
     "name":         "payloadIlxBaud",
     "shortDesc":    "ILX-LR1 baud rate parameter value",
-    "longDesc":     "The SERIALx_BAUD parameter value that indicates an ILX-LR1 payload is configured.",
+    "longDesc":     "The SERIALx_BAUD parameter value that indicates an ILX-LR1 payload is configured. 921 = 921600 baud.",
     "type":         "uint32",
-    "default":      500
+    "default":      921
 },
 {
     "name":         "payloadVioBaud",
@@ -218,6 +218,13 @@
     "longDesc":     "Persisted payload selection: 0=ILX-LR1, 1=VIO, 2=LiDAR, 3=MAVLink Camera (generic).",
     "type":         "uint32",
     "default":      0
+},
+{
+    "name":         "tapToFocusEnabled",
+    "shortDesc":    "Enable tap-to-focus on the payload video",
+    "longDesc":     "When enabled, tapping the ILX payload video feed sends the tapped point to the TAG-E as an autofocus point (DO_DIGICAM_CONFIGURE p1=1101) and triggers autofocus (p1=135).",
+    "type":         "bool",
+    "default":      false
 },
 {
     "name":             "enableMicROM",

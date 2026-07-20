@@ -275,4 +275,145 @@ Item {
         id: obstacleDistance
         showText: pipState.state === pipState.fullState
     }
+
+    // ── Tap-to-Focus overlay (ILX / TAG-E) ──
+    // Armed only when: the feature is toggled on (flyViewSettings.tapToFocusEnabled),
+    // the ILX payload is selected (payloadSelection == 0), the payload (secondary/CAM)
+    // video is the one being shown (videoManager.currentStream == "2"), the video is
+    // the full view (not the small PIP), and a TAG-E component id is known.
+    // While armed it sits on top and intercepts taps, so a tap sets the AF point
+    // instead of moving the on-screen gimbal; when not armed it is disabled and taps
+    // fall through to flyViewVideoMouseArea (gimbal / tracking / double-click fullscreen).
+    MouseArea {
+        id:             tapToFocusArea
+        anchors.fill:   parent
+        z:              1
+        hoverEnabled:   false
+        cursorShape:    Qt.CrossCursor
+
+        property var  _vehicle:      QGroundControl.multiVehicleManager.activeVehicle
+        property bool _isIlx:        QGroundControl.settingsManager.flyViewSettings.payloadSelection.value === 0
+        property bool _payloadVideo: QGroundControl.videoManager.currentStream === "2"
+        property bool _tracking:     videoStreaming._camera && videoStreaming._camera.trackingEnabled
+        property bool _armed:        QGroundControl.settingsManager.flyViewSettings.tapToFocusEnabled.rawValue &&
+                                     _isIlx && _payloadVideo && !_tracking &&
+                                     _root.pipState.state === _root.pipState.fullState &&
+                                     _vehicle && _vehicle.airPixelComponentId > 0
+
+        enabled:        _armed
+
+        // Double-click still toggles fullscreen (matching flyViewVideoMouseArea's
+        // timing). We must handle it here because while armed this overlay consumes
+        // the taps that the underlying handler would otherwise use — otherwise the
+        // user could neither enter nor exit fullscreen, and in fullscreen the ILX
+        // popup (with the off switch) is hidden. A single tap sets focus.
+        property real preClickedTime:       0
+        property real doubleClickedMinTime: 100
+        property real doubleClickedMaxTime: 300
+
+        onClicked: (mouse) => {
+            var now = (new Date()).getTime()
+            var delta = now - preClickedTime
+            if (delta >= doubleClickedMinTime && delta <= doubleClickedMaxTime) {
+                QGroundControl.videoManager.fullScreen = !QGroundControl.videoManager.fullScreen
+                preClickedTime = 0
+                return
+            }
+            preClickedTime = now
+
+            var vw = videoStreaming.getWidth()
+            var vh = videoStreaming.getHeight()
+            if (vw <= 0 || vh <= 0) return
+
+            // Strip the letterbox bars, then normalize to the video content (0..1).
+            var lx = (width  - vw) / 2
+            var ly = (height - vh) / 2
+            var xNorm = Math.max(0, Math.min((mouse.x - lx) / vw, 1))
+            var yNorm = Math.max(0, Math.min((mouse.y - ly) / vh, 1))
+
+            // The camera's flexible-spot box center can't reach the extreme frame
+            // edge (the box has size), so a raw 1/100 command clamps inward and a
+            // reticle drawn at the finger ends up outside the real focus bracket at
+            // the corners (center stays aligned). Compress the commanded range into
+            // [_afMarginPct, 100-_afMarginPct]: this keeps the center exact and pulls
+            // the edges in to match the camera. Tune _afMarginPct on the bench — if
+            // the camera bracket still sits inside the QGC box at the corners, raise
+            // it; if the bracket sits outside the QGC box, lower it.
+            var span = 100 - 2 * _afMarginPct
+            var xPct = Math.round(_afMarginPct + xNorm * span)
+            var yPct = Math.round(_afMarginPct + yNorm * span)
+
+            var compId = _vehicle.airPixelComponentId
+            // DO_DIGICAM_CONFIGURE (202): p1=1101 sets the AF point (X,Y percent),
+            // then p1=135 triggers autofocus (half-press) at that point. These are
+            // paced apart via afTriggerTimer — the TAG-E drops rapid-fire sends
+            // (see PhotoVideoControl's preset queue), so firing 135 in the same
+            // instant as 1101 gets it dropped and nothing focuses. showError=false
+            // because this is a frequent gesture — no error dialogs on every tap.
+            _vehicle.sendCommand(compId, 202, false, 1101, xPct, yPct, 0, 0, 0, 0)
+            _pendingCompId  = compId
+            _afPulsesLeft   = _afPulseCount
+            afTriggerTimer.restart()
+            console.log("[TAP_FOCUS] compId", compId, "point", xPct + "%," + yPct + "%")
+
+            // Draw the reticle where the camera will actually focus (the compressed
+            // position), not at the raw finger, so it lines up with the camera bracket.
+            focusReticle.x = lx + (xPct / 100) * vw - focusReticle.width  / 2
+            focusReticle.y = ly + (yPct / 100) * vh - focusReticle.height / 2
+            focusReticleAnim.restart()
+        }
+
+        // After moving the AF point (1101) we fire the AF trigger (135) as a short
+        // burst rather than a single pulse. A lone 135 focuses fine when the camera
+        // is idle, but right after a point move the TAG-E needs a *sustained*
+        // half-press to hunt and lock at the new spot — the dev noted repeating 135
+        // prolongs the half-press. First pulse is delayed one interval so the point
+        // move settles first (and isn't dropped as a rapid-fire duplicate).
+        property int _pendingCompId:      0
+        readonly property int _afPulseCount: 3
+        property int _afPulsesLeft:       0
+
+        // Inset (in percent) that the commanded AF point is compressed into, to match
+        // the camera's reachable focus-box range. See the tuning note in onClicked.
+        readonly property real _afMarginPct: 4
+        Timer {
+            id:                 afTriggerTimer
+            interval:           300
+            repeat:             true
+            triggeredOnStart:   false
+            onTriggered: {
+                if (tapToFocusArea._pendingCompId <= 0 || tapToFocusArea._afPulsesLeft <= 0) {
+                    stop()
+                    return
+                }
+                tapToFocusArea._vehicle.sendCommand(tapToFocusArea._pendingCompId, 202, false, 135, 0, 0, 0, 0, 0, 0)
+                tapToFocusArea._afPulsesLeft--
+                console.log("[TAP_FOCUS] AF pulse sent, remaining", tapToFocusArea._afPulsesLeft)
+            }
+        }
+    }
+
+    // Brief focus reticle drawn at the tapped point for visual feedback.
+    Rectangle {
+        id:             focusReticle
+        width:          ScreenTools.defaultFontPixelHeight * 3
+        height:         width
+        radius:         4
+        color:          "transparent"
+        border.color:   "#00e0ff"
+        border.width:   2
+        opacity:        0
+        visible:        opacity > 0
+        z:              2
+
+        SequentialAnimation {
+            id: focusReticleAnim
+            ParallelAnimation {
+                NumberAnimation { target: focusReticle; property: "opacity"; from: 0.0; to: 1.0; duration: 120 }
+                NumberAnimation { target: focusReticle; property: "scale";   from: 1.6; to: 1.0; duration: 180; easing.type: Easing.OutBack }
+            }
+            PauseAnimation  { duration: 500 }
+            NumberAnimation { target: focusReticle; property: "opacity"; to: 0.0; duration: 300 }
+        }
+    }
 }

@@ -32,7 +32,7 @@ QGC_LOGGING_CATEGORY(RemoteIDManagerLog, "RemoteIDManagerLog")
 // How long to wait for an initial GCS GPS fix before falling back to using
 // the drone's position as the operator location (test-only behavior; see
 // _sendSystem state machine).
-#define INITIAL_GCS_WAIT_MS         (4 * 60 * 1000)
+#define INITIAL_GCS_WAIT_MS         (1 * 60 * 1000)
 // Once we've had a GCS fix at least once, we won't auto-fall-back to the
 // drone again unless the drone has been disarmed AND we've been without a
 // fresh GCS fix for at least this long.
