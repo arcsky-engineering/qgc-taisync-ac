@@ -50,5 +50,6 @@ public:
     DEFINE_SETTINGFACT(payloadMavlinkCamBaud)
     DEFINE_SETTINGFACT(payloadSelection)
     DEFINE_SETTINGFACT(tapToFocusEnabled)
+    DEFINE_SETTINGFACT(tapToFocusSpotMode)
     DEFINE_SETTINGFACT(enableMicROM)
 };

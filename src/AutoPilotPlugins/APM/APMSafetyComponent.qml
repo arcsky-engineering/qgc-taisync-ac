@@ -35,30 +35,10 @@ SetupPage {
         return meters * 100.0
     }
 
-    // Battery percentage <-> pack voltage conversion (Xplorer only).
-    // Mirrors the BMS firmware's linear 6S SOC map: 0% = 17.8V, 100% = 25.2V
-    // (Xplorer-BMS-FW main.c). A stored voltage of 0 means the threshold is
-    // disabled (ArduCopter convention) and is shown as 0%.
-    readonly property real _battVoltMin:  17.8
-    readonly property real _battVoltMax:  25.2
-    readonly property real _battVoltSpan: _battVoltMax - _battVoltMin   // 7.4 V
-
-    function battVoltToPercent(volt) {
-        if (volt <= 0) return 0
-        return (volt - _battVoltMin) / _battVoltSpan * 100.0
-    }
-
-    function battPercentToVolt(pct) {
-        if (pct <= 0) return 0
-        return _battVoltMin + (pct / 100.0) * _battVoltSpan
-    }
-
-    // Master toggle for the percentage-based battery threshold UI (Xplorer).
-    // Currently OFF — we revert to direct voltage entry while the
-    // voltage<->SOC mapping is reworked. The percentage QGCTextField rows
-    // and the helper functions above are deliberately left in place so the
-    // feature can be re-enabled by flipping this flag back to true.
-    readonly property bool _useBatteryPercentageInputs: false
+    // Xplorer uses percentage-based failsafe thresholds via custom ArduPilot
+    // parameters BATT*_LOW_SOC and BATT*_CRT_SOC (INT8, 0-100 %, 0=disabled).
+    // The old voltage<->percent conversion helpers are no longer needed —
+    // the FactTextField writes the SOC parameter directly.
 
     Component {
         id: safetyPageComponent
@@ -103,6 +83,18 @@ SetupPage {
             // for Xplorer since the Power tab is hidden. As a percentage, full range.
             property Fact _failsafeBatt1ArmVoltage:         controller.getParameterFact(-1, _battPrefix1 + "_ARM_VOLT", false /* reportMissing */)
             property Fact _failsafeBatt2ArmVoltage:         controller.getParameterFact(-1, _battPrefix2 + "_ARM_VOLT", false /* reportMissing */)
+
+            // Xplorer-only: percentage-of-charge failsafe thresholds. Backed
+            // by our custom ArduPilot params BATT*_LOW_SOC / BATT*_CRT_SOC /
+            // BATT*_ARM_SOC (INT8, 0-100 %, 0 disables the threshold).
+            // The ARM_SOC facts may be null on older firmware — the UI falls
+            // back to arming voltage in that case.
+            property Fact _failsafeBatt1LowSoc:             controller.getParameterFact(-1, _battPrefix1 + "_LOW_SOC", false /* reportMissing */)
+            property Fact _failsafeBatt2LowSoc:             controller.getParameterFact(-1, _battPrefix2 + "_LOW_SOC", false /* reportMissing */)
+            property Fact _failsafeBatt1CritSoc:            controller.getParameterFact(-1, _battPrefix1 + "_CRT_SOC", false /* reportMissing */)
+            property Fact _failsafeBatt2CritSoc:            controller.getParameterFact(-1, _battPrefix2 + "_CRT_SOC", false /* reportMissing */)
+            property Fact _failsafeBatt1ArmSoc:             controller.getParameterFact(-1, _battPrefix1 + "_ARM_SOC", false /* reportMissing */)
+            property Fact _failsafeBatt2ArmSoc:             controller.getParameterFact(-1, _battPrefix2 + "_ARM_SOC", false /* reportMissing */)
 
             property Fact _armingCheck: controller.getParameterFact(-1, "ARMING_CHECK")
 
@@ -150,6 +142,21 @@ SetupPage {
                         enabled: !!mirrorBattArmVoltage
                         function onRawValueChanged() { mirrorBattArmVoltage.rawValue = failsafeBattArmVoltage.rawValue }
                     }
+                    Connections {
+                        target:  failsafeBattLowSoc
+                        enabled: !!mirrorBattLowSoc
+                        function onRawValueChanged() { mirrorBattLowSoc.rawValue = failsafeBattLowSoc.rawValue }
+                    }
+                    Connections {
+                        target:  failsafeBattCritSoc
+                        enabled: !!mirrorBattCritSoc
+                        function onRawValueChanged() { mirrorBattCritSoc.rawValue = failsafeBattCritSoc.rawValue }
+                    }
+                    Connections {
+                        target:  failsafeBattArmSoc
+                        enabled: !!mirrorBattArmSoc
+                        function onRawValueChanged() { mirrorBattArmSoc.rawValue = failsafeBattArmSoc.rawValue }
+                    }
 
                     GridLayout {
                         id:             gridLayout
@@ -170,142 +177,80 @@ SetupPage {
                             Layout.fillWidth:   true
                         }
 
-                        // ── Voltage thresholds ──
-                        // Shown for X55 always, and for Xplorer when the
-                        // percentage UI is disabled (current default).
-
+                        // ── X55: voltage thresholds ──
                         QGCLabel {
                             text:       qsTr("Low voltage threshold:")
-                            visible:    !_isXplorer || !_useBatteryPercentageInputs
+                            visible:    !_isXplorer
                         }
                         FactTextField {
                             fact:               failsafeBattLowVoltage
                             showUnits:          true
                             Layout.fillWidth:   true
-                            visible:            !_isXplorer || !_useBatteryPercentageInputs
+                            visible:            !_isXplorer
                         }
 
                         QGCLabel {
                             text:       qsTr("Critical voltage threshold:")
-                            visible:    !_isXplorer || !_useBatteryPercentageInputs
+                            visible:    !_isXplorer
                         }
                         FactTextField {
                             fact:               failsafeBattCritVoltage
                             showUnits:          true
                             Layout.fillWidth:   true
-                            visible:            !_isXplorer || !_useBatteryPercentageInputs
+                            visible:            !_isXplorer
                         }
 
-                        // Minimum arming voltage — surfaced on the Safety tab
+                        // ── Xplorer: percentage-of-charge thresholds ──
+                        // Directly write BATT*_LOW_SOC / BATT*_CRT_SOC. Mirroring
+                        // to the parallel pack (BATT3_*) happens in the
+                        // Connections blocks above.
+                        QGCLabel {
+                            text:       qsTr("Low battery percentage:")
+                            visible:    _isXplorer && failsafeBattLowSoc
+                        }
+                        FactTextField {
+                            fact:               failsafeBattLowSoc
+                            showUnits:          true
+                            Layout.fillWidth:   true
+                            visible:            _isXplorer && failsafeBattLowSoc
+                        }
+
+                        QGCLabel {
+                            text:       qsTr("Critical battery percentage:")
+                            visible:    _isXplorer && failsafeBattCritSoc
+                        }
+                        FactTextField {
+                            fact:               failsafeBattCritSoc
+                            showUnits:          true
+                            Layout.fillWidth:   true
+                            visible:            _isXplorer && failsafeBattCritSoc
+                        }
+
+                        // Minimum arming threshold — surfaced on the Safety tab
                         // for Xplorer (Power tab is hidden for that variant).
-                        // X55 keeps its arming-voltage input on the Power tab.
+                        // Prefer BATT*_ARM_SOC (percentage) when the firmware
+                        // exposes it; fall back to BATT*_ARM_VOLT (voltage)
+                        // otherwise. X55 keeps its arming input on the Power tab.
+                        QGCLabel {
+                            text:       qsTr("Minimum arming percentage:")
+                            visible:    _isXplorer && failsafeBattArmSoc
+                        }
+                        FactTextField {
+                            fact:               failsafeBattArmSoc
+                            showUnits:          true
+                            Layout.fillWidth:   true
+                            visible:            _isXplorer && failsafeBattArmSoc
+                        }
+
                         QGCLabel {
                             text:       qsTr("Minimum arming voltage:")
-                            visible:    _isXplorer && !_useBatteryPercentageInputs && failsafeBattArmVoltage
+                            visible:    _isXplorer && !failsafeBattArmSoc && failsafeBattArmVoltage
                         }
                         FactTextField {
                             fact:               failsafeBattArmVoltage
                             showUnits:          true
                             Layout.fillWidth:   true
-                            visible:            _isXplorer && !_useBatteryPercentageInputs && failsafeBattArmVoltage
-                        }
-
-                        // ── Xplorer: battery-percentage thresholds (disabled) ──
-                        // Backed by the same *_LOW_VOLT / *_CRT_VOLT / *_ARM_VOLT
-                        // voltage params; converted via the firmware's linear 6S
-                        // SOC map. Entering 0 disables the threshold (writes 0V).
-                        // Kept here so flipping _useBatteryPercentageInputs back
-                        // to true restores the percentage UI without re-typing
-                        // any of this.
-
-                        QGCLabel {
-                            text:       qsTr("Low battery percentage:")
-                            visible:    _isXplorer && _useBatteryPercentageInputs
-                        }
-                        QGCTextField {
-                            id:                 lowPctField
-                            visible:            _isXplorer && _useBatteryPercentageInputs
-                            Layout.fillWidth:   true
-                            inputMethodHints:   Qt.ImhDigitsOnly
-                            showUnits:          true
-                            unitsLabel:         "%"
-                            function _sync() { text = failsafeBattLowVoltage ? Math.round(battVoltToPercent(failsafeBattLowVoltage.rawValue)).toString() : "--" }
-                            Component.onCompleted: _sync()
-                            onEditingFinished: {
-                                if (!failsafeBattLowVoltage) return
-                                var pct = parseInt(text)
-                                if (isNaN(pct) || pct <= 0) {
-                                    failsafeBattLowVoltage.rawValue = 0     // disable
-                                } else {
-                                    pct = Math.max(5, Math.min(50, pct))
-                                    failsafeBattLowVoltage.rawValue = battPercentToVolt(pct)
-                                }
-                                _sync()
-                            }
-                            Connections {
-                                target: failsafeBattLowVoltage
-                                function onRawValueChanged() { lowPctField._sync() }
-                            }
-                        }
-
-                        QGCLabel {
-                            text:       qsTr("Critical battery percentage:")
-                            visible:    _isXplorer && _useBatteryPercentageInputs
-                        }
-                        QGCTextField {
-                            id:                 critPctField
-                            visible:            _isXplorer && _useBatteryPercentageInputs
-                            Layout.fillWidth:   true
-                            inputMethodHints:   Qt.ImhDigitsOnly
-                            showUnits:          true
-                            unitsLabel:         "%"
-                            function _sync() { text = failsafeBattCritVoltage ? Math.round(battVoltToPercent(failsafeBattCritVoltage.rawValue)).toString() : "--" }
-                            Component.onCompleted: _sync()
-                            onEditingFinished: {
-                                if (!failsafeBattCritVoltage) return
-                                var pct = parseInt(text)
-                                if (isNaN(pct) || pct <= 0) {
-                                    failsafeBattCritVoltage.rawValue = 0    // disable
-                                } else {
-                                    pct = Math.max(5, Math.min(50, pct))
-                                    failsafeBattCritVoltage.rawValue = battPercentToVolt(pct)
-                                }
-                                _sync()
-                            }
-                            Connections {
-                                target: failsafeBattCritVoltage
-                                function onRawValueChanged() { critPctField._sync() }
-                            }
-                        }
-
-                        QGCLabel {
-                            text:       qsTr("Minimum arming percentage:")
-                            visible:    _isXplorer && _useBatteryPercentageInputs && failsafeBattArmVoltage
-                        }
-                        QGCTextField {
-                            id:                 armPctField
-                            visible:            _isXplorer && _useBatteryPercentageInputs && failsafeBattArmVoltage
-                            Layout.fillWidth:   true
-                            inputMethodHints:   Qt.ImhDigitsOnly
-                            showUnits:          true
-                            unitsLabel:         "%"
-                            function _sync() { text = failsafeBattArmVoltage ? Math.round(battVoltToPercent(failsafeBattArmVoltage.rawValue)).toString() : "--" }
-                            Component.onCompleted: _sync()
-                            onEditingFinished: {
-                                if (!failsafeBattArmVoltage) return
-                                var pct = parseInt(text)
-                                if (isNaN(pct) || pct <= 0) {
-                                    failsafeBattArmVoltage.rawValue = 0     // disable
-                                } else {
-                                    pct = Math.min(100, pct)                // full range, no low cap
-                                    failsafeBattArmVoltage.rawValue = battPercentToVolt(pct)
-                                }
-                                _sync()
-                            }
-                            Connections {
-                                target: failsafeBattArmVoltage
-                                function onRawValueChanged() { armPctField._sync() }
-                            }
+                            visible:            _isXplorer && !failsafeBattArmSoc && failsafeBattArmVoltage
                         }
                     } // GridLayout
                 } // Column
@@ -358,6 +303,9 @@ SetupPage {
                         property Fact failsafeBattLowVoltage:   _failsafeBatt1LowVoltage
                         property Fact failsafeBattCritVoltage:  _failsafeBatt1CritVoltage
                         property Fact failsafeBattArmVoltage:   _failsafeBatt1ArmVoltage
+                        property Fact failsafeBattLowSoc:       _failsafeBatt1LowSoc
+                        property Fact failsafeBattCritSoc:      _failsafeBatt1CritSoc
+                        property Fact failsafeBattArmSoc:       _failsafeBatt1ArmSoc
                         // Xplorer: BATT2/BATT3 packs run in parallel, so the user
                         // edits one set of values and we mirror writes to the
                         // second pack. Null for non-Xplorer (no mirroring).
@@ -366,6 +314,9 @@ SetupPage {
                         property Fact mirrorBattLowVoltage:     _isXplorer ? _failsafeBatt2LowVoltage  : null
                         property Fact mirrorBattCritVoltage:    _isXplorer ? _failsafeBatt2CritVoltage : null
                         property Fact mirrorBattArmVoltage:     _isXplorer ? _failsafeBatt2ArmVoltage  : null
+                        property Fact mirrorBattLowSoc:         _isXplorer ? _failsafeBatt2LowSoc      : null
+                        property Fact mirrorBattCritSoc:        _isXplorer ? _failsafeBatt2CritSoc     : null
+                        property Fact mirrorBattArmSoc:         _isXplorer ? _failsafeBatt2ArmSoc      : null
                     }
                 } // Rectangle
             } // Column - Battery Failsafe Settings
@@ -401,6 +352,9 @@ SetupPage {
                         property Fact failsafeBattLowVoltage:   _failsafeBatt2LowVoltage
                         property Fact failsafeBattCritVoltage:  _failsafeBatt2CritVoltage
                         property Fact failsafeBattArmVoltage:   _failsafeBatt2ArmVoltage
+                        property Fact failsafeBattLowSoc:       _failsafeBatt2LowSoc
+                        property Fact failsafeBattCritSoc:      _failsafeBatt2CritSoc
+                        property Fact failsafeBattArmSoc:       _failsafeBatt2ArmSoc
                         // Mirror properties intentionally null on this loader.
                         // The shared batteryFailsafeComponent references these
                         // names in Connections blocks; they need to resolve
@@ -411,6 +365,9 @@ SetupPage {
                         property Fact mirrorBattLowVoltage:     null
                         property Fact mirrorBattCritVoltage:    null
                         property Fact mirrorBattArmVoltage:     null
+                        property Fact mirrorBattLowSoc:         null
+                        property Fact mirrorBattCritSoc:        null
+                        property Fact mirrorBattArmSoc:         null
                     }
                 } // Rectangle
             } // Column - Battery Failsafe Settings

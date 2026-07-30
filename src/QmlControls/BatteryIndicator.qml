@@ -85,20 +85,29 @@ Item {
             anchors.top:    parent.top
             anchors.bottom: parent.bottom
 
+            // The battery icon draws two independent signals:
+            //   * fill LEVEL — always tracks percentRemaining, so the indicator
+            //     keeps reflecting real capacity when a failsafe fires (the
+            //     failsafe threshold is often above empty, so the pack still
+            //     has plenty of margin left when LOW/CRITICAL trip).
+            //   * fill COLOR — tinted orange/red on failsafe states so the
+            //     operator still sees an unmistakable warning without the
+            //     icon lying about how much charge remains.
+            // Emergency/failed/unhealthy states are the only ones that use a
+            // dedicated icon (the "!" glyph) because there the fill amount is
+            // meaningless.
+
+            function _svgFromPercent() {
+                if (isNaN(battery.percentRemaining.rawValue)) return null
+                if (battery.percentRemaining.rawValue > threshold1) return "/qmlimages/BatteryGreen.svg"
+                if (battery.percentRemaining.rawValue > threshold2) return "/qmlimages/BatteryYellowGreen.svg"
+                return "/qmlimages/BatteryYellow.svg"
+            }
+
             function getBatteryColor() {
+                // Failsafe overrides — always want the warning color even if
+                // percent still has margin.
                 switch (battery.chargeState.rawValue) {
-                    case MAVLink.MAV_BATTERY_CHARGE_STATE_OK:
-                        if (!isNaN(battery.percentRemaining.rawValue)) {
-                            if (battery.percentRemaining.rawValue > threshold1) {
-                                return qgcPal.colorGreen 
-                            } else if (battery.percentRemaining.rawValue > threshold2) {
-                                return qgcPal.colorYellowGreen 
-                            } else {
-                                return qgcPal.colorYellow 
-                            }
-                        } else {
-                            return qgcPal.text
-                        }
                     case MAVLink.MAV_BATTERY_CHARGE_STATE_LOW:
                         return qgcPal.colorOrange
                     case MAVLink.MAV_BATTERY_CHARGE_STATE_CRITICAL:
@@ -106,34 +115,31 @@ Item {
                     case MAVLink.MAV_BATTERY_CHARGE_STATE_FAILED:
                     case MAVLink.MAV_BATTERY_CHARGE_STATE_UNHEALTHY:
                         return qgcPal.colorRed
-                    default:
-                        return qgcPal.text
                 }
-            }    
+                // OK (or undefined): color by remaining percent against thresholds.
+                if (!isNaN(battery.percentRemaining.rawValue)) {
+                    if (battery.percentRemaining.rawValue > threshold1) return qgcPal.colorGreen
+                    if (battery.percentRemaining.rawValue > threshold2) return qgcPal.colorYellowGreen
+                    return qgcPal.colorYellow
+                }
+                return qgcPal.text
+            }
 
             function getBatterySvgSource() {
+                // Emergency/failed/unhealthy use the "!" icon (fill level is
+                // meaningless when the pack is in fault state).
                 switch (battery.chargeState.rawValue) {
-                    case MAVLink.MAV_BATTERY_CHARGE_STATE_OK:
-                        if (!isNaN(battery.percentRemaining.rawValue)) {
-                            if (battery.percentRemaining.rawValue > threshold1) {
-                                return "/qmlimages/BatteryGreen.svg"
-                            } else if (battery.percentRemaining.rawValue > threshold2) {
-                                return "/qmlimages/BatteryYellowGreen.svg"
-                            } else {
-                                return "/qmlimages/BatteryYellow.svg"    
-                            } 
-                        }
-                    case MAVLink.MAV_BATTERY_CHARGE_STATE_LOW:
-                        return "/qmlimages/BatteryOrange.svg" // Low with orange svg
-                    case MAVLink.MAV_BATTERY_CHARGE_STATE_CRITICAL:
-                        return "/qmlimages/BatteryCritical.svg" // Critical with red svg
                     case MAVLink.MAV_BATTERY_CHARGE_STATE_EMERGENCY:
                     case MAVLink.MAV_BATTERY_CHARGE_STATE_FAILED:
                     case MAVLink.MAV_BATTERY_CHARGE_STATE_UNHEALTHY:
-                        return "/qmlimages/BatteryEMERGENCY.svg" // Exclamation mark
-                    default:
-                        return "/qmlimages/Battery.svg" // Fallback if percentage is unavailable
+                        return "/qmlimages/BatteryEMERGENCY.svg"
                 }
+                // Every other state (including LOW / CRITICAL failsafe) shows
+                // the actual percentage-based fill. Color is applied by
+                // getBatteryColor() above.
+                var svg = _svgFromPercent()
+                if (svg) return svg
+                return "/qmlimages/Battery.svg"     // fallback when percent is unknown
             }
 
             function getBatteryPercentageText() {

@@ -227,6 +227,13 @@
     "default":      false
 },
 {
+    "name":         "tapToFocusSpotMode",
+    "shortDesc":    "Flexible Spot size used for tap-to-focus",
+    "longDesc":     "Sony AF area mode applied (DO_DIGICAM_CONFIGURE p1=180, p7=mode) when tap-to-focus is enabled. 262=Spot XS, 257=S, 258=M, 259=L, 263=XL. When tap-to-focus is disabled, Wide (1) is applied.",
+    "type":         "uint32",
+    "default":      258
+},
+{
     "name":             "enableMicROM",
     "shortDesc":        "Enable MicROM UV Camera Controller",
     "longDesc":         "When enabled, the MicROM UV camera controller and toolbar indicator will be available. Requires app restart.",

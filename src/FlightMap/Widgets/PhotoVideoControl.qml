@@ -80,7 +80,8 @@ Rectangle {
             function() { _activeVehicle.apSetExpMode(4) },                        // S (shutter priority)
             function() { _activeVehicle.apSetParamUint("TG_SHTTERSPD", 2000) },   // 1/2000
             function() { _activeVehicle.apSetAFMode(32772) },                     // AF-C
-            function() { _activeVehicle.apSetParamUint("TG_ISO", 16777215) }      // Auto ISO
+            function() { _activeVehicle.apSetParamUint("TG_ISO", 16777215) },     // Auto ISO
+            function() { _activeVehicle.sendCommand(_apCompId, 202, false, 180, 0, 0, 0, 0, 0, 1) } // Wide AF area (mapping)
         ]
         presetTimer.restart()
     }
@@ -624,6 +625,9 @@ Rectangle {
                         // ── command helpers ──
                         function cfg(p1)              { _activeVehicle.sendCommand(_apCompId, 202, true, p1, 0, 0, 0, 0, 0, 0) }
                         function step(p1, p2, p3, p4) { _activeVehicle.sendCommand(_apCompId, 202, true, p1, p2, p3, p4, 0, 0, 0) }
+                        // AF area mode: DO_DIGICAM_CONFIGURE p1=180, p7=mode (Sony AF area).
+                        // 1=Wide, 262=Spot XS, 257=S, 258=M, 259=L, 263=XL (per AirPixel).
+                        function afArea(mode)         { _activeVehicle.sendCommand(_apCompId, 202, false, 180, 0, 0, 0, 0, 0, mode) }
 
                         // ── MAPPING PRESET ──
                         QGCButton {
@@ -723,7 +727,50 @@ Rectangle {
                             QGCLabel { text: qsTr("Tap to Focus"); Layout.fillWidth: true }
                             QGCSwitch {
                                 checked:    QGroundControl.settingsManager.flyViewSettings.tapToFocusEnabled.rawValue
-                                onClicked:  QGroundControl.settingsManager.flyViewSettings.tapToFocusEnabled.rawValue = checked
+                                onClicked: {
+                                    QGroundControl.settingsManager.flyViewSettings.tapToFocusEnabled.rawValue = checked
+                                    // Follow the toggle with the camera AF area: the selected
+                                    // Flexible Spot when armed, Wide when off (Wide is the
+                                    // mapping/flying default — focuses on the scene, ignores
+                                    // a point). p1=1101 is accepted in any area mode but only
+                                    // does something visible in a Spot mode.
+                                    apControls.afArea(checked
+                                        ? QGroundControl.settingsManager.flyViewSettings.tapToFocusSpotMode.value
+                                        : 1)
+                                }
+                            }
+                        }
+
+                        // ── FLEXIBLE SPOT SIZE (tap-to-focus only) ──
+                        // Selecting a size persists it and, while tap-to-focus is on,
+                        // applies it to the camera immediately (p1=180, p7=mode).
+                        ColumnLayout {
+                            Layout.fillWidth:   true
+                            spacing:            _smallMargins
+                            visible:            QGroundControl.settingsManager.flyViewSettings.tapToFocusEnabled.rawValue
+
+                            QGCLabel { text: qsTr("Focus Spot Size"); font.pointSize: ScreenTools.smallFontPointSize }
+
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: _smallMargins
+                                Repeater {
+                                    model: [
+                                        { label: "XS", mode: 262 },
+                                        { label: "S",  mode: 257 },
+                                        { label: "M",  mode: 258 },
+                                        { label: "L",  mode: 259 },
+                                        { label: "XL", mode: 263 }
+                                    ]
+                                    QGCButton {
+                                        text:               modelData.label
+                                        Layout.fillWidth:   true
+                                        backgroundColor:    QGroundControl.settingsManager.flyViewSettings.tapToFocusSpotMode.value === modelData.mode ? "green" : "gray"
+                                        onClicked: {
+                                            QGroundControl.settingsManager.flyViewSettings.tapToFocusSpotMode.value = modelData.mode
+                                            apControls.afArea(modelData.mode)
+                                        }
+                                    }
+                                }
                             }
                         }
 
