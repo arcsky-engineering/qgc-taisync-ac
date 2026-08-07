@@ -51,5 +51,7 @@ public:
     DEFINE_SETTINGFACT(payloadSelection)
     DEFINE_SETTINGFACT(tapToFocusEnabled)
     DEFINE_SETTINGFACT(tapToFocusSpotMode)
+    DEFINE_SETTINGFACT(tapToFocusInsetX)
+    DEFINE_SETTINGFACT(tapToFocusInsetY)
     DEFINE_SETTINGFACT(enableMicROM)
 };

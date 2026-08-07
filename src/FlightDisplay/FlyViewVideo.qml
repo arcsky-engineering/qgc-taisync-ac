@@ -331,17 +331,27 @@ Item {
             var xNorm = Math.max(0, Math.min((mouse.x - lx) / vw, 1))
             var yNorm = Math.max(0, Math.min((mouse.y - ly) / vh, 1))
 
-            // The camera's flexible-spot box center can't reach the extreme frame
-            // edge (the box has size), so a raw 1/100 command clamps inward and a
-            // reticle drawn at the finger ends up outside the real focus bracket at
-            // the corners (center stays aligned). Compress the commanded range into
-            // [_afMarginPct, 100-_afMarginPct]: this keeps the center exact and pulls
-            // the edges in to match the camera. Tune _afMarginPct on the bench — if
-            // the camera bracket still sits inside the QGC box at the corners, raise
-            // it; if the bracket sits outside the QGC box, lower it.
-            var span = 100 - 2 * _afMarginPct
-            var xPct = Math.round(_afMarginPct + xNorm * span)
-            var yPct = Math.round(_afMarginPct + yNorm * span)
+            // The camera's AF field doesn't cover the whole displayed video: the
+            // reachable area is inset from each edge (box size, plus the still-frame
+            // vs 16:9-video FOV difference — larger vertically because the 16:9 video
+            // is a vertical crop of the 3:2 still). So the camera's bracket always
+            // lands more toward center than a naive 1..100 mapping, and can't reach
+            // the video edges at all. Model that reachable region as an inset band
+            // [inset, 1-inset] of the video, separately for X and Y. We draw the
+            // reticle at the reachable position (so it matches the bracket) and map
+            // that band onto the camera's 1..100 command range.
+            //
+            // Tune on the bench: if the camera bracket still lands more central than
+            // the reticle at an edge, RAISE that axis's inset; if the bracket lands
+            // outside the reticle (nearer the edge), LOWER it. Center is unaffected.
+            var ax = _afInsetXPct / 100
+            var ay = _afInsetYPct / 100
+            var rx = 1 - 2 * ax
+            var ry = 1 - 2 * ay
+            var drawXNorm = Math.max(ax, Math.min(xNorm, 1 - ax))
+            var drawYNorm = Math.max(ay, Math.min(yNorm, 1 - ay))
+            var xPct = Math.round(((drawXNorm - ax) / rx) * 99 + 1)   // band -> 1..100
+            var yPct = Math.round(((drawYNorm - ay) / ry) * 99 + 1)
 
             var compId = _vehicle.airPixelComponentId
             // DO_DIGICAM_CONFIGURE (202): p1=1101 sets the AF point (X,Y percent),
@@ -356,10 +366,10 @@ Item {
             afTriggerTimer.restart()
             console.log("[TAP_FOCUS] compId", compId, "point", xPct + "%," + yPct + "%")
 
-            // Draw the reticle where the camera will actually focus (the compressed
-            // position), not at the raw finger, so it lines up with the camera bracket.
-            focusReticle.x = lx + (xPct / 100) * vw - focusReticle.width  / 2
-            focusReticle.y = ly + (yPct / 100) * vh - focusReticle.height / 2
+            // Draw the reticle where the camera can actually focus (the inset band),
+            // not at the raw finger, so it lines up with the camera's bracket.
+            focusReticle.x = lx + drawXNorm * vw - focusReticle.width  / 2
+            focusReticle.y = ly + drawYNorm * vh - focusReticle.height / 2
             focusReticleAnim.restart()
         }
 
@@ -373,9 +383,12 @@ Item {
         readonly property int _afPulseCount: 3
         property int _afPulsesLeft:       0
 
-        // Inset (in percent) that the commanded AF point is compressed into, to match
-        // the camera's reachable focus-box range. See the tuning note in onClicked.
-        readonly property real _afMarginPct: 4
+        // AF-field inset (percent) from each video edge — the reachable focus band.
+        // Y is usually larger than X because the 16:9 video is a vertical crop of the
+        // 3:2 still frame. Live calibration knobs (steppers in the ILX AUTOFOCUS
+        // panel); tune per the note in onClicked.
+        property real _afInsetXPct: QGroundControl.settingsManager.flyViewSettings.tapToFocusInsetX.value
+        property real _afInsetYPct: QGroundControl.settingsManager.flyViewSettings.tapToFocusInsetY.value
         Timer {
             id:                 afTriggerTimer
             interval:           300

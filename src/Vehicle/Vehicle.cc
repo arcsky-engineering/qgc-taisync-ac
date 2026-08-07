@@ -1561,7 +1561,10 @@ void Vehicle::_handleAirPixelParamValue(const mavlink_param_ext_value_t& value)
         // TAG-E landing-detect flag. param_type is uint8 (1) per console logs,
         // but accept either size by reading the first byte.
         int ld = static_cast<int>(static_cast<uint8_t>(value.param_value[0]));
-        if (_apLandDetect != ld) { _apLandDetect = ld; changed = true; }
+        if (_apLandDetect != ld) {
+            qDebug() << "[AP_LAND_DET] broadcast value change" << _apLandDetect << "->" << ld;
+            _apLandDetect = ld; changed = true;
+        }
     }
 
     if (changed) emit apCameraChanged();

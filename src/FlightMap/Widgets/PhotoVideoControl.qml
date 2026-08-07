@@ -670,7 +670,17 @@ Rectangle {
                                 Layout.fillWidth:   true
                                 text:               "  " + qsTr("Geotag on Landing")
                                 checked:            _activeVehicle && _activeVehicle.apLandDetect === 1
-                                onClicked:          if (_activeVehicle) _activeVehicle.apSetLandDetect(checked)
+                                onClicked: {
+                                    // Qt's internal toggle just wrote to `checked` directly, breaking
+                                    // the binding above. Push the intent through the vehicle first (so
+                                    // apLandDetect updates optimistically to match Qt's post-toggle
+                                    // value), then reassert the binding — subsequent apCameraChanged
+                                    // updates from TAG-E broadcasts will now reach the UI again.
+                                    if (_activeVehicle) _activeVehicle.apSetLandDetect(checked)
+                                    checked = Qt.binding(function() {
+                                        return _activeVehicle && _activeVehicle.apLandDetect === 1
+                                    })
+                                }
                             }
                             QGCLabel {
                                 Layout.fillWidth:       true
@@ -754,12 +764,13 @@ Rectangle {
                             RowLayout {
                                 Layout.fillWidth: true; spacing: _smallMargins
                                 Repeater {
+                                    // XS≈S and L≈XL were visually indistinguishable in
+                                    // the feed on this camera, so only the three clearly
+                                    // distinct sizes are exposed.
                                     model: [
-                                        { label: "XS", mode: 262 },
-                                        { label: "S",  mode: 257 },
-                                        { label: "M",  mode: 258 },
-                                        { label: "L",  mode: 259 },
-                                        { label: "XL", mode: 263 }
+                                        { label: "S", mode: 257 },
+                                        { label: "M", mode: 258 },
+                                        { label: "L", mode: 259 }
                                     ]
                                     QGCButton {
                                         text:               modelData.label
@@ -771,6 +782,48 @@ Rectangle {
                                         }
                                     }
                                 }
+                            }
+                        }
+
+                        // ── EDGE CALIBRATION (temporary tuning knobs) ──
+                        // Live inset % for the tap-to-focus point mapping (read in
+                        // FlyViewVideo.qml). Tap an edge; if the camera bracket lands
+                        // more toward center than the reticle, raise that axis; if it
+                        // lands nearer the edge, lower it. Once dialed in, these values
+                        // can be baked as defaults and this section removed.
+                        ColumnLayout {
+                            Layout.fillWidth:   true
+                            spacing:            _smallMargins
+                            visible:            QGroundControl.settingsManager.flyViewSettings.tapToFocusEnabled.rawValue
+
+                            QGCLabel { text: qsTr("Edge Calibration"); font.pointSize: ScreenTools.smallFontPointSize; font.bold: true }
+
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: _smallMargins
+                                QGCLabel { text: qsTr("Left/Right"); Layout.preferredWidth: apControls._lblW }
+                                QGCLabel {
+                                    text:                   QGroundControl.settingsManager.flyViewSettings.tapToFocusInsetX.value.toFixed(0) + "%"
+                                    Layout.fillWidth:       true
+                                    horizontalAlignment:    Text.AlignRight
+                                }
+                                QGCButton { text: "−"; Layout.preferredWidth: apControls._stepBtnW
+                                    onClicked: { var f = QGroundControl.settingsManager.flyViewSettings.tapToFocusInsetX; f.value = Math.max(0, f.value - 1) } }
+                                QGCButton { text: "+"; Layout.preferredWidth: apControls._stepBtnW
+                                    onClicked: { var f = QGroundControl.settingsManager.flyViewSettings.tapToFocusInsetX; f.value = Math.min(30, f.value + 1) } }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: _smallMargins
+                                QGCLabel { text: qsTr("Top/Bottom"); Layout.preferredWidth: apControls._lblW }
+                                QGCLabel {
+                                    text:                   QGroundControl.settingsManager.flyViewSettings.tapToFocusInsetY.value.toFixed(0) + "%"
+                                    Layout.fillWidth:       true
+                                    horizontalAlignment:    Text.AlignRight
+                                }
+                                QGCButton { text: "−"; Layout.preferredWidth: apControls._stepBtnW
+                                    onClicked: { var f = QGroundControl.settingsManager.flyViewSettings.tapToFocusInsetY; f.value = Math.max(0, f.value - 1) } }
+                                QGCButton { text: "+"; Layout.preferredWidth: apControls._stepBtnW
+                                    onClicked: { var f = QGroundControl.settingsManager.flyViewSettings.tapToFocusInsetY; f.value = Math.min(30, f.value + 1) } }
                             }
                         }
 

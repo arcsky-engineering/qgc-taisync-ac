@@ -234,6 +234,24 @@
     "default":      258
 },
 {
+    "name":         "tapToFocusInsetX",
+    "shortDesc":    "Tap-to-focus horizontal AF-field inset (%)",
+    "longDesc":     "Calibration knob: percent the camera AF field is inset from each left/right video edge. Raise if the camera bracket lands more toward center than the reticle at the L/R edges; lower if it lands nearer the edge.",
+    "type":         "double",
+    "min":          0,
+    "max":          30,
+    "default":      6
+},
+{
+    "name":         "tapToFocusInsetY",
+    "shortDesc":    "Tap-to-focus vertical AF-field inset (%)",
+    "longDesc":     "Calibration knob: percent the camera AF field is inset from each top/bottom video edge (usually larger than X because the 16:9 video is a vertical crop of the 3:2 still). Raise if the bracket lands more toward center than the reticle at the top/bottom edges; lower if it lands nearer the edge.",
+    "type":         "double",
+    "min":          0,
+    "max":          30,
+    "default":      10
+},
+{
     "name":             "enableMicROM",
     "shortDesc":        "Enable MicROM UV Camera Controller",
     "longDesc":         "When enabled, the MicROM UV camera controller and toolbar indicator will be available. Requires app restart.",
