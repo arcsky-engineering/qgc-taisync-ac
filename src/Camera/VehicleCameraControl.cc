@@ -644,9 +644,29 @@ VehicleCameraControl::stopZoom()
 void
 VehicleCameraControl::_requestCaptureStatus()
 {
-    qCDebug(CameraControlLog) << "_requestCaptureStatus()";
+    //-- If the method we pinned has stopped answering, forget it and probe again.
+    if ((_captureStatusRequest != kCaptureStatusProbing) && (_captureStatusMissedPolls >= kCaptureStatusRepobeAfterMissed)) {
+        qCDebug(CameraControlLog) << "_requestCaptureStatus(): pinned method" << _captureStatusRequest
+                                  << "unanswered for" << _captureStatusMissedPolls << "polls - probing again";
+        _captureStatusRequest = kCaptureStatusProbing;
+    }
 
-    if(_cameraCaptureStatusRetries++ % 2 == 0) {
+    //-- While probing, alternate. Once pinned, always use the method that worked, so every
+    //-- poll produces an answer instead of only every other one.
+    if (_captureStatusRequest != kCaptureStatusProbing) {
+        _captureStatusLastTried = _captureStatusRequest;
+    } else {
+        _captureStatusLastTried = (_cameraCaptureStatusRetries++ % 2 == 0) ? kCaptureStatusRequestMessage
+                                                                          : kCaptureStatusRequestLegacy;
+    }
+    _captureStatusMissedPolls++;
+
+    qCDebug(CameraControlLog) << "_requestCaptureStatus() using"
+                              << ((_captureStatusLastTried == kCaptureStatusRequestMessage) ? "REQUEST_MESSAGE" : "REQUEST_CAMERA_CAPTURE_STATUS")
+                              << (_captureStatusRequest != kCaptureStatusProbing ? "(pinned)" : "(probing)")
+                              << "missedPolls:" << _captureStatusMissedPolls;
+
+    if (_captureStatusLastTried == kCaptureStatusRequestMessage) {
         _vehicle->sendMavCommand(
             _compID,                                // target component
             MAV_CMD_REQUEST_MESSAGE,                // command id
@@ -1547,13 +1567,31 @@ VehicleCameraControl::handleBatteryStatus(const mavlink_battery_status_t& bs)
 void
 VehicleCameraControl::handleCaptureStatus(const mavlink_camera_capture_status_t& cap)
 {
+    //-- A status came back, so whichever request we sent last is one this camera honours.
+    //-- Pin to it so we stop wasting alternate polls on a request it ignores.
+    _captureStatusMissedPolls = 0;
+    if ((_captureStatusRequest == kCaptureStatusProbing) && (_captureStatusLastTried != kCaptureStatusProbing)) {
+        _captureStatusRequest = _captureStatusLastTried;
+        qCDebug(CameraControlLog) << "Pinned capture-status request to"
+                                  << ((_captureStatusRequest == kCaptureStatusRequestMessage) ? "REQUEST_MESSAGE" : "REQUEST_CAMERA_CAPTURE_STATUS");
+    }
+
     //-- This is a response to MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS
     qCDebug(CameraControlLog).noquote() << "handleCaptureStatus:"
         << "\n\tImage status:" << captureImageStatusToStr(cap.image_status)
         << "\n\tVideo status:" << captureVideoStatusToStr(cap.video_status)
         << "\n\tInterval:" << cap.image_interval
         << "\n\tRecording time (ms):" << cap.recording_time_ms
-        << "\n\tCapacity:" << cap.available_capacity;
+        << "\n\tCapacity:" << cap.available_capacity
+        << "\n\tImage count:" << cap.image_count;
+    //-- Image count as reported by the camera. Exposed for callers that want it, but not
+    //-- trusted as a capture count: a Phase One iXM advances it by two and repeats it
+    //-- unchanged. Vehicle counts CAMERA_IMAGE_CAPTURED events instead.
+    const int newImageCount = static_cast<int>(cap.image_count);
+    if (_imageCount != newImageCount) {
+        _imageCount = newImageCount;
+        emit imageCountChanged();
+    }
     //-- Disk Free Space
     uint32_t a = static_cast<uint32_t>(cap.available_capacity);
     if(_storageFree != a) {

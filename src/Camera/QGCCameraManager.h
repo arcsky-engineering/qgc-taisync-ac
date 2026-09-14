@@ -36,6 +36,12 @@ class QGCCameraManager : public QObject
 
     friend class QGCCameraManagerTest;
 public:
+    /// A camera quiet longer than this is flagged stale, but kept along with its loaded
+    /// definition and request state. Matches the timeout that previously triggered removal.
+    static constexpr qint64 kCameraStaleTimeoutMs = 5000;
+    /// Only a camera quiet this long is treated as genuinely gone and removed from the list.
+    static constexpr qint64 kCameraLostTimeoutMs = 60000;
+
     QGCCameraManager(Vehicle* vehicle);
     virtual ~QGCCameraManager();
 
@@ -63,6 +69,10 @@ public:
         CameraStruct(QObject* parent, uint8_t compID_, Vehicle* vehicle);
         QElapsedTimer lastHeartbeat;
         bool        infoReceived    = false;
+        /// true once the camera has gone quiet past the stale timeout. The camera object is
+        /// kept alive while stale and un-staled if heartbeats resume; it is only removed
+        /// after the much longer lost timeout. See _checkForLostCameras().
+        bool        stale           = false;
         uint8_t     compID          = 0;
         Vehicle*    vehicle         = nullptr;
     };

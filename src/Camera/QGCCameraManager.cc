@@ -155,6 +155,12 @@ void QGCCameraManager::_handleHeartbeat(const mavlink_message_t &message)
             //-- Check if we have indeed received the camera info
             if (pInfo->infoReceived) {
                 //-- We have it. Just update the heartbeat timeout
+                if (pInfo->stale) {
+                    qCDebug(CameraManagerLog) << "Camera compID" << pInfo->compID
+                                              << "resumed heartbeats after"
+                                              << pInfo->lastHeartbeat.elapsed() << "ms - no longer stale";
+                    pInfo->stale = false;
+                }
                 pInfo->lastHeartbeat.start();
             }
         } else {
@@ -249,6 +255,18 @@ QGCCameraManager::_handleCameraInfo(const mavlink_message_t& message)
 }
 
 /// Called to check for cameras which are no longer sending a heartbeat
+///
+/// A camera that goes briefly quiet is marked stale but kept in the list. Tearing the
+/// MavlinkCameraControl down on a short gap is destructive: it discards the loaded camera
+/// definition, storage status and in-flight request retries, and the rebuilt camera must
+/// re-request all of it.
+///
+/// A camera routed through the autopilot shares the GCS telemetry link, so QGC's own
+/// initial autopilot parameter download can starve the camera's 1 Hz heartbeat well past
+/// five seconds. Evicting on that gap then triggers a fresh camera-info and definition
+/// download, which adds yet more traffic to an already saturated link and can evict the
+/// camera again - observed with a Phase One iXM, which recovered only once the autopilot
+/// parameter download finished. Only a camera quiet for kCameraLostTimeoutMs is removed.
 void QGCCameraManager::_checkForLostCameras()
 {
     //-- Iterate cameras
@@ -258,8 +276,23 @@ void QGCCameraManager::_checkForLostCameras()
             CameraStruct* pInfo = _cameraInfoRequest[sCompID];
             //-- Have we received a camera info message?
             if (pInfo->infoReceived) {
-                //-- Has the camera stopped talking to us?
-                if (pInfo->lastHeartbeat.elapsed() > 5000) {
+                const qint64 quietMs = pInfo->lastHeartbeat.elapsed();
+
+                //-- Gone quiet, but not long enough to give up on. Keep the camera and its
+                //-- loaded state; note it once so the log shows the gap.
+                if (quietMs > kCameraStaleTimeoutMs && quietMs <= kCameraLostTimeoutMs) {
+                    if (!pInfo->stale) {
+                        pInfo->stale = true;
+                        auto pStaleCamera = _findCamera(pInfo->compID);
+                        qCDebug(CameraManagerLog) << "Camera"
+                                                  << (pStaleCamera ? pStaleCamera->modelName() : QString::number(pInfo->compID))
+                                                  << "quiet for" << quietMs << "ms - marking stale, keeping in list";
+                    }
+                    continue;
+                }
+
+                //-- Has the camera stopped talking to us for good?
+                if (quietMs > kCameraLostTimeoutMs) {
                     auto pCamera = _findCamera(pInfo->compID);
 
                     if (pCamera) {
@@ -270,7 +303,8 @@ void QGCCameraManager::_checkForLostCameras()
                             _addCameraControlToLists(_simulatedCameraControl);
                         }
 
-                        qWarning() << "Camera" << pCamera->modelName() << "stopped transmitting. Removing from list.";
+                        qWarning() << "Camera" << pCamera->modelName() << "silent for" << quietMs
+                                   << "ms. Removing from list.";
                         _cameraLabels.removeOne(pCamera->modelName());
                         _cameras.removeOne(pCamera);
                         emit cameraLabelsChanged();

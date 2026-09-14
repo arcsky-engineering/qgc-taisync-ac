@@ -152,7 +152,11 @@ Rectangle {
             text:                   _camera.modelName
             font.pointSize:         ScreenTools.mediumFontPointSize
             font.bold:              true
-            visible:                _cameraManager.cameras.length > 1
+            // Upstream only showed this with more than one camera attached, which hid it for a
+            // single payload. Show it whenever a real camera reports a model - but never for
+            // SimulatedCameraControl, which is always in the list and would otherwise display
+            // "Simulated Camera" on any vehicle with no MAVLink camera at all.
+            visible:                _camera.compID > 0 && _camera.modelName !== ""
         }
 
         // ── Photo / Video Mode Selector ──
@@ -292,11 +296,24 @@ Rectangle {
 
         // ── Record Time / Capture Count ──
         Rectangle {
+            id:                     captureCountBox
             Layout.alignment:       Qt.AlignHCenter
             color:                  !_videoCaptureIdle && !_photoCaptureIdle ? "transparent" : qgcPal.colorRed
             Layout.preferredWidth:  statusLabel.width + (_margins * 2)
             Layout.preferredHeight: statusLabel.height + (_smallMargins * 2)
             radius:                 ScreenTools.defaultFontPixelWidth / 2
+
+            // Photo count sources, in priority order:
+            //   ILX / TAG-E    - _activeVehicle.imageCount, fed by the DATA16 geotag stream.
+            //   MAVLink camera - cameraSessionImageCount, driven by CAMERA_IMAGE_CAPTURED
+            //                    (one per shot, so it also sees frames the camera triggers
+            //                    itself, which never reach the autopilot).
+            //   fallback       - autopilot CAMERA_FEEDBACK trigger points, as before.
+            // The camera's own CAMERA_CAPTURE_STATUS.image_count is deliberately not shown:
+            // it has been seen advancing by two and repeating unchanged, so it would only
+            // contradict the count above. It remains available as Vehicle.cameraRawImageCount.
+            readonly property int  _sessionCount:    _activeVehicle ? _activeVehicle.cameraSessionImageCount : -1
+            readonly property bool _haveCameraCount: !_isAirPixel && _sessionCount >= 0
 
             QGCLabel {
                 id:                 statusLabel
@@ -305,8 +322,11 @@ Rectangle {
                     if (_cameraInVideoMode)
                         return _videoCaptureIdle ? "00:00:00" : _camera.recordTimeStr
                     if (!_activeVehicle) return "00000"
-                    var count = _isAirPixel ? _activeVehicle.imageCount
-                                            : _activeVehicle.cameraTriggerPoints.count
+                    var count = _isAirPixel
+                                    ? _activeVehicle.imageCount
+                                    : (captureCountBox._haveCameraCount
+                                        ? captureCountBox._sessionCount
+                                        : _activeVehicle.cameraTriggerPoints.count)
                     return ('00000' + count).slice(-5)
                 }
                 font.pointSize:     ScreenTools.largeFontPointSize
@@ -324,7 +344,12 @@ Rectangle {
                 Layout.alignment:   Qt.AlignHCenter
                 text:               qsTr("Free Space: ") + _camera.storageFreeStr
                 font.pointSize:     ScreenTools.defaultFontPointSize
+                // storageStatus only ever becomes STORAGE_READY from a STORAGE_INFORMATION
+                // message. Cameras that answer REQUEST_STORAGE_INFORMATION with UNSUPPORTED
+                // still report available_capacity in CAMERA_CAPTURE_STATUS, which already
+                // populates storageFree - so show the figure whenever we actually have one.
                 visible:            _camera.storageStatus === MavlinkCameraControl.STORAGE_READY
+                                    || _camera.storageFree > 0
             }
 
             QGCLabel {

@@ -31,6 +31,7 @@
 #include "FlyViewSettings.h"
 #include "BatteryIndicatorSettings.h"
 #include "UnitsSettings.h"
+#include "VideoSettings.h"
 #include "VideoReceiver.h"
 
 #ifdef QGC_CUSTOM_BUILD
@@ -143,9 +144,13 @@ bool QGCCorePlugin::adjustSettingMetaData(const QString &settingsGroup, FactMeta
             settings.remove(FlyViewSettings::showSimpleCameraControlName);
             settings.remove(FlyViewSettings::showPayloadIndicatorName);
             settings.remove(FlyViewSettings::enableMicROMName);
+            settings.remove(FlyViewSettings::payloadSelectionName);
             settings.endGroup();
             settings.beginGroup(BatteryIndicatorSettings::settingsGroup);
             settings.remove(BatteryIndicatorSettings::valueDisplayName);
+            settings.endGroup();
+            settings.beginGroup(VideoSettings::settingsGroup);
+            settings.remove(VideoSettings::rtspUrl2Name);
             settings.endGroup();
             settings.setValue("_lastAppliedVariant", currentVariant);
             qCDebug(QGCCorePluginLog) << "Vehicle variant changed to" << currentVariant << "- reset dependent settings to new defaults";
@@ -190,10 +195,27 @@ bool QGCCorePlugin::adjustSettingMetaData(const QString &settingsGroup, FactMeta
             metaData.setRawDefaultValue(isXplorer);
             return true;
         }
+        // Payload selection: Xplorer ships with the ILX (0). X55 carries a generic MAVLink
+        // camera (3), so defaulting to ILX there leaves the app in the wrong payload mode on
+        // first boot - the camera is not recognised until the operator switches it by hand.
+        if (metaData.name() == FlyViewSettings::payloadSelectionName) {
+            metaData.setRawDefaultValue(isXplorer ? 0 : 3);
+            return true;
+        }
         // MicROM: hide setting entirely on Xplorer
         if (metaData.name() == FlyViewSettings::enableMicROMName) {
             if (isXplorer) {
                 return false;  // false = setting not visible
+            }
+            return true;
+        }
+    } else if (settingsGroup == VideoSettings::settingsGroup) {
+        // Payload video box address differs by airframe: Xplorer carries the Z3 (whose
+        // default lives in Video.SettingsGroup.json), X55 uses the address below. This also
+        // drives the "Reset RTSP to Defaults" button, which writes each fact's defaultValue.
+        if (metaData.name() == VideoSettings::rtspUrl2Name) {
+            if (!isXplorer) {
+                metaData.setRawDefaultValue(QStringLiteral("rtsp://192.168.144.25:8554/main.264"));
             }
             return true;
         }

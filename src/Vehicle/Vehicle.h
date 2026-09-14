@@ -326,6 +326,12 @@ public:
     Q_PROPERTY(int imageCount READ imageCount NOTIFY imageCountChanged)
     Q_PROPERTY(int geoFinalImageCount READ geoFinalImageCount NOTIFY geoStatusChanged)
 
+    // Image count reported by a MAVLink camera via CAMERA_CAPTURE_STATUS. Tracked here
+    // rather than on the camera object so it survives the camera being evicted and
+    // rebuilt by QGCCameraManager (a quiet camera loses its object, not this count).
+    Q_PROPERTY(int cameraRawImageCount READ cameraRawImageCount NOTIFY cameraImageCountChanged)
+    Q_PROPERTY(int cameraSessionImageCount READ cameraSessionImageCount NOTIFY cameraImageCountChanged)
+
     Q_PROPERTY(PayloadType payloadType READ payloadType NOTIFY payloadTypeChanged)
 
     Q_PROPERTY(int airPixelDevice READ airPixelDevice NOTIFY airPixelDeviceChanged)
@@ -705,6 +711,26 @@ public:
     int imageCount() const { return _unifiedImageCount;}
     int geoFinalImageCount(void) const { return _geoFinalImageCount;}
 
+    /// The camera's own lifetime count from CAMERA_CAPTURE_STATUS.image_count, or -1 if it has
+    /// never reported one. Secondary/diagnostic only: a Phase One iXM has been observed
+    /// advancing this field by two, and repeating it unchanged across successive messages, so
+    /// it is deliberately not the primary count.
+    int cameraRawImageCount() const { return _cameraRawImageCount; }
+
+    /// Best available count of images captured since this connection began, or -1 if unknown.
+    /// Prefers CAMERA_IMAGE_CAPTURED, which the camera emits once per shot and is therefore
+    /// exact and immediate. Falls back to the CAMERA_CAPTURE_STATUS baseline for cameras that
+    /// only report the aggregate.
+    int cameraSessionImageCount() const {
+        if (_cameraCapturedCount >= 0) {
+            return _cameraCapturedCount;
+        }
+        if (_cameraRawImageCount < 0 || _cameraImageCountBaseline < 0) {
+            return -1;
+        }
+        return _cameraRawImageCount - _cameraImageCountBaseline;
+    }
+
     PayloadType payloadType() const { return _payloadType; }
 
     int airPixelDevice() const { return static_cast<int>(_airPixelDevice); }
@@ -1036,6 +1062,7 @@ signals:
     void apCameraChanged();
     void vioCameraChanged();
     void imageCountChanged();
+    void cameraImageCountChanged();
     void payloadTypeChanged(PayloadType type);
 
 
@@ -1413,6 +1440,25 @@ private:
     int _unifiedImageCount = 0;
     int _geoFinalImageCount = 0;
 
+    // CAMERA_CAPTURE_STATUS.image_count tracking. Both are -1 until a camera reports a
+    // count. The baseline is latched on the first report so the session count starts at 0,
+    // and is re-latched if the camera's own count ever drops (camera reboot / new folder)
+    // so the session count can never go negative.
+    int _cameraRawImageCount = -1;
+    int _cameraImageCountBaseline = -1;
+    // Component we latched the count onto. Only one payload camera is selectable at a time,
+    // but if a second camera component also reports CAMERA_CAPTURE_STATUS we must not let the
+    // two overwrite each other and make the readout jump. -1 until the first camera reports.
+    int _cameraImageCountCompId = -1;
+
+    // Session count derived from CAMERA_IMAGE_CAPTURED, which arrives once per shot. -1 until
+    // the first one lands. image_index (zero based, per the MAVLink spec) lets the count stay
+    // correct across a dropped message, but not every camera populates it usefully, so it is
+    // only trusted once it is seen to advance - otherwise we simply count events.
+    int _cameraCapturedCount = -1;
+    int _cameraCapturedIndexBaseline = -1;
+    int _cameraCapturedMaxIndex = -1;
+
     bool _geoCompletionArmed = false;
 
     PayloadType _payloadType = PayloadUnknown;
@@ -1438,6 +1484,11 @@ private:
     int  _vioIRZoom        = 0;
     int  _vioEOZoom        = 0;
 
+    /// True if compId is the one camera component the capture count is latched to,
+    /// latching it on first sight. Keeps a second camera from fighting over the counter.
+    bool _isCountedCameraComponent(int compId);
+    /// Fold one CAMERA_IMAGE_CAPTURED into the session capture count.
+    void _updateCapturedImageCount(int imageIndex);
     void _updatePayloadType();   // declared
 
 

@@ -143,6 +143,10 @@ public:
     Q_PROPERTY(QGCVideoStreamInfo*  thermalStreamInstance   READ thermalStreamInstance                              NOTIFY thermalStreamChanged)
     Q_PROPERTY(quint32              recordTime              READ recordTime                                         NOTIFY recordTimeChanged)
     Q_PROPERTY(QString              recordTimeStr           READ recordTimeStr                                      NOTIFY recordTimeChanged)
+    Q_PROPERTY(int                  imageCount              READ imageCount                                         NOTIFY imageCountChanged)
+    /// MAVLink component id, or 0 for a camera that is not a real vehicle component
+    /// (SimulatedCameraControl). Lets QML tell a real payload from the placeholder.
+    Q_PROPERTY(int                  compID                  READ compID                                             CONSTANT)
     Q_PROPERTY(QStringList          streamLabels            READ streamLabels                                       NOTIFY streamLabelsChanged)
     Q_PROPERTY(ThermalViewMode      thermalMode             READ thermalMode            WRITE  setThermalMode       NOTIFY thermalModeChanged)
     Q_PROPERTY(double               thermalOpacity          READ thermalOpacity         WRITE  setThermalOpacity    NOTIFY thermalOpacityChanged)
@@ -214,6 +218,11 @@ public:
     virtual bool         autoStream         () = 0;
     virtual quint32      recordTime         () = 0;
     virtual QString      recordTimeStr      () = 0;
+    /// Images the camera reports having captured, from CAMERA_CAPTURE_STATUS.image_count.
+    /// Returns -1 when the camera reports no count, which callers must treat as "unknown"
+    /// rather than zero. Deliberately not pure virtual so cameras with no notion of an
+    /// image count (e.g. SimulatedCameraControl) need no implementation.
+    virtual int          imageCount         () { return -1; }
 
     virtual Fact *exposureMode() = 0;
     virtual Fact *ev() = 0;
@@ -292,6 +301,7 @@ signals:
     void    thermalModeChanged          ();
     void    thermalOpacityChanged       ();
     void    storageStatusChanged        ();
+    void    imageCountChanged           ();
 
 protected slots:
     virtual void _paramDone() = 0;

@@ -311,6 +311,11 @@ Item {
         property real doubleClickedMinTime: 100
         property real doubleClickedMaxTime: 300
 
+        // Throttle the focus rate so rapid tapping doesn't flood the payload link —
+        // each accepted tap transmits a point-set plus the AF-trigger burst.
+        readonly property int _minFocusIntervalMs: 400
+        property real _lastFocusTime: 0
+
         onClicked: (mouse) => {
             var now = (new Date()).getTime()
             var delta = now - preClickedTime
@@ -320,6 +325,10 @@ Item {
                 return
             }
             preClickedTime = now
+
+            // Rate-limit accepted focus taps (see _minFocusIntervalMs).
+            if (now - _lastFocusTime < _minFocusIntervalMs) return
+            _lastFocusTime = now
 
             var vw = videoStreaming.getWidth()
             var vh = videoStreaming.getHeight()
@@ -355,10 +364,12 @@ Item {
 
             var compId = _vehicle.airPixelComponentId
             // DO_DIGICAM_CONFIGURE (202): p1=1101 sets the AF point (X,Y percent),
-            // then p1=135 triggers autofocus (half-press) at that point. These are
-            // paced apart via afTriggerTimer — the TAG-E drops rapid-fire sends
-            // (see PhotoVideoControl's preset queue), so firing 135 in the same
-            // instant as 1101 gets it dropped and nothing focuses. showError=false
+            // then p1=135 triggers autofocus (half-press), fired as a short paced
+            // burst by afTriggerTimer so the camera gets a sustained half-press.
+            // NOTE: 1101 and 135 share command id 202, so QGC would otherwise drop the
+            // later sends as "duplicate command" while the first is still pending (up
+            // to 3s if the TAG-E doesn't ACK) — 202 is whitelisted in
+            // Vehicle::_commandCanBeDuplicated so they all get through. showError=false
             // because this is a frequent gesture — no error dialogs on every tap.
             _vehicle.sendCommand(compId, 202, false, 1101, xPct, yPct, 0, 0, 0, 0)
             _pendingCompId  = compId
@@ -380,7 +391,7 @@ Item {
         // prolongs the half-press. First pulse is delayed one interval so the point
         // move settles first (and isn't dropped as a rapid-fire duplicate).
         property int _pendingCompId:      0
-        readonly property int _afPulseCount: 3
+        readonly property int _afPulseCount: 2
         property int _afPulsesLeft:       0
 
         // AF-field inset (percent) from each video edge — the reachable focus band.

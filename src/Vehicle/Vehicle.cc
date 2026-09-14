@@ -762,14 +762,31 @@ void Vehicle::_mavlinkMessageReceived(LinkInterface* link, mavlink_message_t mes
     }
     case MAVLINK_MSG_ID_CAMERA_CAPTURE_STATUS:
     {
-        if (message.compid == 105 || message.compid == 100) {
+        // Tracked for the secondary "cam N" readout and as a fallback count for cameras that
+        // only report the aggregate. Not the primary count: a Phase One iXM advances this
+        // field by two, and repeats it unchanged, so CAMERA_IMAGE_CAPTURED drives the count
+        // instead. Kept on Vehicle rather than the camera object because QGCCameraManager
+        // destroys and rebuilds that object whenever the camera's heartbeat gaps.
+        if (_isCountedCameraComponent(message.compid)) {
             mavlink_camera_capture_status_t cap{};
             mavlink_msg_camera_capture_status_decode(&message, &cap);
 
-                    // Store count from CAMERA_CAPTURE_STATUS
-            _cameraCaptureImageCount = static_cast<int>(cap.image_count);
+            const int rawCount = static_cast<int>(cap.image_count);
 
-            //_updateUnifiedImageCount();
+            // Latch the baseline on first report so the session count starts at zero. If the
+            // camera's own count drops below the baseline it reset on its side (reboot, new
+            // folder), so re-latch rather than report a negative session count.
+            if (_cameraImageCountBaseline < 0 || rawCount < _cameraImageCountBaseline) {
+                _cameraImageCountBaseline = rawCount;
+            }
+
+            if (_cameraRawImageCount != rawCount) {
+                _cameraRawImageCount = rawCount;
+                emit cameraImageCountChanged();
+            }
+
+            // Kept for the TAG-E unified count, which is driven by the DATA16 geotag path.
+            _cameraCaptureImageCount = rawCount;
         }
         break;
     }
@@ -862,10 +879,56 @@ void Vehicle::_handleCameraImageCaptured(const mavlink_message_t& message)
     mavlink_msg_camera_image_captured_decode(&message, &feedback);
 
     QGeoCoordinate imageCoordinate((double)feedback.lat / qPow(10.0, 7.0), (double)feedback.lon / qPow(10.0, 7.0), feedback.alt);
-    qCDebug(VehicleLog) << "_handleCameraFeedback coord:index" << imageCoordinate << feedback.image_index << feedback.capture_result;
+    qCDebug(VehicleLog) << "_handleCameraImageCaptured coord:index:result" << imageCoordinate << feedback.image_index << feedback.capture_result;
     if (feedback.capture_result == 1) {
         _appendCameraTriggerPoint(imageCoordinate);
+        // This message fires once per successful shot, including shots the camera triggers
+        // itself, which makes it a far better capture count than either the autopilot's
+        // CAMERA_FEEDBACK trigger points or the camera's own image_count field. The marker
+        // above is left ungated (its own dedup handles a relayed duplicate), but the count
+        // must only ever come from the one camera component we latched onto.
+        if (_isCountedCameraComponent(message.compid)) {
+            _updateCapturedImageCount(static_cast<int>(feedback.image_index));
+        }
     }
+}
+
+bool Vehicle::_isCountedCameraComponent(int compId)
+{
+    if ((compId < MAV_COMP_ID_CAMERA) || (compId > MAV_COMP_ID_CAMERA6)) {
+        return false;
+    }
+    // Latch onto the first camera component we see and ignore any others, so two cameras can
+    // never fight over the same counter. Only one payload is selectable at a time, but a
+    // relayed or second camera component would otherwise make the readout jump.
+    if (_cameraImageCountCompId < 0) {
+        _cameraImageCountCompId = compId;
+    }
+    return _cameraImageCountCompId == compId;
+}
+
+void Vehicle::_updateCapturedImageCount(int imageIndex)
+{
+    if (_cameraCapturedCount < 0) {
+        // First shot we have seen this session.
+        _cameraCapturedCount = 0;
+        _cameraCapturedIndexBaseline = imageIndex;
+        _cameraCapturedMaxIndex = imageIndex;
+    }
+
+    if (imageIndex > _cameraCapturedMaxIndex) {
+        _cameraCapturedMaxIndex = imageIndex;
+        // Derive from the index as well as the event so a lost CAMERA_IMAGE_CAPTURED does not
+        // permanently undercount. +1 because the baseline index belongs to shot number one.
+        const int countFromIndex = (_cameraCapturedMaxIndex - _cameraCapturedIndexBaseline) + 1;
+        _cameraCapturedCount = qMax(_cameraCapturedCount + 1, countFromIndex);
+    } else {
+        // Index did not advance: either the camera does not populate it, or it reset (new
+        // folder / camera reboot). Either way just count the event, never go backwards.
+        _cameraCapturedCount++;
+    }
+
+    emit cameraImageCountChanged();
 }
 
 // TODO: VehicleFactGroup
@@ -3355,6 +3418,16 @@ bool Vehicle::_commandCanBeDuplicated(MAV_CMD command)
     // earlier auto-init send that the camera was too slow to ACK (e.g.
     // TAG-E during its boot window).
     case MAV_CMD_SET_CAMERA_MODE:
+        return true;
+    // Xplorer/TAG-E: DO_DIGICAM_CONFIGURE carries fire-and-forget payload commands
+    // (tap-to-focus point 1101, AF trigger 135, AF area 180, exposure steps, geotag,
+    // etc.), all sharing this one command id. The TAG-E does not reliably ACK them,
+    // so without allowing duplicates the 3s pending window makes QGC drop every
+    // same-id send after the first as a "duplicate" — which breaks tap-to-focus (the
+    // 135 triggers get dropped while 1101 is still pending) and jams config sends on
+    // a lossy link. These are camera-config only, so there is no safety concern with
+    // duplicate/retriggered sends.
+    case MAV_CMD_DO_DIGICAM_CONFIGURE:
         return true;
     default:
         return false;

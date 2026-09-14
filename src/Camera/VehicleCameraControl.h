@@ -100,6 +100,7 @@ public:
     virtual quint32             storageFree         () { return _storageFree;  }
     virtual QString             storageFreeStr      ();
     virtual quint32             storageTotal        () { return _storageTotal; }
+    int                         imageCount          () override { return _imageCount; }
     virtual int                 batteryRemaining    () { return _batteryRemaining; }
     virtual QString             batteryRemainingStr ();
     virtual bool                paramComplete       () { return _paramComplete; }
@@ -267,6 +268,9 @@ protected:
     qreal                               _focusLevel         = 0.0;
     uint32_t                            _storageFree        = 0;
     uint32_t                            _storageTotal       = 0;
+    /// CAMERA_CAPTURE_STATUS.image_count as last reported by the camera. -1 until the
+    /// camera reports one, so callers can tell "no count available" from a real zero.
+    int                                 _imageCount         = -1;
     int                                 _batteryRemaining   = -1;
     QNetworkAccessManager*              _netManager         = nullptr;
     QString                             _modelName;
@@ -289,6 +293,20 @@ protected:
     QMap<QString, QGCCameraParamIO*>    _paramIO;
     int                                 _cameraSettingsRetries = 0;
     int                                 _cameraCaptureStatusRetries = 0;
+
+    // Which request QGC uses to pull CAMERA_CAPTURE_STATUS. Cameras differ: some answer only
+    // MAV_CMD_REQUEST_MESSAGE, some only the deprecated MAV_CMD_REQUEST_CAMERA_CAPTURE_STATUS.
+    // Blindly alternating between them wastes every other poll on a camera that supports only
+    // one, which makes the capture count look like it advances in steps of two. So probe by
+    // alternating until a status actually comes back, then pin to whatever worked.
+    static constexpr int kCaptureStatusProbing = -1;   ///< no method established yet
+    static constexpr int kCaptureStatusRequestMessage = 0;
+    static constexpr int kCaptureStatusRequestLegacy = 1;
+    /// Polls with no answer before we discard the pinned method and probe again.
+    static constexpr int kCaptureStatusRepobeAfterMissed = 3;
+    int                                 _captureStatusRequest     = kCaptureStatusProbing;
+    int                                 _captureStatusLastTried   = kCaptureStatusProbing;
+    int                                 _captureStatusMissedPolls = 0;
     int                                 _storageInfoRetries = 0;
     int                                 _captureInfoRetries = 0;
     bool                                _resetting          = false;
