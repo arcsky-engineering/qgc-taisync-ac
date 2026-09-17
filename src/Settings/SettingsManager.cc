@@ -13,6 +13,7 @@
 #ifndef QGC_NO_ARDUPILOT_DIALECT
 #include "APMMavlinkStreamRateSettings.h"
 #endif
+#include "AirDataSettings.h"
 #include "AppSettings.h"
 #include "AutoConnectSettings.h"
 #include "BatteryIndicatorSettings.h"
@@ -73,6 +74,7 @@ void SettingsManager::init()
 #ifndef QGC_NO_ARDUPILOT_DIALECT
     _apmMavlinkStreamRateSettings = new APMMavlinkStreamRateSettings(this);
 #endif
+    _airDataSettings = new AirDataSettings(this);
     _appSettings = new AppSettings(this);
     _autoConnectSettings = new AutoConnectSettings(this);
     _batteryIndicatorSettings = new BatteryIndicatorSettings(this);
@@ -99,6 +101,7 @@ ADSBVehicleManagerSettings *SettingsManager::adsbVehicleManagerSettings() const 
 #ifndef QGC_NO_ARDUPILOT_DIALECT
 APMMavlinkStreamRateSettings *SettingsManager::apmMavlinkStreamRateSettings() const { return _apmMavlinkStreamRateSettings; }
 #endif
+AirDataSettings *SettingsManager::airDataSettings() const { return _airDataSettings; }
 AppSettings *SettingsManager::appSettings() const { return _appSettings; }
 AutoConnectSettings *SettingsManager::autoConnectSettings() const { return _autoConnectSettings; }
 BatteryIndicatorSettings *SettingsManager::batteryIndicatorSettings() const { return _batteryIndicatorSettings; }

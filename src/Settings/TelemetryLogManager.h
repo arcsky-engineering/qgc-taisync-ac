@@ -12,6 +12,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtCore/QDateTime>
+#include <QtCore/QStringList>
 #include <QtCore/QLoggingCategory>
 
 Q_DECLARE_LOGGING_CATEGORY(TelemetryLogManagerLog)
@@ -77,6 +78,8 @@ public:
     bool    isCapturing()   const;
 
     Q_INVOKABLE void refresh();
+    /// Absolute paths of every currently selected log, for handing to the AirData uploader.
+    Q_INVOKABLE QStringList selectedFilePaths() const;
     Q_INVOKABLE void deleteSelected();
     Q_INVOKABLE void selectAll();
     Q_INVOKABLE void selectNone();

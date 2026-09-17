@@ -28,6 +28,7 @@
 #include <QtNetwork/QNetworkProxyFactory>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtQml/QQmlContext>
+#include <QtQml/QQmlEngine>
 #include <QtQuick/QQuickImageProvider>
 #include <QtQuick/QQuickWindow>
 #include <QtQuickControls2/QQuickStyle>
@@ -62,6 +63,7 @@
 #include "QGCImageProvider.h"
 #include "QGCLoggingCategory.h"
 #include "QGroundControlQmlGlobal.h"
+#include "AirDataSyncManager.h"
 #include "TelemetryLogManager.h"
 #include "SettingsManager.h"
 #include "AppSettings.h"
@@ -98,6 +100,15 @@ QGC_LOGGING_CATEGORY(QGCApplicationLog, "qgc.qgcapplication")
 static QObject *mavlinkSingletonFactory(QQmlEngine*, QJSEngine*)
 {
     return new QGCMAVLink();
+}
+
+static QObject *airDataSyncManagerSingletonFactory(QQmlEngine*, QJSEngine*)
+{
+    // Owned by the application, not the qml engine -- it outlives the settings page
+    // so an upload keeps running while the user navigates away.
+    AirDataSyncManager *const manager = AirDataSyncManager::instance();
+    QQmlEngine::setObjectOwnership(manager, QQmlEngine::CppOwnership);
+    return manager;
 }
 
 static QObject* ntripSingletonFactory(QQmlEngine*, QJSEngine*)
@@ -335,6 +346,7 @@ void QGCApplication::init()
 
     qmlRegisterSingletonType<QGCMAVLink>("MAVLink", 1, 0, "MAVLink", mavlinkSingletonFactory);
     qmlRegisterSingletonType<NTRIP>("QGroundControl.NTRIP", 1, 0, "NTRIP", ntripSingletonFactory);
+    qmlRegisterSingletonType<AirDataSyncManager>("QGroundControl.AirData", 1, 0, "AirDataSyncManager", airDataSyncManagerSingletonFactory);
 
 
     // Although this should really be in _initForNormalAppBoot putting it here allowws us to create unit tests which pop up more easily

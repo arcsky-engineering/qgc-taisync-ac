@@ -127,6 +127,18 @@ void TelemetryLogManager::refresh()
     _updateSelectedCount();
 }
 
+QStringList TelemetryLogManager::selectedFilePaths() const
+{
+    QStringList paths;
+    for (int i = 0; i < _logFiles->count(); i++) {
+        const auto *entry = qobject_cast<TelemetryLogEntry *>(_logFiles->get(i));
+        if (entry && entry->selected()) {
+            paths.append(entry->filePath());
+        }
+    }
+    return paths;
+}
+
 void TelemetryLogManager::deleteSelected()
 {
     for (int i = _logFiles->count() - 1; i >= 0; i--) {

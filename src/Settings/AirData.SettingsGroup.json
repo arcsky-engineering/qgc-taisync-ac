@@ -1,0 +1,28 @@
+{
+    "version":      1,
+    "fileType":  "FactMetaData",
+    "QGC.MetaData.Facts":
+[
+{
+    "name":             "airDataSyncEnabled",
+    "shortDesc": "Enable AirData sync",
+    "longDesc":  "Allows telemetry logs to be uploaded to AirData using the Flight Upload API.",
+    "type":             "bool",
+    "default":     false
+},
+{
+    "name":             "airDataUploadToken",
+    "shortDesc": "AirData Auto Upload Token",
+    "longDesc":  "The pilot's Auto Upload Token, available from the AirData web app under My Account -> Auto Upload Token. Begins with HD.",
+    "type":             "string",
+    "default":     ""
+},
+{
+    "name":             "airDataAppKey",
+    "shortDesc": "AirData app key override",
+    "longDesc":  "Overrides the AirData app key compiled into this build. Normally left blank; used for testing against a different app key without rebuilding.",
+    "type":             "string",
+    "default":     ""
+}
+]
+}

@@ -14,6 +14,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 
 import QGroundControl
+import QGroundControl.AirData
 import QGroundControl.Controllers
 import QGroundControl.FactSystem
 import QGroundControl.FactControls
@@ -29,6 +30,8 @@ SettingsPage {
     property bool   _disableAllDataPersistence: _appSettings.disableAllPersistence.rawValue
     property var    _activeVehicle:             QGroundControl.multiVehicleManager.activeVehicle
     property string _notConnectedStr:           qsTr("Not Connected")
+    property var    _airDataSettings:           _settingsManager.airDataSettings
+    property bool   _airDataSyncEnabled:        _airDataSettings.airDataSyncEnabled.rawValue
     TelemetryLogManager { id: telemetryLogManager }
 
     // Ground Station: only the MAVLink System ID is exposed (range 245..255,
@@ -117,6 +120,123 @@ SettingsPage {
     }
 
     SettingsGroupLayout {
+        Layout.fillWidth:   true
+        heading:            qsTr("AirData Sync")
+        headingDescription: qsTr("Uploads saved telemetry logs to AirData. Each pilot's Auto Upload Token is found in the AirData web app under My Account > Auto Upload Token.")
+        visible:            !_disableAllDataPersistence
+
+        FactCheckBoxSlider {
+            Layout.fillWidth:   true
+            text:               qsTr("Enable AirData sync")
+            fact:               _airDataSettings.airDataSyncEnabled
+        }
+
+        LabelledFactTextField {
+            id:                         tokenField
+            Layout.fillWidth:           true
+            textFieldPreferredWidth:    ScreenTools.defaultFontPixelWidth * 20
+            label:                      qsTr("Auto Upload Token")
+            fact:                       _airDataSettings.airDataUploadToken
+            enabled:                    _airDataSyncEnabled
+
+            Connections {
+                target: tokenField.textField
+                function onEditingFinished() { AirDataSyncManager.validateToken() }
+            }
+        }
+
+        // Only offered when the build was configured without -DQGC_AIRDATA_APP_KEY,
+        // so a test build can be pointed at a key without recompiling.
+        LabelledFactTextField {
+            Layout.fillWidth:           true
+            textFieldPreferredWidth:    ScreenTools.defaultFontPixelWidth * 20
+            label:                      qsTr("App key")
+            fact:                       _airDataSettings.airDataAppKey
+            enabled:                    _airDataSyncEnabled
+            visible:                    !AirDataSyncManager.appKeyBuiltIn
+        }
+
+        QGCLabel {
+            Layout.fillWidth:   true
+            wrapMode:           Text.WordWrap
+            visible:            text !== ""
+            text:               AirDataSyncManager.tokenStatusText
+            color:              AirDataSyncManager.tokenState === AirDataSyncManager.TokenValid ? qgcPal.colorGreen : qgcPal.warningText
+        }
+
+        RowLayout {
+            Layout.fillWidth:   true
+            spacing:            ScreenTools.defaultFontPixelWidth
+
+            QGCButton {
+                text:       qsTr("Verify Token")
+                enabled:    _airDataSyncEnabled && !AirDataSyncManager.uploading
+                onClicked:  AirDataSyncManager.validateToken()
+            }
+
+            QGCButton {
+                text:       qsTr("Upload Selected")
+                enabled:    _airDataSyncEnabled && telemetryLogManager.selectedCount > 0 && !AirDataSyncManager.uploading
+                onClicked:  AirDataSyncManager.uploadFiles(telemetryLogManager.selectedFilePaths())
+            }
+
+            QGCButton {
+                text:       qsTr("Cancel Upload")
+                visible:    AirDataSyncManager.uploading
+                onClicked:  AirDataSyncManager.cancel()
+            }
+
+            Item { Layout.fillWidth: true }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth:   true
+            spacing:            ScreenTools.defaultFontPixelHeight * 0.25
+            visible:            AirDataSyncManager.uploading
+
+            QGCLabel {
+                Layout.fillWidth:   true
+                elide:              Text.ElideMiddle
+                text:               AirDataSyncManager.queuedCount > 0
+                                        ? qsTr("Uploading %1 (%2 more queued)").arg(AirDataSyncManager.currentFileName).arg(AirDataSyncManager.queuedCount)
+                                        : qsTr("Uploading %1").arg(AirDataSyncManager.currentFileName)
+            }
+
+            ProgressBar {
+                Layout.fillWidth:   true
+                from:               0
+                to:                 1
+                value:              AirDataSyncManager.progress
+            }
+        }
+
+        QGCLabel {
+            Layout.fillWidth:   true
+            wrapMode:           Text.WordWrap
+            visible:            AirDataSyncManager.succeededCount > 0 || AirDataSyncManager.failedCount > 0
+            text:               qsTr("%1 uploaded, %2 failed this session.")
+                                    .arg(AirDataSyncManager.succeededCount)
+                                    .arg(AirDataSyncManager.failedCount)
+        }
+
+        QGCLabel {
+            Layout.fillWidth:   true
+            wrapMode:           Text.WordWrap
+            color:              qgcPal.warningText
+            visible:            AirDataSyncManager.failedCount > 0 && AirDataSyncManager.lastError !== ""
+            text:               qsTr("Last error: %1").arg(AirDataSyncManager.lastError)
+        }
+
+        // AirData reports success as soon as it accepts the file into its processing
+        // queue. Confirming the flight actually parsed needs a job status poll, which
+        // is not wired up yet, so don't treat this as proof the flight landed.
+        QGCLabel {
+            Layout.fillWidth:   true
+            wrapMode:           Text.WordWrap
+            font.pointSize:     ScreenTools.smallFontPointSize
+            text:               qsTr("A successful upload means AirData accepted the file for processing. Check the AirData web app to confirm the flight was parsed.")
+        }
+    }    SettingsGroupLayout {
         Layout.fillWidth:   true
         heading:            qsTr("Saved Telemetry Logs")
         headingDescription: telemetryLogManager.totalCount > 0

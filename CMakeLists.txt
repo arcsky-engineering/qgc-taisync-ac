@@ -30,6 +30,11 @@ set(QGC_ORG_DOMAIN "qgroundcontrol.com" CACHE STRING "Domain")
 set(QGC_PACKAGE_NAME "org.mavlink.qgroundcontrol" CACHE STRING "Package Name")
 set(QGC_SETTINGS_VERSION "9" CACHE STRING "Settings Version") # If you need to make an incompatible changes to stored settings, bump this version number up by 1. This will caused store settings to be cleared on next boot.
 
+# AirData Flight Upload API app key, issued to Arcsky. Intentionally not stored in
+# the repo -- pass it at configure time, e.g. -DQGC_AIRDATA_APP_KEY=abcd1234.
+# If left empty the sync ui still builds, but reports that no key is configured.
+set(QGC_AIRDATA_APP_KEY "" CACHE STRING "AirData Flight Upload API app key")
+
 project(${QGC_APP_NAME}
     VERSION ${QGC_APP_VERSION}
     DESCRIPTION ${QGC_APP_DESCRIPTION}
@@ -501,6 +506,12 @@ target_compile_definitions(${CMAKE_PROJECT_NAME}
         QGC_SETTINGS_VERSION=${QGC_SETTINGS_VERSION}
         $<$<NOT:$<BOOL:${QGC_STABLE_BUILD}>>:QGC_DAILY_BUILD>
 )
+
+# Only defined when a key was passed at configure time, so the code can tell an
+# unconfigured build from one carrying a key.
+if(QGC_AIRDATA_APP_KEY)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE QGC_AIRDATA_APP_KEY="${QGC_AIRDATA_APP_KEY}")
+endif()
 
 set_target_properties(${CMAKE_PROJECT_NAME}
     PROPERTIES
