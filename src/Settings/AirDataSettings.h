@@ -20,5 +20,7 @@ public:
 
     DEFINE_SETTINGFACT(airDataSyncEnabled)
     DEFINE_SETTINGFACT(airDataUploadToken)
+    DEFINE_SETTINGFACT(airDataAutoUpload)
+    DEFINE_SETTINGFACT(airDataWifiOnly)
     DEFINE_SETTINGFACT(airDataAppKey)
 };

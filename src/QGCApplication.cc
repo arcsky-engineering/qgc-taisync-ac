@@ -387,6 +387,8 @@ void QGCApplication::_initForNormalAppBoot()
     QGCCorePlugin::instance()->init();
     MAVLinkProtocol::instance()->init();
     MultiVehicleManager::instance()->init();
+    // After MAVLinkProtocol and MultiVehicleManager, whose signals and arm state it watches.
+    AirDataSyncManager::instance()->init();
     _qmlAppEngine = QGCCorePlugin::instance()->createQmlApplicationEngine(this);
     QObject::connect(_qmlAppEngine, &QQmlApplicationEngine::objectCreationFailed, this, QCoreApplication::quit, Qt::QueuedConnection);
     QGCCorePlugin::instance()->createRootWindow(_qmlAppEngine);

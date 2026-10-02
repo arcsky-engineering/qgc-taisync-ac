@@ -131,6 +131,20 @@ SettingsPage {
             fact:               _airDataSettings.airDataSyncEnabled
         }
 
+        FactCheckBoxSlider {
+            Layout.fillWidth:   true
+            text:               qsTr("Upload automatically after each flight")
+            fact:               _airDataSettings.airDataAutoUpload
+            enabled:            _airDataSyncEnabled
+        }
+
+        FactCheckBoxSlider {
+            Layout.fillWidth:   true
+            text:               qsTr("Only upload on Wi-Fi")
+            fact:               _airDataSettings.airDataWifiOnly
+            enabled:            _airDataSyncEnabled && _airDataSettings.airDataAutoUpload.rawValue
+        }
+
         LabelledFactTextField {
             id:                         tokenField
             Layout.fillWidth:           true
@@ -175,6 +189,12 @@ SettingsPage {
             }
 
             QGCButton {
+                text:       qsTr("Sync Now")
+                enabled:    _airDataSyncEnabled && !AirDataSyncManager.uploading
+                onClicked:  AirDataSyncManager.syncNow()
+            }
+
+            QGCButton {
                 text:       qsTr("Upload Selected")
                 enabled:    _airDataSyncEnabled && telemetryLogManager.selectedCount > 0 && !AirDataSyncManager.uploading
                 onClicked:  AirDataSyncManager.uploadFiles(telemetryLogManager.selectedFilePaths())
@@ -210,6 +230,15 @@ SettingsPage {
             }
         }
 
+        // Says why automatic sync is sitting idle, so a waiting operator is not left
+        // guessing whether it is broken or just holding for Wi-Fi.
+        QGCLabel {
+            Layout.fillWidth:   true
+            wrapMode:           Text.WordWrap
+            visible:            _airDataSyncEnabled && !AirDataSyncManager.uploading && AirDataSyncManager.holdReason !== ""
+            text:               AirDataSyncManager.holdReason
+        }
+
         QGCLabel {
             Layout.fillWidth:   true
             wrapMode:           Text.WordWrap
@@ -227,9 +256,9 @@ SettingsPage {
             text:               qsTr("Last error: %1").arg(AirDataSyncManager.lastError)
         }
 
-        // AirData reports success as soon as it accepts the file into its processing
-        // queue. Confirming the flight actually parsed needs a job status poll, which
-        // is not wired up yet, so don't treat this as proof the flight landed.
+        // AirData reports success as soon as it accepts the file. It issues no
+        // pollable job id for .tlog uploads, so there is no way for us to confirm the
+        // flight parsed. Checking the web app is genuinely the only confirmation.
         QGCLabel {
             Layout.fillWidth:   true
             wrapMode:           Text.WordWrap
@@ -282,8 +311,20 @@ SettingsPage {
 
                         QGCLabel {
                             Layout.fillWidth:   true
+                            elide:              Text.ElideMiddle
                             text:               object.name
                             color:              object.selected ? qgcPal.buttonHighlightText : qgcPal.text
+                        }
+
+                        QGCLabel {
+                            font.pointSize: ScreenTools.smallFontPointSize
+                            visible:        text !== ""
+                            text:           object.uploading
+                                                ? qsTr("Uploading %1%").arg(Math.round(object.uploadProgress * 100))
+                                                : object.syncStatus
+                            color:          object.selected
+                                                ? qgcPal.buttonHighlightText
+                                                : (object.uploaded ? qgcPal.colorGreen : qgcPal.warningText)
                         }
 
                         QGCLabel {

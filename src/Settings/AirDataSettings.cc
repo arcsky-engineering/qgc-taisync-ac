@@ -18,4 +18,6 @@ DECLARE_SETTINGGROUP(AirData, "AirData")
 
 DECLARE_SETTINGSFACT(AirDataSettings, airDataSyncEnabled)
 DECLARE_SETTINGSFACT(AirDataSettings, airDataUploadToken)
+DECLARE_SETTINGSFACT(AirDataSettings, airDataAutoUpload)
+DECLARE_SETTINGSFACT(AirDataSettings, airDataWifiOnly)
 DECLARE_SETTINGSFACT(AirDataSettings, airDataAppKey)

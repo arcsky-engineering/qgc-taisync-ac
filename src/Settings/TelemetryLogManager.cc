@@ -9,6 +9,7 @@
 
 #include "TelemetryLogManager.h"
 
+#include "AirDataSyncManager.h"
 #include "AppSettings.h"
 #include "MAVLinkProtocol.h"
 #include "QGCLoggingCategory.h"
@@ -53,6 +54,24 @@ void TelemetryLogEntry::setSelected(bool selected)
     }
 }
 
+void TelemetryLogEntry::setSyncStatus(const QString &status, bool uploading, bool uploaded)
+{
+    if ((_syncStatus != status) || (_uploading != uploading) || (_uploaded != uploaded)) {
+        _syncStatus = status;
+        _uploading = uploading;
+        _uploaded = uploaded;
+        emit syncStatusChanged();
+    }
+}
+
+void TelemetryLogEntry::setUploadProgress(qreal progress)
+{
+    if (!qFuzzyCompare(_uploadProgress, progress)) {
+        _uploadProgress = progress;
+        emit uploadProgressChanged();
+    }
+}
+
 // ----------------------------------------------------------------------------
 // TelemetryLogManager
 // ----------------------------------------------------------------------------
@@ -63,7 +82,56 @@ TelemetryLogManager::TelemetryLogManager(QObject *parent)
 {
     (void) connect(MAVLinkProtocol::instance(), &MAVLinkProtocol::manualCaptureActiveChanged,
                    this, &TelemetryLogManager::isCapturingChanged);
+
+    AirDataSyncManager *const syncManager = AirDataSyncManager::instance();
+    (void) connect(syncManager, &AirDataSyncManager::fileUploadStarted,
+                   this, &TelemetryLogManager::_onFileUploadStarted);
+    (void) connect(syncManager, &AirDataSyncManager::fileUploadProgress,
+                   this, &TelemetryLogManager::_onFileUploadProgress);
+    (void) connect(syncManager, &AirDataSyncManager::fileUploadFinished,
+                   this, &TelemetryLogManager::_onFileUploadFinished);
+
     refresh();
+}
+
+TelemetryLogEntry *TelemetryLogManager::_entryForPath(const QString &filePath) const
+{
+    for (int i = 0; i < _logFiles->count(); i++) {
+        auto *entry = qobject_cast<TelemetryLogEntry *>(_logFiles->get(i));
+        if (entry && (entry->filePath() == filePath)) {
+            return entry;
+        }
+    }
+    return nullptr;
+}
+
+void TelemetryLogManager::_onFileUploadStarted(const QString &filePath)
+{
+    if (TelemetryLogEntry *const entry = _entryForPath(filePath)) {
+        entry->setUploadProgress(0);
+        entry->setSyncStatus(tr("Uploading"), true, false);
+    }
+}
+
+void TelemetryLogManager::_onFileUploadProgress(const QString &filePath, qreal progress)
+{
+    if (TelemetryLogEntry *const entry = _entryForPath(filePath)) {
+        entry->setUploadProgress(progress);
+    }
+}
+
+void TelemetryLogManager::_onFileUploadFinished(const QString &filePath, bool success, const QString &jobId, const QString &error)
+{
+    Q_UNUSED(jobId);
+    Q_UNUSED(error);
+
+    if (TelemetryLogEntry *const entry = _entryForPath(filePath)) {
+        // Ask the sync manager rather than deriving it here, so the retry count
+        // shown in the list matches what the ledger actually recorded.
+        entry->setSyncStatus(AirDataSyncManager::instance()->fileStatusText(filePath), false,
+                             AirDataSyncManager::instance()->isUploaded(filePath));
+        entry->setUploadProgress(success ? 1 : 0);
+    }
 }
 
 TelemetryLogManager::~TelemetryLogManager()
@@ -119,6 +187,8 @@ void TelemetryLogManager::refresh()
 
     for (const QFileInfo &fileInfo : fileInfoList) {
         auto *entry = new TelemetryLogEntry(fileInfo.absoluteFilePath(), fileInfo.size(), fileInfo.lastModified(), _logFiles);
+        entry->setSyncStatus(AirDataSyncManager::instance()->fileStatusText(entry->filePath()), false,
+                             AirDataSyncManager::instance()->isUploaded(entry->filePath()));
         (void) connect(entry, &TelemetryLogEntry::selectedChanged, this, &TelemetryLogManager::_updateSelectedCount);
         _logFiles->append(entry);
     }

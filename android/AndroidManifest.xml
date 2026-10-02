@@ -22,6 +22,9 @@
     <!-- Needed for read/write to SD Card Path in AppSettings -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- Needed to upload telemetry logs to AirData -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- %%INSERT_FEATURES -->
 

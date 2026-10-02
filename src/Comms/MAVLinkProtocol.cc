@@ -585,6 +585,8 @@ void MAVLinkProtocol::_saveTelemetryLog(const QString &tempLogfile)
         if (!tempFile.copy(saveFilePath)) {
             const QString error = tr("Unable to save telemetry log. Error copying telemetry to '%1': '%2'.").arg(saveFilePath, tempFile.errorString());
             qgcApp()->showAppMessage(error);
+        } else {
+            emit telemetryLogSaved(saveFilePath);
         }
     }
 

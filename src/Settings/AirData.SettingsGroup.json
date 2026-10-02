@@ -18,6 +18,20 @@
     "default":     ""
 },
 {
+    "name":             "airDataAutoUpload",
+    "shortDesc": "Upload automatically",
+    "longDesc":  "Uploads each telemetry log to AirData on its own, after the flight ends and whenever a network becomes available.",
+    "type":             "bool",
+    "default":     true
+},
+{
+    "name":             "airDataWifiOnly",
+    "shortDesc": "Upload on Wi-Fi only",
+    "longDesc":  "Holds automatic uploads until the controller is on an unmetered network, so logs do not consume a mobile data allowance. Manual uploads ignore this.",
+    "type":             "bool",
+    "default":     true
+},
+{
     "name":             "airDataAppKey",
     "shortDesc": "AirData app key override",
     "longDesc":  "Overrides the AirData app key compiled into this build. Normally left blank; used for testing against a different app key without rebuilding.",

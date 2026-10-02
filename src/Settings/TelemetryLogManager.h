@@ -30,6 +30,10 @@ class TelemetryLogEntry : public QObject
     Q_PROPERTY(QString   sizeStr      READ sizeStr      CONSTANT)
     Q_PROPERTY(QDateTime lastModified READ lastModified  CONSTANT)
     Q_PROPERTY(bool      selected     READ selected     WRITE setSelected NOTIFY selectedChanged)
+    Q_PROPERTY(QString   syncStatus   READ syncStatus   NOTIFY syncStatusChanged)
+    Q_PROPERTY(bool      uploaded     READ uploaded     NOTIFY syncStatusChanged)
+    Q_PROPERTY(bool      uploading    READ uploading    NOTIFY syncStatusChanged)
+    Q_PROPERTY(qreal     uploadProgress READ uploadProgress NOTIFY uploadProgressChanged)
 
 public:
     explicit TelemetryLogEntry(const QString &filePath, quint64 size, const QDateTime &lastModified, QObject *parent = nullptr);
@@ -42,8 +46,19 @@ public:
     bool      selected()     const { return _selected; }
     void      setSelected(bool selected);
 
+    /// AirData sync state for this file: "Uploaded", "Uploading", "Failed", or empty.
+    QString   syncStatus()     const { return _syncStatus; }
+    bool      uploaded()       const { return _uploaded; }
+    bool      uploading()      const { return _uploading; }
+    qreal     uploadProgress() const { return _uploadProgress; }
+
+    void setSyncStatus(const QString &status, bool uploading, bool uploaded);
+    void setUploadProgress(qreal progress);
+
 signals:
     void selectedChanged();
+    void syncStatusChanged();
+    void uploadProgressChanged();
 
 private:
     QString   _name;
@@ -51,6 +66,10 @@ private:
     quint64   _size;
     QDateTime _lastModified;
     bool      _selected = false;
+    QString   _syncStatus;
+    bool      _uploading = false;
+    bool      _uploaded = false;
+    qreal     _uploadProgress = 0;
 };
 
 /// Controller for managing saved telemetry log files (.tlog).
@@ -93,6 +112,10 @@ signals:
 
 private:
     void _updateSelectedCount();
+    void _onFileUploadStarted(const QString &filePath);
+    void _onFileUploadProgress(const QString &filePath, qreal progress);
+    void _onFileUploadFinished(const QString &filePath, bool success, const QString &jobId, const QString &error);
+    TelemetryLogEntry *_entryForPath(const QString &filePath) const;
 
     QmlObjectListModel *_logFiles = nullptr;
     int _selectedCount = 0;

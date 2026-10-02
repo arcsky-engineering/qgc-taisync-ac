@@ -507,12 +507,6 @@ target_compile_definitions(${CMAKE_PROJECT_NAME}
         $<$<NOT:$<BOOL:${QGC_STABLE_BUILD}>>:QGC_DAILY_BUILD>
 )
 
-# Only defined when a key was passed at configure time, so the code can tell an
-# unconfigured build from one carrying a key.
-if(QGC_AIRDATA_APP_KEY)
-    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE QGC_AIRDATA_APP_KEY="${QGC_AIRDATA_APP_KEY}")
-endif()
-
 set_target_properties(${CMAKE_PROJECT_NAME}
     PROPERTIES
         QT_RESOURCE_PREFIX "/qgc"

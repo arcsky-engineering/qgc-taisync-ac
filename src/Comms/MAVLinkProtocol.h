@@ -88,6 +88,9 @@ signals:
 
     void manualCaptureActiveChanged();
 
+    /// A telemetry log was written to the save directory. Carries its absolute path.
+    void telemetryLogSaved(const QString &filePath);
+
 public slots:
     /// Receive bytes from a communication interface and constructs a MAVLink packet
     ///     @param link The interface to read from
