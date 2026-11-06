@@ -34,6 +34,9 @@ public:
     Q_INVOKABLE Fact *getParameterFact(int componentId, const QString &name, bool reportMissing = true) const;
     Q_INVOKABLE bool parameterExists(int componentId, const QString &name) const;
 
+    /// Re-requests a single parameter value from the vehicle (for values the firmware changes on its own, e.g. STAT_*)
+    Q_INVOKABLE void refreshParameter(int componentId, const QString &name);
+
     /// Queries the vehicle for parameters which were not available on initial download but should be available now.
     /// Signals missingParametersAvailable when done. Only works for MAV_COMP_ID_AUTOPILOT1 parameters.
     Q_INVOKABLE void getMissingParameters(const QStringList &rgNames);

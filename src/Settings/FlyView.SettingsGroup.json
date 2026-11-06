@@ -85,6 +85,13 @@
     "default":      false
 },
 {
+    "name":         "showProximityRadar",
+    "shortDesc":    "Show proximity radar",
+    "longDesc":     "When enabled, a ring sized to the distance sensor max range is drawn around the vehicle on the map, with red arcs (and a video overlay) for obstacles detected by horizontal-facing distance sensors. Only shown when a horizontal-facing sensor is reporting; downward rangefinders alone do not trigger it.",
+    "type":         "bool",
+    "default":      false
+},
+{
     "name":             "maxGoToLocationDistance",
     "shortDesc": "Maximum distance allowed for Go To Location.",
     "type":             "double",
@@ -250,6 +257,22 @@
     "min":          0,
     "max":          30,
     "default":      10
+},
+{
+    "name":         "afTriggerPulses",
+    "shortDesc":    "Autofocus trigger repeats",
+    "longDesc":     "Number of AF half-press commands (DO_DIGICAM_CONFIGURE p1=135) sent per tap-to-focus or Focus & Lock. Repeats sustain the half-press after an AF point move and cover dropped commands; 1 sends a single pulse.",
+    "type":         "uint32",
+    "min":          1,
+    "max":          5,
+    "default":      2
+},
+{
+    "name":         "ilxManualFocusControls",
+    "shortDesc":    "Show ILX manual focus near/far controls",
+    "longDesc":     "Show the hold-to-drive near/far manual focus buttons (DO_DIGICAM_CONFIGURE p1=111) in the on-screen ILX quick controls. Off by default until the TAG-E manual focus command is confirmed working; AF and Focus & Lock are unaffected.",
+    "type":         "bool",
+    "default":      false
 },
 {
     "name":             "enableMicROM",

@@ -118,6 +118,17 @@ private slots:
 
 private:
     void _logData(LinkInterface *link, const mavlink_message_t &message);
+
+    /// Sidecar marker next to each temp log recording whether it must be kept. Lets
+    /// checkForLostLogFiles() decide an orphan's fate without reading the log itself:
+    ///     missing         log was written by an older build, decide by size only
+    ///     empty           vehicle never armed (and no manual capture), discard
+    ///     "save"          vehicle armed or manual capture active, recover
+    static QString _logStatePath(const QString &tempLogPath) { return tempLogPath + QStringLiteral(".state"); }
+    void _writeLogStateMarker(bool save);
+    static bool _logStateMarkerSaysSave(const QString &statePath);
+    static void _removeTempLog(const QString &tempLogPath);
+
     bool _closeLogFile();
     void _startLogging();
     void _stopLogging();

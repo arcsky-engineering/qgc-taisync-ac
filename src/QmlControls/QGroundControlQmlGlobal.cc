@@ -326,15 +326,19 @@ void QGroundControlQmlGlobal::setFlightMapZoom(double zoom)
 
 QString QGroundControlQmlGlobal::qgcVersion(void)
 {
-    QString versionStr = _QGCVersion;
-    if(QSysInfo::buildAbi().contains("32"))
-    {
-        versionStr += QStringLiteral(" %1").arg(tr("32 bit"));
+    // The version numbers themselves are owned by cmake/ArcskyVersion.cmake. This only
+    // assembles them for display, e.g. "v1.0.0  (QGC 5.0.6)" or
+    // "v1.0.0-dev  (QGC 5.0.6)  rc7-n-unified 55f25ed1d".
+    QString versionStr = QCoreApplication::applicationVersion();
+    if (!versionStr.startsWith(QStringLiteral("v"))) {
+        versionStr.prepend(QStringLiteral("v"));
     }
-    else if(QSysInfo::buildAbi().contains("64"))
-    {
-        versionStr += QStringLiteral(" %1").arg(tr("64 bit"));
-    }
+#ifdef ARCSKY_QGC_BASE_VERSION_STR
+    versionStr += QStringLiteral("  (QGC %1)").arg(QStringLiteral(ARCSKY_QGC_BASE_VERSION_STR));
+#endif
+#if defined(ARCSKY_GIT_BRANCH_STR) && defined(ARCSKY_GIT_HASH_STR)
+    versionStr += QStringLiteral("  %1 %2").arg(QStringLiteral(ARCSKY_GIT_BRANCH_STR), QStringLiteral(ARCSKY_GIT_HASH_STR));
+#endif
     return versionStr;
 }
 

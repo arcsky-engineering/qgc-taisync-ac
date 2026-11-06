@@ -20,7 +20,7 @@ import QGroundControl.FlightDisplay
 Item {
     id:             _root
     anchors.fill:   parent
-    visible:        proximityValues.telemetryAvailable
+    visible:        QGroundControl.settingsManager.flyViewSettings.showProximityRadar.rawValue && proximityValues.horizontalSensorAvailable
 
     property var    vehicle     ///< Vehicle object, undefined for ADSB vehicle
     property real   range:  6   ///< Default 6m view

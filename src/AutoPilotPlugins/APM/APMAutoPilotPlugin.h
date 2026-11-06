@@ -26,6 +26,7 @@ class APMSubFrameComponent;
 class ESP8266Component;
 class APMHeliComponent;
 class APMRemoteSupportComponent;
+class APMStatusComponent;
 class APMFollowComponent;
 class Vehicle;
 
@@ -59,6 +60,7 @@ protected:
     ESP8266Component *_esp8266Component = nullptr;
     APMHeliComponent *_heliComponent = nullptr;
     APMRemoteSupportComponent *_apmRemoteSupportComponent = nullptr;
+    APMStatusComponent *_statusComponent = nullptr;
     APMFollowComponent *_followComponent = nullptr;
 
 #ifndef QGC_NO_SERIAL_LINK

@@ -15,10 +15,14 @@
 #include "MAVLinkProtocol.h"
 #include "MultiVehicleManager.h"
 #include "QGCLoggingCategory.h"
+#include "QmlObjectListModel.h"
 #include "SettingsManager.h"
 #include "Vehicle.h"
 
+#include <algorithm>
+
 #include <QtCore/QCoreApplication>
+#include <QtCore/QCryptographicHash>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -26,9 +30,11 @@
 #include <QtCore/QJsonObject>
 #include <QtCore/QSaveFile>
 #include <QtCore/QSet>
+#include <QtCore/QSettings>
 #include <QtCore/QTimer>
 #include <QtCore/QUrl>
 #include <QtCore/QUrlQuery>
+#include <QtCore/QMap>
 #include <QtCore/qapplicationstatic.h>
 #include <QtNetwork/QHttpMultiPart>
 #include <QtNetwork/QNetworkAccessManager>
@@ -104,6 +110,7 @@ void AirDataSyncLedger::load(const QString &telemetryDir)
         entry.uploadedAt = QDateTime::fromString(object.value(QStringLiteral("uploadedAt")).toString(), Qt::ISODate);
         entry.attempts   = object.value(QStringLiteral("attempts")).toInt();
         entry.lastError  = object.value(QStringLiteral("lastError")).toString();
+        entry.pilotId    = object.value(QStringLiteral("pilotId")).toString();
         _entries.insert(it.key(), entry);
     }
 
@@ -130,6 +137,9 @@ void AirDataSyncLedger::save() const
         object.insert(QStringLiteral("attempts"), it.value().attempts);
         if (!it.value().lastError.isEmpty()) {
             object.insert(QStringLiteral("lastError"), it.value().lastError);
+        }
+        if (!it.value().pilotId.isEmpty()) {
+            object.insert(QStringLiteral("pilotId"), it.value().pilotId);
         }
         files.insert(it.key(), object);
     }
@@ -166,6 +176,15 @@ bool AirDataSyncLedger::isUploaded(const QString &filePath) const
 AirDataSyncLedger::Entry AirDataSyncLedger::entry(const QString &filePath) const
 {
     return _entries.value(_key(filePath));
+}
+
+void AirDataSyncLedger::recordPilot(const QString &filePath, const QString &pilotId)
+{
+    Entry entry = _entries.value(_key(filePath));
+    entry.size    = static_cast<quint64>(QFileInfo(filePath).size());
+    entry.pilotId = pilotId;
+    _entries.insert(_key(filePath), entry);
+    save();
 }
 
 void AirDataSyncLedger::recordSuccess(const QString &filePath, const QString &jobId)
@@ -249,6 +268,8 @@ AirDataSyncManager *AirDataSyncManager::instance()
 
 void AirDataSyncManager::init()
 {
+    _loadSavedTokens();
+
     // The telemetry directory does not exist until AppSettings has built it, so
     // the ledger is loaded here rather than in the constructor.
     const QString telemetryDir = SettingsManager::instance()->appSettings()->telemetrySavePath();
@@ -262,6 +283,17 @@ void AirDataSyncManager::init()
     // once per flight with the vehicle already disarmed.
     (void) connect(MAVLinkProtocol::instance(), &MAVLinkProtocol::telemetryLogSaved,
                    this, &AirDataSyncManager::_onTelemetryLogSaved);
+
+    // Arming pauses a transfer that is already running; the start-of-sync check
+    // alone would let a long backlog carry on uploading through the next flight.
+    MultiVehicleManager *const vehicleManager = MultiVehicleManager::instance();
+    (void) connect(vehicleManager, &MultiVehicleManager::vehicleAdded, this, &AirDataSyncManager::_onVehicleAdded);
+    // A link lost mid-flight never reports a disarm, so re-check when a vehicle goes away.
+    (void) connect(vehicleManager, &MultiVehicleManager::vehicleRemoved, this, &AirDataSyncManager::_onArmStateMayHaveChanged);
+    QmlObjectListModel *const vehicles = vehicleManager->vehicles();
+    for (int i = 0; i < vehicles->count(); i++) {
+        _onVehicleAdded(vehicles->value<Vehicle*>(i));
+    }
 
     _periodicTimer = new QTimer(this);
     _periodicTimer->setInterval(kPeriodicIntervalMs);
@@ -282,14 +314,20 @@ void AirDataSyncManager::init()
     AirDataSettings *const settings = SettingsManager::instance()->airDataSettings();
     if (settings) {
         (void) connect(settings->airDataUploadToken(), &Fact::rawValueChanged, this, [this]() {
+            emit savedTokensChanged();  // currentSavedTokenIndex follows the active token
             validateToken();
             _considerAutoSync();
         });
         (void) connect(settings->airDataSyncEnabled(), &Fact::rawValueChanged, this, [this]() {
             _considerAutoSync();
         });
-        (void) connect(settings->airDataAutoUpload(), &Fact::rawValueChanged, this, [this]() {
-            _considerAutoSync();
+        (void) connect(settings->airDataAutoUpload(), &Fact::rawValueChanged, this, [this, settings]() {
+            if (settings->airDataAutoUpload()->rawValue().toBool()) {
+                _considerAutoSync();
+            } else {
+                // Off means "I'll choose", so stop what auto sync already started.
+                _dropAutomaticUploads();
+            }
         });
     }
 
@@ -341,14 +379,15 @@ bool AirDataSyncManager::_autoSyncAllowed()
         return false;
     }
 
-    if (_appKey().isEmpty() || _userToken().isEmpty()) {
+    // A saved pilot's backlog can still go up while no token is active, so only
+    // hold when there is no token anywhere.
+    if (_appKey().isEmpty() || (_userToken().isEmpty() && _savedTokens.isEmpty())) {
         _setHoldReason(tr("Waiting for an Auto Upload Token."));
         return false;
     }
 
     // Never compete with a flight for the uplink or the cpu.
-    Vehicle *const vehicle = MultiVehicleManager::instance()->activeVehicle();
-    if (vehicle && vehicle->armed()) {
+    if (_anyVehicleArmed()) {
         _setHoldReason(tr("Waiting until the vehicle is disarmed."));
         return false;
     }
@@ -392,16 +431,12 @@ void AirDataSyncManager::_considerAutoSync()
         return;
     }
 
+    _ensureLedgerLoaded();
     if (!_ledgerLoaded) {
-        const QString telemetryDir = SettingsManager::instance()->appSettings()->telemetrySavePath();
-        if (telemetryDir.isEmpty()) {
-            return;
-        }
-        _ledger.load(telemetryDir);
-        _ledgerLoaded = true;
+        return;
     }
 
-    QStringList pending;
+    QList<PendingUpload> pending;
     for (const QString &filePath : _telemetryLogPaths()) {
         if (_ledger.isUploaded(filePath)) {
             continue;
@@ -410,7 +445,13 @@ void AirDataSyncManager::_considerAutoSync()
         if (_ledger.entry(filePath).attempts >= kMaxAttempts) {
             continue;
         }
-        pending.append(filePath);
+        // Its pilot was forgotten. Sending it under whoever is active now is
+        // exactly the misattribution pilot tracking exists to prevent.
+        const QString token = _tokenForFile(filePath);
+        if (token.isEmpty()) {
+            continue;
+        }
+        pending.append({filePath, token, true});
     }
 
     if (pending.isEmpty()) {
@@ -418,16 +459,87 @@ void AirDataSyncManager::_considerAutoSync()
     }
 
     qCDebug(AirDataSyncManagerLog) << "Auto sync queuing" << pending.count() << "logs";
-    uploadFiles(pending);
+    _enqueue(pending);
 }
 
 void AirDataSyncManager::_onTelemetryLogSaved(const QString &filePath)
 {
-    Q_UNUSED(filePath);
+    // Record who flew this now, while their token is still the active one. A
+    // token AirData has already rejected is left off, so the log falls back to
+    // whichever pilot is active once someone fixes it.
+    const QString token = _userToken();
+    if (!token.isEmpty() && (_tokenState != TokenInvalid)) {
+        _ensureLedgerLoaded();
+        if (_ledgerLoaded) {
+            _ledger.recordPilot(filePath, _pilotId(token));
+        }
+        // A token typed in while offline never got validated, and so was never
+        // saved. Save it now, or this log could not be matched back to it later.
+        _rememberToken(token);
+    }
 
     // Landing is usually followed by battery swaps and re-arming, so leave a gap
     // before starting to push bytes rather than uploading the instant we land.
     QTimer::singleShot(kAfterFlightDelayMs, this, [this]() { _considerAutoSync(); });
+}
+
+void AirDataSyncManager::_onVehicleAdded(Vehicle *vehicle)
+{
+    if (!vehicle) {
+        return;
+    }
+
+    (void) connect(vehicle, &Vehicle::armedChanged, this, &AirDataSyncManager::_onArmStateMayHaveChanged);
+    // A vehicle can show up already armed, e.g. after a link drop and reconnect in flight.
+    _onArmStateMayHaveChanged();
+}
+
+bool AirDataSyncManager::_anyVehicleArmed()
+{
+    QmlObjectListModel *const vehicles = MultiVehicleManager::instance()->vehicles();
+    for (int i = 0; i < vehicles->count(); i++) {
+        const Vehicle *const vehicle = vehicles->value<Vehicle*>(i);
+        if (vehicle && vehicle->armed()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void AirDataSyncManager::_onArmStateMayHaveChanged()
+{
+    const bool armed = _anyVehicleArmed();
+    if (armed == _pausedForFlight) {
+        return;
+    }
+
+    _pausedForFlight = armed;
+
+    if (armed) {
+        if (_uploading || !_queue.isEmpty()) {
+            qCDebug(AirDataSyncManagerLog) << "Vehicle armed, pausing AirData uploads";
+            _setHoldReason(tr("Paused while the vehicle is armed."));
+        }
+        // _finishCurrentFile sees the pause, puts the file back at the head of the
+        // queue and stops there, without spending one of its attempts.
+        if (_currentReply) {
+            _currentReply->abort();
+        }
+        return;
+    }
+
+    qCDebug(AirDataSyncManagerLog) << "All vehicles disarmed, AirData uploads may resume";
+    // Either the pause or the start-of-sync check may have put up an armed message.
+    if ((_holdReason == tr("Paused while the vehicle is armed.")) ||
+        (_holdReason == tr("Waiting until the vehicle is disarmed."))) {
+        _setHoldReason(QString());
+    }
+
+    // Same gap as after a landing: leave room for a battery swap and re-arm.
+    QTimer::singleShot(kAfterFlightDelayMs, this, [this]() {
+        _startQueueIfIdle();
+        _considerAutoSync();
+    });
 }
 
 void AirDataSyncManager::_onPeriodicCheck()
@@ -446,33 +558,38 @@ void AirDataSyncManager::_onReachabilityChanged()
 
 void AirDataSyncManager::syncNow()
 {
-    if (!_ledgerLoaded) {
-        const QString telemetryDir = SettingsManager::instance()->appSettings()->telemetrySavePath();
-        if (!telemetryDir.isEmpty()) {
-            _ledger.load(telemetryDir);
-            _ledgerLoaded = true;
-        }
-    }
+    _ensureLedgerLoaded();
 
     // The user asking explicitly is the signal that whatever was wrong may now be
     // fixed, so give previously exhausted files a fresh set of attempts.
     _ledger.clearFailures();
 
-    QStringList pending;
+    // Unlike Upload Selected this sweeps everything, so logs whose pilot was
+    // forgotten are still left alone rather than swept into the active account.
+    QList<PendingUpload> pending;
+    int orphaned = 0;
     for (const QString &filePath : _telemetryLogPaths()) {
-        if (!_ledger.isUploaded(filePath)) {
-            pending.append(filePath);
+        if (_ledger.isUploaded(filePath)) {
+            continue;
         }
+        const QString token = _tokenForFile(filePath);
+        if (token.isEmpty()) {
+            orphaned++;
+            continue;
+        }
+        pending.append({filePath, token});
     }
 
     if (pending.isEmpty()) {
         _setLastError(QString());
-        _setHoldReason(tr("Everything is already uploaded."));
+        _setHoldReason(orphaned > 0
+            ? tr("%n log(s) belong to a pilot who is no longer saved. Use Upload Selected to send them under the current pilot.", "", orphaned)
+            : tr("Everything is already uploaded."));
         return;
     }
 
     _setHoldReason(QString());
-    uploadFiles(pending);
+    _enqueue(pending);
 }
 
 bool AirDataSyncManager::isUploaded(const QString &filePath) const
@@ -487,6 +604,9 @@ QString AirDataSyncManager::fileStatusText(const QString &filePath) const
     }
 
     const AirDataSyncLedger::Entry entry = _ledger.entry(filePath);
+    if (_tokenForFile(filePath).isEmpty() && !entry.pilotId.isEmpty()) {
+        return tr("Pilot not saved");
+    }
     if (entry.attempts > 0) {
         return (entry.attempts >= kMaxAttempts) ? tr("Failed") : tr("Retrying (%1)").arg(entry.attempts);
     }
@@ -527,6 +647,192 @@ QString AirDataSyncManager::_userToken() const
         return QString();
     }
     return settings->airDataUploadToken()->rawValue().toString().trimmed();
+}
+
+void AirDataSyncManager::_ensureLedgerLoaded()
+{
+    if (_ledgerLoaded) {
+        return;
+    }
+
+    const QString telemetryDir = SettingsManager::instance()->appSettings()->telemetrySavePath();
+    if (!telemetryDir.isEmpty()) {
+        _ledger.load(telemetryDir);
+        _ledgerLoaded = true;
+    }
+}
+
+QString AirDataSyncManager::_pilotId(const QString &token)
+{
+    // 64 bits is plenty to tell a handful of pilots apart, and short enough to read in the ledger.
+    return QString::fromLatin1(QCryptographicHash::hash(token.toUtf8(), QCryptographicHash::Sha256).toHex().left(16));
+}
+
+QString AirDataSyncManager::_tokenForPilotId(const QString &pilotId) const
+{
+    for (const SavedToken &saved : _savedTokens) {
+        if (_pilotId(saved.token) == pilotId) {
+            return saved.token;
+        }
+    }
+
+    const QString active = _userToken();
+    if (!active.isEmpty() && (_pilotId(active) == pilotId)) {
+        return active;
+    }
+
+    return QString();
+}
+
+QString AirDataSyncManager::_tokenForFile(const QString &filePath) const
+{
+    const QString pilotId = _ledger.entry(filePath).pilotId;
+    if (pilotId.isEmpty()) {
+        return _userToken();
+    }
+    return _tokenForPilotId(pilotId);
+}
+
+void AirDataSyncManager::_loadSavedTokens()
+{
+    _savedTokens.clear();
+
+    QSettings settings;
+    settings.beginGroup(QString::fromLatin1(kSavedTokensGroup));
+    const int count = settings.beginReadArray(QString::fromLatin1(kSavedTokensArray));
+    for (int i = 0; i < count; i++) {
+        settings.setArrayIndex(i);
+        SavedToken saved;
+        saved.token = settings.value(QStringLiteral("token")).toString().trimmed();
+        saved.nickname = settings.value(QStringLiteral("nickname")).toString();
+        if (!saved.token.isEmpty()) {
+            _savedTokens.append(saved);
+        }
+    }
+    settings.endArray();
+    settings.endGroup();
+
+    emit savedTokensChanged();
+}
+
+void AirDataSyncManager::_storeSavedTokens() const
+{
+    QSettings settings;
+    settings.beginGroup(QString::fromLatin1(kSavedTokensGroup));
+    settings.remove(QString());
+    settings.beginWriteArray(QString::fromLatin1(kSavedTokensArray), _savedTokens.count());
+    for (int i = 0; i < _savedTokens.count(); i++) {
+        settings.setArrayIndex(i);
+        settings.setValue(QStringLiteral("token"), _savedTokens[i].token);
+        settings.setValue(QStringLiteral("nickname"), _savedTokens[i].nickname);
+    }
+    settings.endArray();
+    settings.endGroup();
+}
+
+void AirDataSyncManager::_rememberToken(const QString &token)
+{
+    if (token.isEmpty()) {
+        return;
+    }
+
+    SavedToken saved{token, QString()};
+    for (int i = 0; i < _savedTokens.count(); i++) {
+        if (_savedTokens[i].token == token) {
+            if (i == 0) {
+                return;
+            }
+            saved = _savedTokens.takeAt(i);
+            break;
+        }
+    }
+
+    _savedTokens.prepend(saved);
+    _storeSavedTokens();
+    emit savedTokensChanged();
+}
+
+QVariantList AirDataSyncManager::savedTokens() const
+{
+    QVariantList list;
+    for (const SavedToken &saved : _savedTokens) {
+        // Never show a whole token in the picker: "HD...a1b2" is enough to tell
+        // two unnamed entries apart.
+        const QString masked = (saved.token.length() > 8)
+            ? QStringLiteral("%1...%2").arg(saved.token.left(2), saved.token.right(4))
+            : saved.token;
+
+        QVariantMap entry;
+        entry[QStringLiteral("token")] = saved.token;
+        entry[QStringLiteral("nickname")] = saved.nickname;
+        entry[QStringLiteral("label")] = saved.nickname.isEmpty()
+            ? masked
+            : QStringLiteral("%1 (%2)").arg(saved.nickname, masked);
+        list.append(entry);
+    }
+    return list;
+}
+
+int AirDataSyncManager::currentSavedTokenIndex() const
+{
+    const QString token = _userToken();
+    if (token.isEmpty()) {
+        return -1;
+    }
+    for (int i = 0; i < _savedTokens.count(); i++) {
+        if (_savedTokens[i].token == token) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void AirDataSyncManager::selectSavedToken(int index)
+{
+    if ((index < 0) || (index >= _savedTokens.count())) {
+        return;
+    }
+
+    AirDataSettings *const settings = SettingsManager::instance()->airDataSettings();
+    if (settings) {
+        settings->airDataUploadToken()->setRawValue(_savedTokens[index].token);
+    }
+}
+
+void AirDataSyncManager::removeSavedToken(int index)
+{
+    if ((index < 0) || (index >= _savedTokens.count())) {
+        return;
+    }
+
+    const QString token = _savedTokens.takeAt(index).token;
+    _storeSavedTokens();
+    emit savedTokensChanged();
+
+    // Left active, the token would be validated and saved straight back on the
+    // next startup, so forgetting the current pilot signs them out as well.
+    if (token == _userToken()) {
+        AirDataSettings *const settings = SettingsManager::instance()->airDataSettings();
+        if (settings) {
+            settings->airDataUploadToken()->setRawValue(QString());
+        }
+    }
+}
+
+void AirDataSyncManager::setSavedTokenNickname(int index, const QString &nickname)
+{
+    if ((index < 0) || (index >= _savedTokens.count())) {
+        return;
+    }
+
+    const QString trimmed = nickname.trimmed();
+    if (_savedTokens[index].nickname == trimmed) {
+        return;
+    }
+
+    _savedTokens[index].nickname = trimmed;
+    _storeSavedTokens();
+    emit savedTokensChanged();
 }
 
 QString AirDataSyncManager::_appName()
@@ -617,8 +923,15 @@ void AirDataSyncManager::validateToken()
     request.setTransferTimeout(kTransferTimeoutMs);
 
     QNetworkReply *const reply = _networkManager->get(request);
-    (void) connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    (void) connect(reply, &QNetworkReply::finished, this, [this, reply, userToken]() {
         reply->deleteLater();
+
+        // Switching pilots while a check is in flight starts a second check. The
+        // first answer is about a token that is no longer active, and must not
+        // set the status or land in the saved list under the wrong pilot.
+        if (userToken != _userToken()) {
+            return;
+        }
 
         QJsonObject object;
         QString error;
@@ -630,6 +943,7 @@ void AirDataSyncManager::validateToken()
 
         if (object.value(QStringLiteral("status")).toString() == QLatin1String("success")) {
             qCDebug(AirDataSyncManagerLog) << "Token validated";
+            _rememberToken(userToken);
             _setTokenState(TokenValid);
         } else {
             const QString reported = airDataErrorMessage(object);
@@ -646,23 +960,83 @@ void AirDataSyncManager::uploadFiles(const QStringList &filePaths)
         return;
     }
 
-    if (_userToken().isEmpty()) {
+    _ensureLedgerLoaded();
+
+    QList<PendingUpload> uploads;
+    bool missingToken = false;
+    for (const QString &filePath : filePaths) {
+        QString token = _tokenForFile(filePath);
+        if (token.isEmpty()) {
+            token = _userToken();
+        }
+        if (token.isEmpty()) {
+            missingToken = true;
+            continue;
+        }
+        uploads.append({filePath, token});
+    }
+
+    if (missingToken) {
         _setLastError(tr("No AirData Auto Upload Token entered."));
+    }
+
+    _enqueue(uploads);
+}
+
+void AirDataSyncManager::_enqueue(const QList<PendingUpload> &uploads)
+{
+    if (uploads.isEmpty()) {
         return;
     }
 
-    for (const QString &filePath : filePaths) {
-        if (!_queue.contains(filePath) && (filePath != _currentFilePath)) {
-            _queue.enqueue(filePath);
+    for (const PendingUpload &upload : uploads) {
+        // Picking a file by hand that auto sync already queued makes it the user's,
+        // so turning auto upload off no longer withdraws it.
+        if (upload.filePath == _currentFilePath) {
+            _currentAutomatic = _currentAutomatic && upload.automatic;
+            continue;
+        }
+        const auto queued = std::find_if(_queue.begin(), _queue.end(), [&upload](const PendingUpload &entry) {
+            return entry.filePath == upload.filePath;
+        });
+        if (queued == _queue.end()) {
+            _queue.enqueue(upload);
+        } else {
+            queued->automatic = queued->automatic && upload.automatic;
         }
     }
 
     emit countsChanged();
 
-    if (!_uploading) {
-        _cancelled = false;
-        _startNextUpload();
+    if (_pausedForFlight) {
+        _setHoldReason(tr("Paused while the vehicle is armed."));
     }
+    _startQueueIfIdle();
+}
+
+void AirDataSyncManager::_dropAutomaticUploads()
+{
+    const qsizetype before = _queue.count();
+    _queue.removeIf([](const PendingUpload &upload) { return upload.automatic; });
+    if (_queue.count() != before) {
+        qCDebug(AirDataSyncManagerLog) << "Auto upload turned off, withdrew" << (before - _queue.count()) << "queued logs";
+        emit countsChanged();
+    }
+
+    if (_uploading && _currentAutomatic && _currentReply) {
+        _droppingCurrent = true;
+        _currentReply->abort();
+    }
+}
+
+void AirDataSyncManager::_startQueueIfIdle()
+{
+    if (_uploading || _pausedForFlight || _queue.isEmpty()) {
+        return;
+    }
+
+    _cancelled = false;
+    _startNextUpload();
 }
 
 void AirDataSyncManager::cancel()
@@ -694,7 +1068,10 @@ void AirDataSyncManager::_startNextUpload()
         return;
     }
 
-    _currentFilePath = _queue.dequeue();
+    const PendingUpload next = _queue.dequeue();
+    _currentFilePath = next.filePath;
+    _currentToken = next.token;
+    _currentAutomatic = next.automatic;
     _currentFileName = QFileInfo(_currentFilePath).fileName();
     emit currentFileNameChanged();
     emit countsChanged();
@@ -717,7 +1094,7 @@ void AirDataSyncManager::_requestUploadDestination(const QString &filePath)
     // AirData wants the bare filename here, with no folder component.
     QUrlQuery form;
     form.addQueryItem(QStringLiteral("appkey"), _appKey());
-    form.addQueryItem(QStringLiteral("usertoken"), _userToken());
+    form.addQueryItem(QStringLiteral("usertoken"), _currentToken);
     form.addQueryItem(QStringLiteral("appname"), _appName());
     form.addQueryItem(QStringLiteral("appversion"), _appVersion());
     form.addQueryItem(QStringLiteral("filename"), fileInfo.fileName());
@@ -736,6 +1113,14 @@ void AirDataSyncManager::_requestUploadDestination(const QString &filePath)
 
         if (_cancelled) {
             _finishCurrentFile(false, QString(), tr("Cancelled."));
+            return;
+        }
+
+        // The vehicle armed, or auto upload was turned off, after this reply had
+        // already finished, so the abort had nothing to stop. Don't go on to start
+        // the transfer itself.
+        if (_pausedForFlight || _droppingCurrent) {
+            _finishCurrentFile(false, QString(), tr("Stopped before upload."));
             return;
         }
 
@@ -771,7 +1156,7 @@ void AirDataSyncManager::_uploadToDestination(const QString &filePath, const QUr
 
     QHttpMultiPart *const multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
     multiPart->append(createFormPart(QStringLiteral("appkey"), _appKey()));
-    multiPart->append(createFormPart(QStringLiteral("usertoken"), _userToken()));
+    multiPart->append(createFormPart(QStringLiteral("usertoken"), _currentToken));
     multiPart->append(createFormPart(QStringLiteral("appname"), _appName()));
     multiPart->append(createFormPart(QStringLiteral("appversion"), _appVersion()));
 
@@ -837,7 +1222,21 @@ void AirDataSyncManager::_finishCurrentFile(bool success, const QString &jobId, 
 {
     const QString filePath = _currentFilePath;
 
-    if (success) {
+    // Aborted because a vehicle armed. That is not the file's fault, so it goes
+    // back to the head of the queue without being counted against its attempts.
+    // A transfer that managed to finish anyway falls through and is recorded.
+    const bool pausedMidTransfer = !success && _pausedForFlight && !_cancelled;
+    // Withdrawn because auto upload was turned off: likewise not a failure, but
+    // not requeued either. Arming at the same moment does not bring it back.
+    const bool droppedMidTransfer = !success && _droppingCurrent && !_cancelled;
+    _droppingCurrent = false;
+    if (droppedMidTransfer) {
+        qCDebug(AirDataSyncManagerLog) << "Withdrew" << _currentFileName << "since auto upload was turned off";
+    } else if (pausedMidTransfer) {
+        qCDebug(AirDataSyncManagerLog) << "Paused" << _currentFileName << "for flight; will resume after disarm";
+        _queue.prepend({filePath, _currentToken, _currentAutomatic});
+        emit fileUploadFinished(filePath, false, QString(), tr("Paused while the vehicle is armed."));
+    } else if (success) {
         _succeededCount++;
         _setProgress(1);
         _ledger.recordSuccess(filePath, jobId);
@@ -852,7 +1251,19 @@ void AirDataSyncManager::_finishCurrentFile(bool success, const QString &jobId, 
     }
 
     emit countsChanged();
-    emit fileUploadFinished(filePath, success, jobId, error);
+    if (droppedMidTransfer || !pausedMidTransfer) {
+        // A withdrawn file has nothing in the ledger, so the list shows it as not uploaded.
+        emit fileUploadFinished(filePath, success, jobId, error);
+    }
+
+    if (_pausedForFlight && !_cancelled) {
+        // Keep the queue; _onArmStateMayHaveChanged restarts it after disarm.
+        _setUploading(false);
+        _currentFilePath.clear();
+        _currentFileName.clear();
+        emit currentFileNameChanged();
+        return;
+    }
 
     if (_cancelled) {
         _queue.clear();

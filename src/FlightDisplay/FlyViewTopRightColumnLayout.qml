@@ -58,11 +58,6 @@ ColumnLayout {
                                                && _cameraForStatus.cameraMode === MavlinkCameraControl.CAM_MODE_PHOTO
     property bool _isAirPixelForStatus:     QGroundControl.settingsManager.flyViewSettings.payloadSelection.value === 0
 
-    TerrainProgress {
-        Layout.alignment:       Qt.AlignTop
-        Layout.preferredWidth:  _rightPanelWidth
-    }
-
     // LiDAR Control (shown in place of PhotoVideoControl when LiDAR payload selected).
     // Wrapped in a Loader so FactPanelController inside LidarControl is only constructed once a
     // real vehicle is connected — otherwise it latches onto the offline-editing vehicle and

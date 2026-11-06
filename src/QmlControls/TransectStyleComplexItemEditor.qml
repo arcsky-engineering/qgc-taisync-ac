@@ -34,6 +34,10 @@ Rectangle {
     property real   _cameraMinTriggerInterval:  _missionItem.cameraCalc.minTriggerInterval.rawValue
     property string _doneAdjusting:             qsTr("Done")
     property bool   _presetsAvailable:          _missionItem.presetNames.length !== 0
+    // Xplorer fork: LiDAR payload with no camera selected - altitude + spacing only, no trigger distance
+    property bool   _lidarNoCamera:             QGroundControl.settingsManager.flyViewSettings.showPayloadIndicator.rawValue
+                                                && QGroundControl.settingsManager.flyViewSettings.payloadSelection.rawValue === 2
+                                                && _missionItem.cameraCalc.isManualCamera
 
     function polygonCaptureStarted() {
         _missionItem.clearPolygon()
@@ -101,6 +105,7 @@ Rectangle {
                     distanceToSurfaceLabel:         qsTr("Altitude")
                     frontalDistanceLabel:           qsTr("Trigger Dist")
                     sideDistanceLabel:              qsTr("Spacing")
+                    showFrontalDistance:            !_lidarNoCamera
                 }
 
                 SectionHeader {

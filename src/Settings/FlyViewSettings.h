@@ -34,6 +34,7 @@ public:
     DEFINE_SETTINGFACT(missionWaypointDisplay)
     DEFINE_SETTINGFACT(autoLoadMissionOnConnect)
     DEFINE_SETTINGFACT(showObstacleDistanceOverlay)
+    DEFINE_SETTINGFACT(showProximityRadar)
     DEFINE_SETTINGFACT(updateHomePosition)
     DEFINE_SETTINGFACT(instrumentQmlFile2)
     DEFINE_SETTINGFACT(requestControlAllowTakeover)
@@ -53,5 +54,7 @@ public:
     DEFINE_SETTINGFACT(tapToFocusSpotMode)
     DEFINE_SETTINGFACT(tapToFocusInsetX)
     DEFINE_SETTINGFACT(tapToFocusInsetY)
+    DEFINE_SETTINGFACT(afTriggerPulses)
+    DEFINE_SETTINGFACT(ilxManualFocusControls)
     DEFINE_SETTINGFACT(enableMicROM)
 };

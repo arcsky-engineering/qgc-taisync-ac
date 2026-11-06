@@ -1,0 +1,124 @@
+{
+    "version":              1,
+    "fileType":             "FactMetaData",
+    "QGC.MetaData.Facts":
+[
+{
+    "name":             "firmwareVersion",
+    "shortDesc":        "Aircraft Firmware",
+    "type":             "string"
+},
+{
+    "name":             "model",
+    "shortDesc":        "Aircraft Model",
+    "type":             "string"
+},
+{
+    "name":             "serialNumber",
+    "shortDesc":        "Aircraft Serial",
+    "type":             "string"
+},
+{
+    "name":             "flightHours",
+    "shortDesc":        "Flight Hours",
+    "type":             "double",
+    "decimalPlaces":    1
+},
+{
+    "name":             "battery1Installed",
+    "shortDesc":        "Battery 1 Installed",
+    "type":             "double",
+    "decimalPlaces":    0
+},
+{
+    "name":             "battery1Serial",
+    "shortDesc":        "Battery 1 Serial",
+    "type":             "string"
+},
+{
+    "name":             "battery1FirmwareVersion",
+    "shortDesc":        "Battery 1 Firmware",
+    "type":             "string"
+},
+{
+    "name":             "battery1Cycles",
+    "shortDesc":        "Battery 1 Cycles",
+    "type":             "double",
+    "decimalPlaces":    0
+},
+{
+    "name":             "battery2Installed",
+    "shortDesc":        "Battery 2 Installed",
+    "type":             "double",
+    "decimalPlaces":    0
+},
+{
+    "name":             "battery2Serial",
+    "shortDesc":        "Battery 2 Serial",
+    "type":             "string"
+},
+{
+    "name":             "battery2FirmwareVersion",
+    "shortDesc":        "Battery 2 Firmware",
+    "type":             "string"
+},
+{
+    "name":             "battery2Cycles",
+    "shortDesc":        "Battery 2 Cycles",
+    "type":             "double",
+    "decimalPlaces":    0
+},
+{
+    "name":             "batteryInterfaceFirmwareVersion",
+    "shortDesc":        "Battery Interface Board Firmware",
+    "type":             "string"
+},
+{
+    "name":             "batteryInterfaceHardwareVersion",
+    "shortDesc":        "Battery Interface Board Hardware",
+    "type":             "string"
+},
+{
+    "name":             "hybridSerial",
+    "shortDesc":        "Hybrid Module Serial",
+    "type":             "string"
+},
+{
+    "name":             "hybridHardwareVersion",
+    "shortDesc":        "Hybrid Module Hardware",
+    "type":             "string"
+},
+{
+    "name":             "hybridFirmwareVersion",
+    "shortDesc":        "Hybrid Module Firmware",
+    "type":             "string"
+},
+{
+    "name":             "hybridRuntimeHours",
+    "shortDesc":        "Hybrid Module Runtime",
+    "type":             "double",
+    "decimalPlaces":    1
+},
+{
+    "name":             "hybridMaintenanceHours",
+    "shortDesc":        "Hybrid Module Maintenance",
+    "type":             "double",
+    "decimalPlaces":    1
+},
+{
+    "name":             "gimbalFirmwareVersion",
+    "shortDesc":        "Gimbal Firmware",
+    "type":             "string"
+},
+{
+    "name":             "cameraModel",
+    "shortDesc":        "Camera Model",
+    "type":             "string"
+},
+{
+    "name":             "cameraFirmwareVersion",
+    "shortDesc":        "Camera Control Firmware",
+    "type":             "string"
+}
+]
+}

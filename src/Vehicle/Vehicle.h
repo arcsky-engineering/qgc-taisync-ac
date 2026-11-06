@@ -41,6 +41,7 @@
 #include "VehicleLocalPositionSetpointFactGroup.h"
 #include "VehicleRPMFactGroup.h"
 #include "VehicleSetpointFactGroup.h"
+#include "VehicleSystemInfoFactGroup.h"
 #include "VehicleTemperatureFactGroup.h"
 #include "VehicleVibrationFactGroup.h"
 #include "VehicleWindFactGroup.h"
@@ -284,6 +285,7 @@ public:
     Q_PROPERTY(FactGroup*           hygrometer      READ hygrometerFactGroup        CONSTANT)
     Q_PROPERTY(FactGroup*           generator       READ generatorFactGroup         CONSTANT)
     Q_PROPERTY(FactGroup*           efi             READ efiFactGroup               CONSTANT)
+    Q_PROPERTY(FactGroup*           systemInfo      READ systemInfoFactGroup        CONSTANT)
     Q_PROPERTY(QmlObjectListModel*  batteries       READ batteries                  CONSTANT)
     Q_PROPERTY(Actuators*           actuators       READ actuators                  CONSTANT)
     Q_PROPERTY(HealthAndArmingCheckReport* healthAndArmingCheckReport READ healthAndArmingCheckReport CONSTANT)
@@ -352,12 +354,25 @@ public:
 
     Q_INVOKABLE void apSetParamUint (const QString& name, quint32 value);
     Q_INVOKABLE void apSetParamFloat(const QString& name, float value);
+    // The TAG-E only sends TG_* PARAM_EXT_VALUEs when asked, so readback is request-driven:
+    // all params on detection, one param after each set (see _apSendParamExt) or step.
+    Q_INVOKABLE void apRequestParam(const QString& name);
+    Q_INVOKABLE void apRequestAllParams();
     Q_INVOKABLE void apSetExpMode(int mode);
     Q_INVOKABLE void apSetAFMode(int mode);
     Q_INVOKABLE void apSetImgRes(int res);
     Q_INVOKABLE void apSetLandDetect(bool on);
     Q_INVOKABLE void apGeotagNow();
     Q_INVOKABLE void apFormatCard();
+
+    // ILX camera controls shared by the ILX Settings panel and the on-screen quick controls.
+    // All go to the TAG-E as DO_DIGICAM_CONFIGURE and read the affected TG_* params back.
+    Q_INVOKABLE void apStepExposure(int apertureDir, int isoDir, int shutterDir);  // each -1 / 0 / +1
+    Q_INVOKABLE void apCameraCommand(int p1);           // plain p1 code (122/123 exp comp, 124 AF toggle, 135 AF, ...)
+    Q_INVOKABLE void apToggleAutoIso();                 // Auto ISO <-> last manual ISO
+    Q_INVOKABLE void apFocusAndLock();                  // AF-S, AF trigger(s), settle, then MF so focus holds
+    Q_INVOKABLE void apFocusDriveStart(int speed);      // manual focus, -7 near .. +7 far; repeats while held
+    Q_INVOKABLE void apFocusDriveStop();
 
     // VIO camera (component 101)
     Q_PROPERTY(bool vioDetected      READ vioDetected      NOTIFY vioCameraChanged)
@@ -371,6 +386,16 @@ public:
     Q_INVOKABLE void vioSetIRPalette(int val);
     Q_INVOKABLE void vioSetIRZoom(int val);
     Q_INVOKABLE void vioSetEOZoom(int val);
+
+    // Gremsy gimbal (component 154) RC smoothing, Xplorer ILX-LR1. Its params are dropped by
+    // ParameterManager, so these go out-of-band as classic PARAM_SET / PARAM_REQUEST_READ.
+    // -1 = not read back yet.
+    Q_PROPERTY(int  gimbalRcLpfPan   READ gimbalRcLpfPan    NOTIFY gimbalTuningChanged)
+    Q_PROPERTY(int  gimbalRcLpfTilt  READ gimbalRcLpfTilt   NOTIFY gimbalTuningChanged)
+
+    Q_INVOKABLE void gimbalSetParam(const QString& name, int value);   // RC_LPF_PAN, RC_LPF_TILT, ...
+    Q_INVOKABLE void gimbalRequestParam(const QString& name);
+    Q_INVOKABLE void gimbalRequestTuning();                             // reads all of the above
 
     /// Resets link status counters
     Q_INVOKABLE void resetCounters  ();
@@ -762,6 +787,10 @@ public:
     int    vioIRZoom()        const { return _vioIRZoom; }
     int    vioEOZoom()        const { return _vioEOZoom; }
 
+    // Gremsy gimbal readback
+    int    gimbalRcLpfPan()   const { return _gimbalRcLpfPan; }
+    int    gimbalRcLpfTilt()  const { return _gimbalRcLpfTilt; }
+
     FactGroup* vehicleFactGroup             () { return _vehicleFactGroup; }
     FactGroup* gpsFactGroup                 () { return &_gpsFactGroup; }
     FactGroup* gps2FactGroup                () { return &_gps2FactGroup; }
@@ -779,6 +808,7 @@ public:
     FactGroup* hygrometerFactGroup          () { return &_hygrometerFactGroup; }
     FactGroup* generatorFactGroup           () { return &_generatorFactGroup; }
     FactGroup* efiFactGroup                 () { return &_efiFactGroup; }
+    FactGroup* systemInfoFactGroup          () { return &_systemInfoFactGroup; }
     FactGroup* rpmFactGroup                 () { return &_rpmFactGroup; }
     QmlObjectListModel* batteries           () { return &_batteryFactGroupListModel; }
 
@@ -1061,6 +1091,7 @@ signals:
     void airPixelDeviceChanged();
     void apCameraChanged();
     void vioCameraChanged();
+    void gimbalTuningChanged();
     void imageCountChanged();
     void cameraImageCountChanged();
     void payloadTypeChanged(PayloadType type);
@@ -1137,6 +1168,7 @@ private slots:
     void handleEntireData16(const QByteArray& data);
     void _handleAirPixelParamValue(const mavlink_param_ext_value_t& value);
     void _handleVioParamValue(const mavlink_param_ext_value_t& value);
+    void _handleGimbalParamValue(const mavlink_param_value_t& value);
     void _apSendParamExt(const QString& name, const void* value, size_t valueSize, uint8_t paramType);
     void _sendParamExtToComponent(int compId, const QString& name, const void* value, size_t valueSize, uint8_t paramType);
     // Classic PARAM_SET (not PARAM_EXT). One-shot send that bypasses the param manager
@@ -1474,6 +1506,10 @@ private:
     double _apExpCorr         = 0.0;    // TG_EXPC (float)
     int    _apExpMode         = 0;      // lower 16 bits of TG_EXPMODE (1=M,2=P,3=A,4=S)
     int    _apAFMode          = 0;
+    int    _apLastManualIso   = 400;    // restored when Auto ISO is turned off
+    QTimer _apFocusDriveTimer;           // re-sends the focus drive while a near/far button is held
+    int    _apFocusDriveSpeed = 0;
+    bool   _apFocusLockRunning = false;
     int    _apImgRes          = 0;      // TG_IMGRES (0=L,1=M,2=S)
     int    _apLandDetect      = -1;     // TG_LAND_DET (-1=unknown until first PARAM_EXT_VALUE, 0=off, 1=on)
 
@@ -1483,6 +1519,10 @@ private:
     int  _vioIRPalette     = 0;
     int  _vioIRZoom        = 0;
     int  _vioEOZoom        = 0;
+
+    // Gremsy gimbal readback (-1 = unknown)
+    int  _gimbalRcLpfPan   = -1;
+    int  _gimbalRcLpfTilt  = -1;
 
     /// True if compId is the one camera component the capture count is latched to,
     /// latching it on first sight. Keeps a second camera from fighting over the counter.
@@ -1515,6 +1555,7 @@ private:
     const QString _hygrometerFactGroupName =         QStringLiteral("hygrometer");
     const QString _generatorFactGroupName =          QStringLiteral("generator");
     const QString _efiFactGroupName =                QStringLiteral("efi");
+    const QString _systemInfoFactGroupName =         QStringLiteral("systemInfo");
     const QString _rpmFactGroupName =                QStringLiteral("rpm");
 
     VehicleFactGroup*               _vehicleFactGroup;
@@ -1533,6 +1574,7 @@ private:
     VehicleHygrometerFactGroup      _hygrometerFactGroup;
     VehicleGeneratorFactGroup       _generatorFactGroup;
     VehicleEFIFactGroup             _efiFactGroup;
+    VehicleSystemInfoFactGroup      _systemInfoFactGroup;
     VehicleRPMFactGroup             _rpmFactGroup;
     TerrainFactGroup                _terrainFactGroup;
     QmlObjectListModel              _batteryFactGroupListModel;

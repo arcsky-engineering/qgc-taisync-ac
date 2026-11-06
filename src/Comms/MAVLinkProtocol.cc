@@ -279,6 +279,7 @@ void MAVLinkProtocol::_logData(LinkInterface *link, const mavlink_message_t &mes
             if (_armedHeartbeatCount >= _kMinArmedHeartbeats) {
                 if (!_vehicleWasArmed) {
                     _vehicleWasArmed = true;
+                    _writeLogStateMarker(true);
                 }
                 _vehicleIsArmed = true;
             }
@@ -366,7 +367,8 @@ bool MAVLinkProtocol::_closeLogFile()
     }
 
     if (_tempLogFile->size() == 0) {
-        (void) _tempLogFile->remove();
+        _tempLogFile->close();
+        _removeTempLog(_tempLogFile->fileName());
         return false;
     }
 
@@ -409,6 +411,7 @@ void MAVLinkProtocol::_startLogging()
     }
 
     qCDebug(MAVLinkProtocolLog) << "Temp log" << _tempLogFile->fileName();
+    _writeLogStateMarker(_vehicleWasArmed || _manualCaptureActive);
     (void) _checkTelemetrySavePath();
 
     _logSuspendError = false;
@@ -424,7 +427,7 @@ void MAVLinkProtocol::_stopLogging()
                 !appSettings->disableAllPersistence()->rawValue().toBool()) {
             _saveTelemetryLog(_tempLogFile->fileName());
         } else {
-            (void) QFile::remove(_tempLogFile->fileName());
+            _removeTempLog(_tempLogFile->fileName());
         }
     }
 
@@ -453,7 +456,7 @@ void MAVLinkProtocol::_rotateLogFile()
                 !appSettings->disableAllPersistence()->rawValue().toBool()) {
             _saveTelemetryLog(_tempLogFile->fileName());
         } else {
-            (void) QFile::remove(_tempLogFile->fileName());
+            _removeTempLog(_tempLogFile->fileName());
         }
     }
 
@@ -473,6 +476,7 @@ void MAVLinkProtocol::startManualCapture()
     // Save/discard any current data based on arm state, then start fresh
     _rotateLogFile();
     _manualCaptureActive = true;
+    _writeLogStateMarker(true);
     emit manualCaptureActiveChanged();
 }
 
@@ -502,22 +506,86 @@ void MAVLinkProtocol::checkForLostLogFiles()
     // above _kMinOrphanSaveBytes are recovered as .tlog (likely a real flight
     // whose data would otherwise be lost). Smaller orphans are deleted — they're
     // typically brief connect/disconnect sessions with no meaningful flight data.
+    //
+    // Size alone is not enough: swiping the app away on Android skips the normal
+    // _stopLogging() discard, and a few minutes on the bench clears the size bar
+    // easily. So an orphan is held to the same rules a live log is: it must contain
+    // an arm, unless the user asked for unarmed logs too. Whether it did is read
+    // from the .state marker written while logging (see _logStatePath), never from
+    // the log itself: this runs on the UI thread before the first frame, and
+    // parsing a long log here held the app on a black screen for seconds.
     static const QDir tempDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation));
-    static const QString filter(QStringLiteral("*.%1").arg(_logFileExtension));
-    static const QStringList filterList(filter);
+    static const QStringList filterList(QStringLiteral("*.%1").arg(_logFileExtension));
+    static const QStringList stateFilterList(QStringLiteral("*.%1.state").arg(_logFileExtension));
 
     const QFileInfoList fileInfoList = tempDir.entryInfoList(filterList, QDir::Files);
     qCDebug(MAVLinkProtocolLog) << "Orphaned log file count" << fileInfoList.count();
 
+    MavlinkSettings *const mavlinkSettings = SettingsManager::instance()->mavlinkSettings();
+    const bool saveEnabled = mavlinkSettings->telemetrySave()->rawValue().toBool() &&
+                             !SettingsManager::instance()->appSettings()->disableAllPersistence()->rawValue().toBool();
+    const bool saveNotArmed = mavlinkSettings->telemetrySaveNotArmed()->rawValue().toBool();
+
     for (const QFileInfo &fileInfo: fileInfoList) {
-        if (fileInfo.size() >= _kMinOrphanSaveBytes) {
+        const QString statePath = _logStatePath(fileInfo.filePath());
+        if (fileInfo.size() < _kMinOrphanSaveBytes) {
+            qCDebug(MAVLinkProtocolLog) << "Removing small orphaned log file" << fileInfo.filePath() << "size" << fileInfo.size();
+            _removeTempLog(fileInfo.filePath());
+        } else if (!saveEnabled) {
+            qCDebug(MAVLinkProtocolLog) << "Removing orphaned log file, log saving is off" << fileInfo.filePath();
+            _removeTempLog(fileInfo.filePath());
+        } else if (!saveNotArmed && QFile::exists(statePath) && !_logStateMarkerSaysSave(statePath)) {
+            qCDebug(MAVLinkProtocolLog) << "Removing orphaned log file, vehicle never armed" << fileInfo.filePath() << "size" << fileInfo.size();
+            _removeTempLog(fileInfo.filePath());
+        } else {
+            // Marker says armed / manual capture, or there is no marker because an older build wrote the log
             qCDebug(MAVLinkProtocolLog) << "Recovering orphaned flight log" << fileInfo.filePath() << "size" << fileInfo.size();
             _saveTelemetryLog(fileInfo.filePath());
-        } else {
-            qCDebug(MAVLinkProtocolLog) << "Removing small orphaned log file" << fileInfo.filePath() << "size" << fileInfo.size();
-            (void) QFile::remove(fileInfo.filePath());
         }
     }
+
+    // Markers whose log is already gone (e.g. killed between the two removes)
+    for (const QFileInfo &stateInfo: tempDir.entryInfoList(stateFilterList, QDir::Files)) {
+        const QString logPath = stateInfo.filePath().chopped(QStringLiteral(".state").size());
+        if (!QFile::exists(logPath)) {
+            (void) QFile::remove(stateInfo.filePath());
+        }
+    }
+}
+
+void MAVLinkProtocol::_writeLogStateMarker(bool save)
+{
+    if (!_tempLogFile->isOpen()) {
+        return;
+    }
+
+    QFile stateFile(_logStatePath(_tempLogFile->fileName()));
+    if (!stateFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        // A missing marker is treated as "keep" by recovery, so this can't lose a flight
+        qCWarning(MAVLinkProtocolLog) << "Could not write log state marker" << stateFile.fileName() << stateFile.errorString();
+        return;
+    }
+    if (save) {
+        (void) stateFile.write("save");
+    }
+    stateFile.close();
+}
+
+bool MAVLinkProtocol::_logStateMarkerSaysSave(const QString &statePath)
+{
+    QFile stateFile(statePath);
+    if (!stateFile.open(QIODevice::ReadOnly)) {
+        // Can't tell, so keep it. Losing a real flight is worse than one stray log.
+        qCWarning(MAVLinkProtocolLog) << "Could not read log state marker, keeping log" << statePath << stateFile.errorString();
+        return true;
+    }
+    return stateFile.read(16).trimmed() == QByteArrayLiteral("save");
+}
+
+void MAVLinkProtocol::_removeTempLog(const QString &tempLogPath)
+{
+    (void) QFile::remove(tempLogPath);
+    (void) QFile::remove(_logStatePath(tempLogPath));
 }
 
 #ifdef Q_OS_ANDROID
@@ -590,7 +658,7 @@ void MAVLinkProtocol::_saveTelemetryLog(const QString &tempLogfile)
         }
     }
 
-    (void) QFile::remove(tempLogfile);
+    _removeTempLog(tempLogfile);
 }
 
 bool MAVLinkProtocol::_checkTelemetrySavePath()

@@ -120,6 +120,14 @@ SettingsPage {
             property Fact _showPhotoCaptureIndicators: _flyViewSettings.showPhotoCaptureIndicators
         }
 
+        FactCheckBoxSlider {
+            Layout.fillWidth:   true
+            text:               qsTr("Show proximity radar")
+            visible:            _showProximityRadar.visible
+            fact:               _showProximityRadar
+            property Fact _showProximityRadar: _flyViewSettings.showProximityRadar
+        }
+
         LabelledFactComboBox {
             Layout.fillWidth:   true
             label:              qsTr("Mission waypoint markers")

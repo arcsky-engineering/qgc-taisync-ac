@@ -138,11 +138,79 @@ SettingsPage {
             enabled:            _airDataSyncEnabled
         }
 
+        QGCLabel {
+            Layout.fillWidth:   true
+            wrapMode:           Text.WordWrap
+            font.pointSize:     ScreenTools.smallFontPointSize
+            visible:            _airDataSyncEnabled
+            text:               _airDataSettings.airDataAutoUpload.rawValue
+                                    ? qsTr("Turn off to pause automatic uploads and choose which logs to send yourself.")
+                                    : qsTr("Automatic uploads are paused. Logs stay on the controller until you send them with Sync Now or Upload Selected.")
+        }
+
         FactCheckBoxSlider {
             Layout.fillWidth:   true
             text:               qsTr("Only upload on Wi-Fi")
             fact:               _airDataSettings.airDataWifiOnly
             enabled:            _airDataSyncEnabled && _airDataSettings.airDataAutoUpload.rawValue
+        }
+
+        // Every token AirData accepts is remembered, so pilots sharing a controller
+        // pick themselves here instead of retyping a token.
+        LabelledComboBox {
+            id:                     pilotCombo
+            Layout.fillWidth:       true
+            comboBoxPreferredWidth: ScreenTools.defaultFontPixelWidth * 20
+            label:                  qsTr("Pilot")
+            model:                  AirDataSyncManager.savedTokens.map(entry => entry.label)
+            enabled:                _airDataSyncEnabled
+            visible:                AirDataSyncManager.savedTokens.length > 0
+
+            Binding {
+                target:     pilotCombo.comboBox
+                property:   "alternateText"
+                value:      pilotCombo.currentIndex < 0 ? qsTr("New token") : ""
+            }
+
+            onActivated: (index) => AirDataSyncManager.selectSavedToken(index)
+
+            // Both a model reset and a user pick knock currentIndex off the active
+            // token, so it is re-applied explicitly rather than bound.
+            function _syncToActiveToken() { currentIndex = AirDataSyncManager.currentSavedTokenIndex }
+
+            Component.onCompleted: _syncToActiveToken()
+
+            Connections {
+                target: AirDataSyncManager
+                function onSavedTokensChanged() { Qt.callLater(pilotCombo._syncToActiveToken) }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth:   true
+            spacing:            ScreenTools.defaultFontPixelWidth * 2
+            visible:            _savedTokenIndex >= 0
+
+            property int _savedTokenIndex: AirDataSyncManager.currentSavedTokenIndex
+
+            QGCLabel {
+                Layout.fillWidth:   true
+                text:               qsTr("Nickname")
+            }
+
+            QGCTextField {
+                Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 20
+                placeholderText:        qsTr("Optional")
+                text:                   parent._savedTokenIndex >= 0 ? AirDataSyncManager.savedTokens[parent._savedTokenIndex].nickname : ""
+                enabled:                _airDataSyncEnabled
+                onEditingFinished:      AirDataSyncManager.setSavedTokenNickname(parent._savedTokenIndex, text)
+            }
+
+            QGCButton {
+                text:       qsTr("Forget")
+                enabled:    _airDataSyncEnabled && !AirDataSyncManager.uploading
+                onClicked:  AirDataSyncManager.removeSavedToken(parent._savedTokenIndex)
+            }
         }
 
         LabelledFactTextField {

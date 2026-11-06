@@ -14,6 +14,8 @@
 #include "QGCApplication.h"
 #include "QGCLoggingCategory.h"
 #include "FirmwarePlugin.h"
+#include "SettingsManager.h"
+#include "AppSettings.h"
 
 #include <QtCore/QFile>
 #include <QtCore/QMutexLocker>
@@ -73,6 +75,8 @@ MockLink::MockLink(SharedLinkConfigurationPtr &config, QObject *parent)
     , _mockLinkFTP(new MockLinkFTP(_vehicleSystemId, _vehicleComponentId, this))
 {
     // qCDebug(MockLinkLog) << Q_FUNC_INFO << this;
+
+    _arcskyXplorer = SettingsManager::instance()->appSettings()->vehicleVariant()->rawValue().toInt() == 1;
 
     // Initialize 5 ADS-B vehicles with different starting conditions _numberOfVehicles
     _adsbVehicles.resize(_numberOfVehicles);
@@ -162,6 +166,7 @@ void MockLink::run1HzTasks()
     _sendADSBVehicles();
     _sendRemoteIDArmStatus();
     _sendAvailableModesMonitor();
+    _sendArcskyMetadata();
     // _sendVideoInfo();
     if (!qgcApp()->runningUnitTests()) {
         // Sending RC Channels during unit test breaks RC tests which does it's own RC simulation
@@ -900,6 +905,15 @@ void MockLink::_handleIncomingMavlinkMsg(const mavlink_message_t &msg)
     case MAVLINK_MSG_ID_PARAM_MAP_RC:
         _handleParamMapRC(msg);
         break;
+    case MAVLINK_MSG_ID_PARAM_EXT_SET:
+        _handleTagEParamExtSet(msg);
+        break;
+    case MAVLINK_MSG_ID_PARAM_EXT_REQUEST_LIST:
+        _handleTagEParamExtRequestList(msg);
+        break;
+    case MAVLINK_MSG_ID_PARAM_EXT_REQUEST_READ:
+        _handleTagEParamExtRequestRead(msg);
+        break;
     default:
         break;
     }
@@ -1073,6 +1087,103 @@ void MockLink::_handleParamRequestList(const mavlink_message_t &msg)
     // Start the worker routine
     _currentParamRequestListComponentIndex = 0;
     _currentParamRequestListParamIndex = 0;
+
+    // ArduPilot sends its banner in response to a param list request (GCS_Param.cpp)
+    _sendArcskyBanner();
+}
+
+void MockLink::_sendArcskyBanner()
+{
+    // Extra STATUSTEXT would upset unit tests that count messages
+    if ((_firmwareType != MAV_AUTOPILOT_ARDUPILOTMEGA) || qgcApp()->runningUnitTests()) {
+        return;
+    }
+
+    _sendArcskyStatusText(MAV_SEVERITY_INFO, _arcskyXplorer ? QStringLiteral("Xplorer v1.0.3 (mock0000)") : QStringLiteral("X55 v1.0.0 (mock0000)"));
+}
+
+void MockLink::_sendArcskyMetadata()
+{
+    if ((_firmwareType != MAV_AUTOPILOT_ARDUPILOTMEGA) || qgcApp()->runningUnitTests()) {
+        return;
+    }
+
+    // A few seconds in, so the Vehicle exists: banner (param download may go over FTP rather
+    // than PARAM_REQUEST_LIST) and the one-shot BMS online notices.
+    // Values match the SITL simulation in the Arcsky ArduPilot forks.
+    if (++_arcskyUptimeSecs == 3) {
+        _sendArcskyBanner();
+        if (_arcskyXplorer) {
+            _sendArcskyStatusText(MAV_SEVERITY_INFO, QStringLiteral("BMS1 Online: FW v1.3.10, SN:2603001, Cycles:42"));
+            _sendArcskyStatusText(MAV_SEVERITY_INFO, QStringLiteral("BMS2 Online: FW v1.3.10, SN:2603002, Cycles:87"));
+        }
+    }
+
+    if (++_arcskyMetadataTick < _arcskyMetadataPeriodSecs) {
+        return;
+    }
+    _arcskyMetadataTick = 0;
+
+    if (_arcskyXplorer) {
+        static const char *const rgXplorerMetadata[] = {
+            "~ARCSKY,XPLORER,1924A0226040004,12.3",
+            "~BAT1,Arcsky-2603001,42",
+            "~BAT2,Arcsky-2603002,87",
+            "~BMS1,Arcsky-2603001,1.3.10",
+            "~BMS2,Arcsky-2603002,1.3.10",
+            "~BIF,1.2,2.0",
+        };
+        _arcskyMetadataSlot %= static_cast<int>(std::size(rgXplorerMetadata));
+        _sendArcskyStatusText(MAV_SEVERITY_INFO, QString::fromLatin1(rgXplorerMetadata[_arcskyMetadataSlot]));
+    } else {
+        if (_arcskyMetadataSlot % 2 == 0) {
+            _sendArcskyData64(200, QStringLiteral("ARCSKY,X55,1924A0123080000,45.6"));
+        } else {
+            _sendArcskyData64(201, QStringLiteral("HM,1234,HW2,FW5,45.6,154.4"));
+        }
+    }
+    _arcskyMetadataSlot++;
+}
+
+void MockLink::_sendArcskyStatusText(MAV_SEVERITY severity, const QString &text)
+{
+    // The pack function always copies the full fixed-size text field
+    char buf[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN]{};
+    const QByteArray bytes = text.toLatin1();
+    memcpy(buf, bytes.constData(), qMin(bytes.size(), static_cast<qsizetype>(sizeof(buf))));
+
+    mavlink_message_t msg{};
+    (void) mavlink_msg_statustext_pack_chan(
+        _vehicleSystemId,
+        _vehicleComponentId,
+        mavlinkChannel(),
+        &msg,
+        severity,
+        buf,
+        0, // Not a chunked sequence
+        0  // Not a chunked sequence
+    );
+    respondWithMavlinkMessage(msg);
+}
+
+void MockLink::_sendArcskyData64(uint8_t type, const QString &text)
+{
+    uint8_t data[64]{};
+    const QByteArray bytes = text.toLatin1();
+    const uint8_t len = static_cast<uint8_t>(qMin(bytes.size(), static_cast<qsizetype>(sizeof(data))));
+    memcpy(data, bytes.constData(), len);
+
+    mavlink_message_t msg{};
+    (void) mavlink_msg_data64_pack_chan(
+        _vehicleSystemId,
+        _vehicleComponentId,
+        mavlinkChannel(),
+        &msg,
+        type,
+        len,
+        data
+    );
+    respondWithMavlinkMessage(msg);
 }
 
 void MockLink::_paramRequestListWorker()
@@ -1344,6 +1455,11 @@ void MockLink::_handleCommandLong(const mavlink_message_t &msg)
 
     _receivedMavCommandCountMap[static_cast<MAV_CMD>(request.command)]++;
 
+    if (request.target_component == _tagECompId) {
+        _handleTagECommand(request);
+        return;
+    }
+
     uint8_t commandResult = MAV_RESULT_UNSUPPORTED;
 
     switch (request.command) {
@@ -1460,6 +1576,233 @@ void MockLink::_handleCommandLong(const mavlink_message_t &msg)
         0,    // target_system
         0     // target_component
     );
+    respondWithMavlinkMessage(commandAck);
+}
+
+// ----------------------------------------------------------------------------
+// TAG-E camera control simulation
+// ----------------------------------------------------------------------------
+
+namespace {
+    // Step tables for DO_DIGICAM_CONFIGURE steps (p2 aperture, p3 ISO, p4 shutter; 99 down, 101 up).
+    // "Up" moves to the larger displayed number (1/1000 -> 1/1250, f/8 -> f/9, ISO 400 -> 500).
+    constexpr int   kTagEShutter[]  = { 30, 40, 50, 60, 80, 100, 125, 160, 200, 250, 320, 400, 500, 640, 800,
+                                        1000, 1250, 1600, 2000, 2500, 3200, 4000, 5000, 6400, 8000 };
+    constexpr float kTagEAperture[] = { 1.8f, 2.0f, 2.2f, 2.5f, 2.8f, 3.2f, 3.5f, 4.0f, 4.5f, 5.0f, 5.6f, 6.3f,
+                                        7.1f, 8.0f, 9.0f, 10.0f, 11.0f, 13.0f, 14.0f, 16.0f, 18.0f, 20.0f, 22.0f };
+    constexpr int   kTagEIso[]      = { 100, 125, 160, 200, 250, 320, 400, 500, 640, 800, 1000, 1250, 1600,
+                                        2000, 2500, 3200, 4000, 5000, 6400 };
+    constexpr uint32_t kTagEIsoAuto    = 0x00FFFFFF;
+    constexpr uint8_t  kParamExtUint8  = 1;     // MAV_PARAM_EXT_TYPE_UINT8
+    constexpr uint8_t  kParamExtUint32 = 5;     // MAV_PARAM_EXT_TYPE_UINT32
+    constexpr uint8_t  kParamExtReal32 = 9;     // MAV_PARAM_EXT_TYPE_REAL32
+
+    template <typename T, size_t N>
+    int stepIndex(const T (&)[N], int index, float stepParam)
+    {
+        const int dir = (stepParam == 101.0f) ? 1 : (stepParam == 99.0f) ? -1 : 0;
+        return qBound(0, index + dir, static_cast<int>(N) - 1);
+    }
+
+    template <typename T, size_t N>
+    int nearestIndex(const T (&table)[N], double value)
+    {
+        int best = 0;
+        for (int i = 1; i < static_cast<int>(N); i++) {
+            if (std::abs(table[i] - value) < std::abs(table[best] - value)) {
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    // Parameters this simulator answers for (index = param_index in PARAM_EXT_VALUE).
+    constexpr const char *kTagEParamNames[] = {
+        "TG_EXPMODE", "TG_SHTTERSPD", "TG_APERTURE", "TG_ISO", "TG_EXPC", "TG_AFMODE", "TG_LAND_DET"
+    };
+    constexpr int kTagEParamCount = static_cast<int>(sizeof(kTagEParamNames) / sizeof(kTagEParamNames[0]));
+}
+
+bool MockLink::_tagEParamValue(int index, const char *&name, uint32_t &raw, uint8_t &type) const
+{
+    if (index < 0 || index >= kTagEParamCount) {
+        return false;
+    }
+    name = kTagEParamNames[index];
+    float f = 0;
+    switch (index) {
+    case 0:     // TG_EXPMODE: M=1, P=65538, A=131075, S=196612
+        raw = (static_cast<uint32_t>(_tgExpMode - 1) << 16) | static_cast<uint32_t>(_tgExpMode);
+        type = kParamExtUint32;
+        break;
+    case 1:     // TG_SHTTERSPD: numerator << 16 | denominator (1/125 = 65661)
+        raw = (1u << 16) | static_cast<uint32_t>(kTagEShutter[_tgShutterIdx]);
+        type = kParamExtUint32;
+        break;
+    case 2:     // TG_APERTURE: float f-number
+        f = kTagEAperture[_tgApertureIdx];
+        memcpy(&raw, &f, sizeof(raw));
+        type = kParamExtReal32;
+        break;
+    case 3:     // TG_ISO: ISO number, 0xFFFFFF = auto
+        raw = _tgIsoAuto ? kTagEIsoAuto : static_cast<uint32_t>(kTagEIso[_tgIsoIdx]);
+        type = kParamExtUint32;
+        break;
+    case 4:     // TG_EXPC: float EV
+        f = _tgExpCorrThirds / 3.0f;
+        memcpy(&raw, &f, sizeof(raw));
+        type = kParamExtReal32;
+        break;
+    case 5:     // TG_AFMODE: MF=1, AF-S=2, AF-C=32772, AF-A=32773
+        raw = _tgAfMode;
+        type = kParamExtUint32;
+        break;
+    case 6:     // TG_LAND_DET
+        raw = _tgLandDet;
+        type = kParamExtUint8;
+        break;
+    }
+    return true;
+}
+
+void MockLink::_sendTagEParamValue(int index)
+{
+    const char *name = nullptr;
+    uint32_t raw = 0;
+    uint8_t type = 0;
+    if (!_tagEParamValue(index, name, raw, type)) {
+        return;
+    }
+
+    char paramId[MAVLINK_MSG_PARAM_EXT_VALUE_FIELD_PARAM_ID_LEN]{};
+    char paramValue[MAVLINK_MSG_PARAM_EXT_VALUE_FIELD_PARAM_VALUE_LEN]{};
+    strncpy(paramId, name, sizeof(paramId));
+    memcpy(paramValue, &raw, (type == kParamExtUint8) ? 1 : sizeof(raw));
+
+    mavlink_message_t msg{};
+    (void) mavlink_msg_param_ext_value_pack_chan(_vehicleSystemId, _tagECompId, mavlinkChannel(), &msg,
+                                                 paramId, paramValue, type,
+                                                 static_cast<uint16_t>(kTagEParamCount), static_cast<uint16_t>(index));
+    respondWithMavlinkMessage(msg);
+}
+
+void MockLink::_handleTagEParamExtRequestList(const mavlink_message_t &msg)
+{
+    mavlink_param_ext_request_list_t request{};
+    mavlink_msg_param_ext_request_list_decode(&msg, &request);
+    if (request.target_component != _tagECompId) {
+        return;
+    }
+    for (int i = 0; i < kTagEParamCount; i++) {
+        _sendTagEParamValue(i);
+    }
+}
+
+void MockLink::_handleTagEParamExtRequestRead(const mavlink_message_t &msg)
+{
+    mavlink_param_ext_request_read_t request{};
+    mavlink_msg_param_ext_request_read_decode(&msg, &request);
+    if (request.target_component != _tagECompId) {
+        return;
+    }
+
+    int index = request.param_index;
+    if (index < 0) {
+        char nameBuf[MAVLINK_MSG_PARAM_EXT_REQUEST_READ_FIELD_PARAM_ID_LEN + 1]{};
+        memcpy(nameBuf, request.param_id, MAVLINK_MSG_PARAM_EXT_REQUEST_READ_FIELD_PARAM_ID_LEN);
+        for (int i = 0; i < kTagEParamCount; i++) {
+            if (strcmp(nameBuf, kTagEParamNames[i]) == 0) {
+                index = i;
+                break;
+            }
+        }
+    }
+    _sendTagEParamValue(index);
+}
+
+void MockLink::_handleTagEParamExtSet(const mavlink_message_t &msg)
+{
+    mavlink_param_ext_set_t set{};
+    mavlink_msg_param_ext_set_decode(&msg, &set);
+    if (set.target_component != _tagECompId) {
+        return;
+    }
+
+    char nameBuf[MAVLINK_MSG_PARAM_EXT_SET_FIELD_PARAM_ID_LEN + 1]{};
+    memcpy(nameBuf, set.param_id, MAVLINK_MSG_PARAM_EXT_SET_FIELD_PARAM_ID_LEN);
+    const QString name(nameBuf);
+
+    uint32_t u32 = 0;
+    float    f32 = 0;
+    memcpy(&u32, set.param_value, sizeof(u32));
+    memcpy(&f32, set.param_value, sizeof(f32));
+    uint8_t  result = PARAM_ACK_ACCEPTED;
+
+    if (name == QStringLiteral("TG_EXPMODE")) {
+        const int mode = static_cast<int>(u32 & 0xFFFF);
+        if (mode >= 1 && mode <= 4) _tgExpMode = mode;
+    } else if (name == QStringLiteral("TG_SHTTERSPD")) {
+        _tgShutterIdx = nearestIndex(kTagEShutter, static_cast<double>(u32 & 0xFFFF));
+    } else if (name == QStringLiteral("TG_APERTURE")) {
+        _tgApertureIdx = nearestIndex(kTagEAperture, static_cast<double>(f32));
+    } else if (name == QStringLiteral("TG_ISO")) {
+        _tgIsoAuto = (u32 == kTagEIsoAuto);
+        if (!_tgIsoAuto) _tgIsoIdx = nearestIndex(kTagEIso, static_cast<double>(u32));
+    } else if (name == QStringLiteral("TG_EXPC")) {
+        _tgExpCorrThirds = qBound(-9, static_cast<int>(std::lround(f32 * 3.0f)), 9);
+    } else if (name == QStringLiteral("TG_AFMODE")) {
+        _tgAfMode = u32;
+    } else if (name == QStringLiteral("TG_LAND_DET")) {
+        _tgLandDet = static_cast<uint8_t>(set.param_value[0]);
+    } else {
+        qCDebug(MockLinkLog) << "TAG-E sim: PARAM_EXT_SET unsupported" << name;
+        result = PARAM_ACK_VALUE_UNSUPPORTED;
+    }
+    qCDebug(MockLinkLog) << "TAG-E sim: PARAM_EXT_SET" << name << "result" << result;
+
+    mavlink_message_t ack{};
+    (void) mavlink_msg_param_ext_ack_pack_chan(_vehicleSystemId, _tagECompId, mavlinkChannel(), &ack,
+                                               set.param_id, set.param_value, set.param_type, result);
+    respondWithMavlinkMessage(ack);
+}
+
+void MockLink::_handleTagECommand(const mavlink_command_long_t &request)
+{
+    if (request.command == MAV_CMD_DO_DIGICAM_CONFIGURE) {
+        const int code = static_cast<int>(request.param1);
+        // Steps only act on values the camera doesn't own in the current mode (M owns none).
+        const bool shutterAuto  = (_tgExpMode == 2 || _tgExpMode == 3);
+        const bool apertureAuto = (_tgExpMode == 2 || _tgExpMode == 4);
+        switch (code) {
+        case 0:
+            if (!apertureAuto) _tgApertureIdx = stepIndex(kTagEAperture, _tgApertureIdx, request.param2);
+            if (!_tgIsoAuto)   _tgIsoIdx      = stepIndex(kTagEIso,      _tgIsoIdx,      request.param3);
+            if (!shutterAuto)  _tgShutterIdx  = stepIndex(kTagEShutter,  _tgShutterIdx,  request.param4);
+            break;
+        case 122:   // Exp comp up
+            _tgExpCorrThirds = qMin(_tgExpCorrThirds + 1, 9);
+            break;
+        case 123:   // Exp comp down
+            _tgExpCorrThirds = qMax(_tgExpCorrThirds - 1, -9);
+            break;
+        case 124:   // Toggle AF mode
+            _tgAfMode = (_tgAfMode == 2) ? 32772 : (_tgAfMode == 32772) ? 1 : 2;
+            break;
+        case 135:   // AF trigger (half-press)
+            qCDebug(MockLinkLog) << "TAG-E sim: AF trigger" << (_tgAfMode == 1 ? "(ignored in MF)" : "");
+            break;
+        case 111:   // Manual focus drive
+            qCDebug(MockLinkLog) << "TAG-E sim: focus drive speed" << request.param7;
+            break;
+        default:    // AF point (1101), AF area (180), format (133), session reset (260), export log (1100), ...
+            qCDebug(MockLinkLog) << "TAG-E sim: DO_DIGICAM_CONFIGURE p1" << code;
+            break;
+        }
+    }
+
+    mavlink_message_t commandAck{};
+    (void) mavlink_msg_command_ack_pack_chan(_vehicleSystemId, _tagECompId, mavlinkChannel(), &commandAck,
+                                             request.command, MAV_RESULT_ACCEPTED, 0, 0, 0, 0);
     respondWithMavlinkMessage(commandAck);
 }
 

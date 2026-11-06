@@ -55,6 +55,9 @@ public:
     static QString canonicalCustomCameraName(void);
     static QString canonicalManualCameraName(void);
 
+    /// Xplorer fork: payload indicator enabled and LiDAR (payloadSelection 2) selected
+    static bool lidarPayloadSelected(void);
+
     Fact* valueSetIsDistance        (void) { return &_valueSetIsDistanceFact; }
     Fact* distanceToSurface         (void) { return &_distanceToSurfaceFact; }
     Fact* imageDensity              (void) { return &_imageDensityFact; }

@@ -24,6 +24,10 @@ TransectStyleComplexItemEditor {
 
     property real   _margin:        ScreenTools.defaultFontPixelWidth / 2
     property var    _missionItem:   missionItem
+    // Xplorer fork: no camera behaviour options for a LiDAR corridor with no camera selected
+    property bool   _lidarNoCamera: QGroundControl.settingsManager.flyViewSettings.showPayloadIndicator.rawValue
+                                    && QGroundControl.settingsManager.flyViewSettings.payloadSelection.rawValue === 2
+                                    && missionItem.cameraCalc.isManualCamera
 
     Component {
         id: _transectValuesComponent
@@ -54,7 +58,7 @@ TransectStyleComplexItemEditor {
                 text:               qsTr("Images in turnarounds")
                 fact:               _missionItem.cameraTriggerInTurnAround
                 enabled:            _missionItem.hoverAndCaptureAllowed ? !_missionItem.hoverAndCapture.rawValue : true
-                visible:            !forPresets
+                visible:            !forPresets && !_lidarNoCamera
             }
         }
     }

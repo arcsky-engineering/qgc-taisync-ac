@@ -35,10 +35,11 @@ Rectangle {
 
     // Xplorer (variant 1) hides the Power tab — and therefore its summary tile.
     // The arming threshold moves to Safety. X55 keeps the full tile set.
+    // Names must match VehicleComponent::name() (e.g. APMStatusComponent "System Status").
     readonly property bool _isXplorer: QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue === 1
     readonly property var _tileNames: _isXplorer
-                                        ? [ "Radio", "RC Options", "Sensors", "Safety" ]
-                                        : [ "Radio", "RC Options", "Sensors", "Power", "Safety" ]
+                                        ? [ "System Status", "Radio", "RC Options", "Sensors", "Safety" ]
+                                        : [ "System Status", "Radio", "RC Options", "Sensors", "Power", "Safety" ]
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 

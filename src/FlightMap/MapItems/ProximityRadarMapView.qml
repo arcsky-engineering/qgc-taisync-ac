@@ -19,7 +19,7 @@ import QGroundControl.FlightDisplay
 
 MapQuickItem {
     id:             _root
-    visible:        proximityValues.telemetryAvailable && coordinate.isValid
+    visible:        QGroundControl.settingsManager.flyViewSettings.showProximityRadar.rawValue && proximityValues.horizontalSensorAvailable && coordinate.isValid
 
     property var    vehicle                                                         /// Vehicle object, undefined for ADSB vehicle
     property var    map

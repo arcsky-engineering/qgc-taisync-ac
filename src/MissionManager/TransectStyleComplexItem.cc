@@ -37,6 +37,16 @@ TransectStyleComplexItem::TransectStyleComplexItem(PlanMasterController* masterC
     , _terrainAdjustMaxClimbRateFact    (settingsGroup, _metaDataMap[terrainAdjustMaxClimbRateName])
     , _terrainAdjustMaxDescentRateFact  (settingsGroup, _metaDataMap[terrainAdjustMaxDescentRateName])
 {
+    // LiDAR new-item defaults: fly straight lines with no turnaround and no camera behaviour.
+    // CameraCalc has already selected Manual with a zero trigger distance. load() runs after
+    // this for saved plans, so only freshly-created items are affected. Must happen before the
+    // connects below: _rebuildTransects calls pure virtuals that don't exist yet.
+    if (CameraCalc::lidarPayloadSelected()) {
+        _turnAroundDistanceFact.setRawValue(0);
+        _cameraTriggerInTurnAroundFact.setRawValue(false);
+        _hoverAndCaptureFact.setRawValue(false);
+    }
+
     _terrainPolyPathQueryTimer.setInterval(qgcApp()->runningUnitTests() ? 10 : _terrainQueryTimeoutMsecs);
     _terrainPolyPathQueryTimer.setSingleShot(true);
     connect(&_terrainPolyPathQueryTimer, &QTimer::timeout, this, &TransectStyleComplexItem::_reallyQueryTransectsPathHeightInfo);
@@ -104,6 +114,11 @@ TransectStyleComplexItem::TransectStyleComplexItem(PlanMasterController* masterC
     connect(&_surveyAreaPolygon,                        &QGCMapPolygon::isValidChanged, this, &TransectStyleComplexItem::readyForSaveStateChanged);
 
     setDirty(false);
+}
+
+QString TransectStyleComplexItem::payloadSettingsGroup(const QString& baseGroup)
+{
+    return CameraCalc::lidarPayloadSelected() ? baseGroup + QStringLiteral("LiDAR") : baseGroup;
 }
 
 void TransectStyleComplexItem::_setCameraShots(int cameraShots)

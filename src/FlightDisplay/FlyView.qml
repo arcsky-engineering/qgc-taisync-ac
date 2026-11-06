@@ -227,6 +227,17 @@ Item {
             visible:            !QGroundControl.videoManager.fullScreen
         }
 
+        // On-screen ILX quick controls (shutter / aperture / ISO / focus). Left edge, a little
+        // above center. Layered just above the PIP (zOrderWidgets) so an enlarged map/video PIP
+        // can't cover it; toolbar drop-downs and menus are popups and still draw above it. Not
+        // hidden in full-screen video, where real-time adjustment is most useful.
+        IlxQuickControls {
+            anchors.left:                   parent.left
+            anchors.verticalCenter:         parent.verticalCenter
+            anchors.verticalCenterOffset:   -parent.height * 0.08
+            z:                              QGroundControl.zOrderWidgets + 1
+        }
+
         // Development tool for visualizing the insets for a paticular layer, show if needed
         FlyViewInsetViewer {
             id:                     widgetLayerInsetViewer

@@ -25,6 +25,9 @@ namespace AndroidInterface
     void jniLogWarning(JNIEnv *envA, jobject thizA, jstring messageA);
     bool checkStoragePermissions();
     QString getSDCardPath();
+    bool isExternalStorageManager();
+    void requestExternalStorageManager();
+    QString getPublicDocumentsPath();
     void setKeepScreenOn(bool on);
     // broadcast _mavlink._udp to LAN
     void broadcast(const QString& serviceName, const QString& serviceType, int port);

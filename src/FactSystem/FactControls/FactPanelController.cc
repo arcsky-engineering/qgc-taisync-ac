@@ -83,6 +83,13 @@ bool FactPanelController::parameterExists(int componentId, const QString &name) 
     return (_vehicle ? _vehicle->parameterManager()->parameterExists(componentId, name) : false);
 }
 
+void FactPanelController::refreshParameter(int componentId, const QString &name)
+{
+    if (_vehicle && !_vehicle->isOfflineEditingVehicle() && parameterExists(componentId, name)) {
+        _vehicle->parameterManager()->refreshParameter(componentId, name);
+    }
+}
+
 void FactPanelController::getMissingParameters(const QStringList &rgNames)
 {
     for (const QString &name: rgNames) {

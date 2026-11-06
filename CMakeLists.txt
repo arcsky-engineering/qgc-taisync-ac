@@ -20,6 +20,7 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.15)
 # set(CMAKE_OSX_ARCHITECTURES "arm64")
 # set(CMAKE_OSX_SYSROOT "iphoneos")
 include(Git)
+include(ArcskyVersion)
 
 # App
 set(QGC_APP_NAME "ArcskyControl" CACHE STRING "App Name")
@@ -446,15 +447,11 @@ elseif(ANDROID)
         message(FATAL_ERROR "Patch version larger than 2 digits: ${CMAKE_PROJECT_VERSION_PATCH}")
     endif()
 
-    # Bitness for android version number is 66/34 instead of 64/32 in because of a required version number bump screw-up ages ago
-    set(ANDROID_BITNESS_CODE)
-    if(${CMAKE_ANDROID_ARCH_ABI} STREQUAL "armeabi-v7a" OR ${CMAKE_ANDROID_ARCH_ABI} STREQUAL "x86")
-        set(ANDROID_BITNESS_CODE 34)
-    elseif(${CMAKE_ANDROID_ARCH_ABI} STREQUAL "arm64-v8a" OR ${CMAKE_ANDROID_ARCH_ABI} STREQUAL "x86_64")
-        set(ANDROID_BITNESS_CODE 66)
-    else()
-        message(FATAL_ERROR "Unsupported Android ABI: ${CMAKE_ANDROID_ARCH_ABI}")
-    endif()
+    # Arcsky: the leading two digits are pinned rather than derived from the ABI. APKs
+    # already in the field were built from the inherited v5.0.6 tag as 665006000, and
+    # Android rejects a lower version code as a downgrade, so the restart at v1.0.0
+    # needs a prefix above 66: 1.0.0 -> 671000000. This must only ever go up.
+    set(ANDROID_BITNESS_CODE 67)
 
     set(ANDROID_PATCH_VERSION ${CMAKE_PROJECT_VERSION_PATCH})
     if(${CMAKE_PROJECT_VERSION_PATCH} LESS 10)
@@ -474,7 +471,7 @@ elseif(ANDROID)
             # QT_ANDROID_COMPILE_SDK_VERSION
             QT_ANDROID_PACKAGE_NAME "${QGC_ANDROID_PACKAGE_NAME}"
             QT_ANDROID_PACKAGE_SOURCE_DIR "${QGC_ANDROID_PACKAGE_SOURCE_DIR}"
-            QT_ANDROID_VERSION_NAME "${CMAKE_PROJECT_VERSION}"
+            QT_ANDROID_VERSION_NAME "${ARCSKY_VERSION_STR}"
             QT_ANDROID_VERSION_CODE ${ANDROID_VERSION_CODE}
             # QT_ANDROID_APP_NAME
             # QT_ANDROID_APP_ICON
@@ -503,6 +500,10 @@ target_compile_definitions(${CMAKE_PROJECT_NAME}
         QGC_ORG_NAME="${QGC_ORG_NAME}"
         QGC_ORG_DOMAIN="${QGC_ORG_DOMAIN}"
         QGC_APP_VERSION_STR="${QGC_APP_VERSION_STR}"
+        ARCSKY_QGC_BASE_VERSION_STR="${ARCSKY_QGC_BASE_VERSION}"
+        # Only defined for dev builds, i.e. HEAD is not sitting on its version tag
+        $<$<NOT:$<BOOL:${ARCSKY_RELEASE_BUILD}>>:ARCSKY_GIT_BRANCH_STR="${QGC_GIT_BRANCH}">
+        $<$<NOT:$<BOOL:${ARCSKY_RELEASE_BUILD}>>:ARCSKY_GIT_HASH_STR="${QGC_GIT_HASH}">
         QGC_SETTINGS_VERSION=${QGC_SETTINGS_VERSION}
         $<$<NOT:$<BOOL:${QGC_STABLE_BUILD}>>:QGC_DAILY_BUILD>
 )

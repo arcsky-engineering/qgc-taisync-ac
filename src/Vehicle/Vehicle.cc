@@ -68,6 +68,9 @@
 #endif
 
 #include <QtCore/QDateTime>
+#include <QtCore/QRegularExpression>
+
+#include <cmath>
 
 QGC_LOGGING_CATEGORY(VehicleLog, "VehicleLog")
 
@@ -83,6 +86,7 @@ QGC_LOGGING_CATEGORY(VehicleLog, "VehicleLog")
 // _appendCameraTriggerPoint() drops a new point that is within the dedup radius of the last entry.
 static constexpr int    kCameraTriggerPointsMaxCount   = 10;
 static constexpr double kCameraTriggerDedupMeters      = 2.0;
+static constexpr int    kGimbalCompId                  = 154;  // Gremsy gimbal on Xplorer
 
 // After a second GCS has requested control and we have given it permission to takeover, we will remove takeover permission automatically after this timeout
 // If the second GCS didn't get control 
@@ -126,6 +130,7 @@ Vehicle::Vehicle(LinkInterface*             link,
     , _hygrometerFactGroup          (this)
     , _generatorFactGroup           (this)
     , _efiFactGroup                 (this)
+    , _systemInfoFactGroup          (this)
     , _rpmFactGroup                 (this)
     , _terrainFactGroup             (this)
     , _terrainProtocolHandler       (new TerrainProtocolHandler(this, &_terrainFactGroup, this))
@@ -360,6 +365,7 @@ void Vehicle::_commonInit()
     _addFactGroup(&_hygrometerFactGroup,        _hygrometerFactGroupName);
     _addFactGroup(&_generatorFactGroup,         _generatorFactGroupName);
     _addFactGroup(&_efiFactGroup,               _efiFactGroupName);
+    _addFactGroup(&_systemInfoFactGroup,        _systemInfoFactGroupName);
     _addFactGroup(&_rpmFactGroup,               _rpmFactGroupName);
     _addFactGroup(&_terrainFactGroup,           _terrainFactGroupName);
 
@@ -757,6 +763,17 @@ void Vehicle::_mavlinkMessageReceived(LinkInterface* link, mavlink_message_t mes
             mavlink_param_ext_value_t value;
             mavlink_msg_param_ext_value_decode(&message, &value);
             _handleVioParamValue(value);
+        }
+        break;
+    }
+    case MAVLINK_MSG_ID_PARAM_VALUE:
+    {
+        // ParameterManager ignores compid 154 (see _handleParamValue), so the gimbal's
+        // replies are picked up here instead.
+        if (message.compid == kGimbalCompId) {
+            mavlink_param_value_t value;
+            mavlink_msg_param_value_decode(&message, &value);
+            _handleGimbalParamValue(value);
         }
         break;
     }
@@ -1376,6 +1393,8 @@ void Vehicle::handleEntireData32(const QByteArray& data)
     if (_airPixelDevice != AirPixelTagE) {
         _airPixelDevice = AirPixelTagE;
         emit airPixelDeviceChanged();
+        // TAG-E doesn't publish its settings unprompted — pull them once it's seen.
+        QTimer::singleShot(1000, this, &Vehicle::apRequestAllParams);
     }
 
     bool geoChanged = false;
@@ -1585,6 +1604,7 @@ void Vehicle::_handleAirPixelParamValue(const mavlink_param_ext_value_t& value)
         memcpy(&raw, value.param_value, sizeof(raw));
         bool isAuto = (raw == 0x00FFFFFF);
         int iso = isAuto ? 0 : static_cast<int>(raw);
+        if (iso > 0) _apLastManualIso = iso;
         if (_apCameraISO != iso || _apISOAuto != isAuto) {
             _apCameraISO = iso; _apISOAuto = isAuto; changed = true;
         }
@@ -1696,6 +1716,153 @@ void Vehicle::_apSendParamExt(const QString& name, const void* value, size_t val
         qDebug() << "[AP_PARAM_EXT_SEND] DROPPED - no AirPixel device detected";
     }
     _sendParamExtToComponent(compId, name, value, valueSize, paramType);
+
+    // Read the value back so the UI shows what the camera accepted, not just what was sent.
+    if (compId != 0) {
+        QTimer::singleShot(500, this, [this, name]() { apRequestParam(name); });
+    }
+}
+
+void Vehicle::apRequestParam(const QString& name)
+{
+    const int compId = airPixelComponentId();
+    SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
+    if (compId == 0 || !sharedLink) return;
+
+    char paramId[MAVLINK_MSG_PARAM_EXT_REQUEST_READ_FIELD_PARAM_ID_LEN]{};
+    strncpy(paramId, name.toUtf8().constData(), sizeof(paramId));
+
+    mavlink_message_t msg{};
+    mavlink_msg_param_ext_request_read_pack_chan(
+        static_cast<uint8_t>(MAVLinkProtocol::instance()->getSystemId()),
+        static_cast<uint8_t>(MAVLinkProtocol::getComponentId()),
+        sharedLink->mavlinkChannel(),
+        &msg,
+        static_cast<uint8_t>(id()),
+        static_cast<uint8_t>(compId),
+        paramId,
+        -1);    // -1: look up by param_id
+    sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
+}
+
+void Vehicle::apStepExposure(int apertureDir, int isoDir, int shutterDir)
+{
+    const int compId = airPixelComponentId();
+    if (compId == 0) return;
+
+    // DO_DIGICAM_CONFIGURE p1=0: p2 aperture, p3 ISO, p4 shutter; 99 = one step down, 101 = up.
+    auto code = [](int dir) { return dir > 0 ? 101.0 : dir < 0 ? 99.0 : 0.0; };
+    sendMavCommand(compId, MAV_CMD_DO_DIGICAM_CONFIGURE, true,
+                   0, code(apertureDir), code(isoDir), code(shutterDir), 0, 0, 0);
+
+    // The TAG-E doesn't push changes: read the stepped values back once it has applied
+    // the step, one request per 500ms (it drops rapid-fire sends).
+    QStringList names;
+    if (apertureDir) names << QStringLiteral("TG_APERTURE");
+    if (isoDir)      names << QStringLiteral("TG_ISO");
+    if (shutterDir)  names << QStringLiteral("TG_SHTTERSPD");
+    for (int i = 0; i < names.count(); i++) {
+        const QString name = names[i];
+        QTimer::singleShot(500 * (i + 1), this, [this, name]() { apRequestParam(name); });
+    }
+}
+
+void Vehicle::apCameraCommand(int p1)
+{
+    const int compId = airPixelComponentId();
+    if (compId == 0) return;
+
+    sendMavCommand(compId, MAV_CMD_DO_DIGICAM_CONFIGURE, true, p1, 0, 0, 0, 0, 0, 0);
+
+    QString readBack;
+    if (p1 == 122 || p1 == 123) readBack = QStringLiteral("TG_EXPC");
+    else if (p1 == 124)         readBack = QStringLiteral("TG_AFMODE");
+    if (!readBack.isEmpty()) {
+        QTimer::singleShot(500, this, [this, readBack]() { apRequestParam(readBack); });
+    }
+}
+
+void Vehicle::apToggleAutoIso()
+{
+    apSetParamUint(QStringLiteral("TG_ISO"), _apISOAuto ? static_cast<quint32>(_apLastManualIso) : 0x00FFFFFFu);
+}
+
+void Vehicle::apFocusAndLock()
+{
+    // Sony bodies keep the lens position on an AF->MF switch, so MF acts as a focus lock.
+    // The AF trigger (p1=135) only acts in an AF mode, hence AF-S first. Steps are paced
+    // 300ms apart because the TAG-E drops rapid-fire sends.
+    const int compId = airPixelComponentId();
+    if (compId == 0 || _apFocusLockRunning) return;
+    _apFocusLockRunning = true;
+
+    const int pulses = qMax(1, SettingsManager::instance()->flyViewSettings()->afTriggerPulses()->rawValue().toInt());
+    apSetAFMode(2);                                                     // AF-S
+    int t = 600;
+    for (int i = 0; i < pulses; i++, t += 300) {
+        QTimer::singleShot(t, this, [this, compId]() {
+            sendMavCommand(compId, MAV_CMD_DO_DIGICAM_CONFIGURE, false, 135, 0, 0, 0, 0, 0, 0);
+        });
+    }
+    QTimer::singleShot(t + 1200, this, [this]() {                       // let AF settle, then lock
+        apSetAFMode(1);                                                 // MF
+        _apFocusLockRunning = false;
+    });
+}
+
+void Vehicle::apFocusDriveStart(int speed)
+{
+    // DO_DIGICAM_CONFIGURE p1=111, p7 = signed speed. Whether the TAG-E treats this as a
+    // continuous drive or a one-shot step isn't documented, so cover both: re-send every
+    // 300ms while held (continuous motion either way), and stop on release.
+    const int compId = airPixelComponentId();
+    if (compId == 0 || speed == 0) return;
+
+    _apFocusDriveSpeed = qBound(-7, speed, 7);
+    sendMavCommand(compId, MAV_CMD_DO_DIGICAM_CONFIGURE, false, 111, 0, 0, 0, 0, 0, _apFocusDriveSpeed);
+    if (!_apFocusDriveTimer.isActive()) {
+        _apFocusDriveTimer.setInterval(300);
+        disconnect(&_apFocusDriveTimer, nullptr, this, nullptr);
+        connect(&_apFocusDriveTimer, &QTimer::timeout, this, [this]() {
+            const int id = airPixelComponentId();
+            if (id == 0 || _apFocusDriveSpeed == 0) { _apFocusDriveTimer.stop(); return; }
+            sendMavCommand(id, MAV_CMD_DO_DIGICAM_CONFIGURE, false, 111, 0, 0, 0, 0, 0, _apFocusDriveSpeed);
+        });
+        _apFocusDriveTimer.start();
+    }
+    qCDebug(VehicleLog) << "[AP_FOCUS_DRIVE] start speed" << _apFocusDriveSpeed;
+}
+
+void Vehicle::apFocusDriveStop()
+{
+    if (_apFocusDriveSpeed == 0) return;
+    _apFocusDriveSpeed = 0;
+    _apFocusDriveTimer.stop();
+    // Stop (speed 0) a beat after the last drive send so the TAG-E doesn't drop it.
+    QTimer::singleShot(300, this, [this]() {
+        const int compId = airPixelComponentId();
+        if (compId != 0 && _apFocusDriveSpeed == 0) {
+            sendMavCommand(compId, MAV_CMD_DO_DIGICAM_CONFIGURE, false, 111, 0, 0, 0, 0, 0, 0);
+        }
+    });
+    qCDebug(VehicleLog) << "[AP_FOCUS_DRIVE] stop";
+}
+
+void Vehicle::apRequestAllParams()
+{
+    const int compId = airPixelComponentId();
+    SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
+    if (compId == 0 || !sharedLink) return;
+
+    mavlink_message_t msg{};
+    mavlink_msg_param_ext_request_list_pack_chan(
+        static_cast<uint8_t>(MAVLinkProtocol::instance()->getSystemId()),
+        static_cast<uint8_t>(MAVLinkProtocol::getComponentId()),
+        sharedLink->mavlinkChannel(),
+        &msg,
+        static_cast<uint8_t>(id()),
+        static_cast<uint8_t>(compId));
+    sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
 }
 
 void Vehicle::apSetParamUint(const QString& name, quint32 value)
@@ -1844,6 +2011,96 @@ void Vehicle::vioSetEOZoom(int val)
     _vioEOZoom = val;
     emit vioCameraChanged();
     vioSetParam(QStringLiteral("C_V_ZM_SR_LV"), static_cast<quint32>(val));
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Gremsy gimbal param handling (component 154)
+// ────────────────────────────────────────────────────────────────────────────
+
+void Vehicle::_handleGimbalParamValue(const mavlink_param_value_t& value)
+{
+    char nameBuf[17] = {};
+    memcpy(nameBuf, value.param_id, 16);
+    QString name(nameBuf);
+
+    // Gremsy (gSDK) puts the value in param_value as a plain float cast, not bytewise. If what
+    // arrives isn't a sane integer it was packed bytewise, so read it back out of the union.
+    int v;
+    const float f = value.param_value;
+    if (std::isfinite(f) && (f == 0.0f || std::fabs(f) >= 1.0f) && std::fabs(f) < 100000.0f) {
+        v = static_cast<int>(std::lround(f));
+    } else {
+        mavlink_param_union_t u{};
+        u.param_float = f;
+        v = u.param_int16;
+    }
+
+    bool changed = false;
+    if (name == QStringLiteral("RC_LPF_PAN")) {
+        if (_gimbalRcLpfPan != v) { _gimbalRcLpfPan = v; changed = true; }
+    } else if (name == QStringLiteral("RC_LPF_TILT")) {
+        if (_gimbalRcLpfTilt != v) { _gimbalRcLpfTilt = v; changed = true; }
+    }
+
+    if (changed) emit gimbalTuningChanged();
+}
+
+void Vehicle::gimbalSetParam(const QString& name, int value)
+{
+    SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
+    if (!sharedLink) return;
+
+    // Optimistic update so the slider doesn't snap back while waiting for the readback.
+    if (name == QStringLiteral("RC_LPF_PAN"))  { _gimbalRcLpfPan = value;  emit gimbalTuningChanged(); }
+    if (name == QStringLiteral("RC_LPF_TILT")) { _gimbalRcLpfTilt = value; emit gimbalTuningChanged(); }
+
+    mavlink_param_set_t p{};
+    p.target_system    = static_cast<uint8_t>(id());
+    p.target_component = static_cast<uint8_t>(kGimbalCompId);
+    p.param_value      = static_cast<float>(value);    // float cast, matching Gremsy gSDK
+    p.param_type       = MAV_PARAM_TYPE_INT16;
+    strncpy(p.param_id, name.toUtf8().constData(), sizeof(p.param_id));
+
+    mavlink_message_t msg{};
+    mavlink_msg_param_set_encode_chan(
+        static_cast<uint8_t>(MAVLinkProtocol::instance()->getSystemId()),
+        static_cast<uint8_t>(MAVLinkProtocol::getComponentId()),
+        sharedLink->mavlinkChannel(),
+        &msg,
+        &p);
+    sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
+
+    qCDebug(VehicleLog) << "[GIMBAL_PARAM_SET] name:" << name << "value:" << value;
+
+    // The gimbal should echo PARAM_VALUE on set; read back anyway in case that gets lost.
+    QTimer::singleShot(500, this, [this, name]() { gimbalRequestParam(name); });
+}
+
+void Vehicle::gimbalRequestParam(const QString& name)
+{
+    SharedLinkInterfacePtr sharedLink = vehicleLinkManager()->primaryLink().lock();
+    if (!sharedLink) return;
+
+    char paramId[MAVLINK_MSG_PARAM_REQUEST_READ_FIELD_PARAM_ID_LEN]{};
+    strncpy(paramId, name.toUtf8().constData(), sizeof(paramId));
+
+    mavlink_message_t msg{};
+    mavlink_msg_param_request_read_pack_chan(
+        static_cast<uint8_t>(MAVLinkProtocol::instance()->getSystemId()),
+        static_cast<uint8_t>(MAVLinkProtocol::getComponentId()),
+        sharedLink->mavlinkChannel(),
+        &msg,
+        static_cast<uint8_t>(id()),
+        static_cast<uint8_t>(kGimbalCompId),
+        paramId,
+        -1);    // -1: look up by param_id
+    sendMessageOnLinkThreadSafe(sharedLink.get(), msg);
+}
+
+void Vehicle::gimbalRequestTuning()
+{
+    gimbalRequestParam(QStringLiteral("RC_LPF_PAN"));
+    QTimer::singleShot(200, this, [this]() { gimbalRequestParam(QStringLiteral("RC_LPF_TILT")); });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -5093,6 +5350,15 @@ void Vehicle::_textMessageReceived(MAV_COMPONENT componentid, MAV_SEVERITY sever
     // Arcsky telemetry metadata — logged to tlog but hidden from operator UI
     if (text.startsWith(QStringLiteral("~"))) {
         return;
+    }
+
+    // Payload camera (TAG-E, comp 100) prefixes its own STATUSTEXTs with its product
+    // name. Genericize so the operator UI / speech doesn't reveal the payload vendor.
+    // Raw text is still preserved in the tlog.
+    if (componentid == MAV_COMP_ID_CAMERA) {
+        static const QRegularExpression payloadNameRe(QStringLiteral("\\b(TAG[-_ ]?E|AirPixel)\\b"),
+                                                      QRegularExpression::CaseInsensitiveOption);
+        (void) text.replace(payloadNameRe, QStringLiteral("Camera"));
     }
 
     // PX4 backwards compatibility: messages sent out ending with a tab are also sent as event

@@ -84,6 +84,11 @@ CameraCalc::CameraCalc(PlanMasterController* masterController, const QString& se
                 break;
             }
         }
+    } else if (lidarPayloadSelected()) {
+        // LiDAR: no camera. Manual mode flies altitude + spacing only, and a zero trigger
+        // distance means no DO_SET_CAM_TRIGG_DIST commands are generated.
+        _cameraNameFact.setRawValue(canonicalManualCameraName());
+        _adjustedFootprintFrontalFact.setRawValue(0);
     }
 
     _cameraNameChanged();
@@ -320,6 +325,13 @@ QString CameraCalc::xlatCustomCameraName(void)
 QString CameraCalc::xlatManualCameraName(void)
 {
     return tr("Manual (no camera specs)");
+}
+
+bool CameraCalc::lidarPayloadSelected(void)
+{
+    FlyViewSettings* flyViewSettings = SettingsManager::instance()->flyViewSettings();
+    return flyViewSettings->showPayloadIndicator()->rawValue().toBool() &&
+           flyViewSettings->payloadSelection()->rawValue().toInt() == 2;
 }
 
 void CameraCalc::setDistanceMode(QGroundControlQmlGlobal::AltMode altMode)

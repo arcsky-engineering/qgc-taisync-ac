@@ -20,7 +20,9 @@
 #include <QtQml/QQmlEngine>
 #include <QtCore/QStandardPaths>
 #include <QtCore/QDir>
+#include <QtCore/QFileInfo>
 #include <QtCore/QSettings>
+#include <QtGui/QGuiApplication>
 
 // Release languages are 90%+ complete
 QList<QLocale::Language> AppSettings::_rgReleaseLanguages = {
@@ -112,24 +114,7 @@ DECLARE_SETTINGGROUP(App, "")
         QDir rootDir = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
         savePathFact->setRawValue(rootDir.absolutePath());
     #else
-        QString rootDirPath;
-        #ifdef Q_OS_ANDROID
-        if (androidSaveToSDCard()->rawValue().toBool()) {
-                rootDirPath = AndroidInterface::getSDCardPath();
-            qDebug() << "AndroidInterface::getSDCardPath();" << rootDirPath;
-                if (rootDirPath.isEmpty() || !QDir(rootDirPath).exists()) {
-                    rootDirPath.clear();
-                    qgcApp()->showAppMessage(AppSettings::tr("Save to SD card specified for application data. But no SD card present. Using internal storage."));
-                } else if (!QFileInfo(rootDirPath).isWritable()) {
-                    rootDirPath.clear();
-                    qgcApp()->showAppMessage(AppSettings::tr("Save to SD card specified for application data. But SD card is write protected. Using internal storage."));
-                }
-            }
-        #endif
-        if (rootDirPath.isEmpty()) {
-            rootDirPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-        }
-        savePathFact->setRawValue(QDir(rootDirPath).filePath(appName));
+        _updateAndroidSavePath();
     #endif
     savePathFact->setVisible(false);
 #else
@@ -142,7 +127,70 @@ DECLARE_SETTINGGROUP(App, "")
     connect(savePathFact, &Fact::rawValueChanged, this, &AppSettings::_checkSavePathDirectories);
 
     _checkSavePathDirectories();
+
+#ifdef Q_OS_ANDROID
+    // All files access is granted from a system settings page, pick up the change when the user comes back
+    _androidAllFilesAccess = AndroidInterface::isExternalStorageManager();
+    if (qGuiApp) {
+        connect(qGuiApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+            if (state != Qt::ApplicationActive) {
+                return;
+            }
+            const bool allFilesAccess = AndroidInterface::isExternalStorageManager();
+            if (allFilesAccess != _androidAllFilesAccess) {
+                _androidAllFilesAccess = allFilesAccess;
+                _updateAndroidSavePath();
+                emit androidAllFilesAccessChanged();
+            }
+        });
+    }
+#endif
 }
+
+void AppSettings::requestAndroidAllFilesAccess()
+{
+#ifdef Q_OS_ANDROID
+    AndroidInterface::requestExternalStorageManager();
+#endif
+}
+
+#ifdef Q_OS_ANDROID
+QString AppSettings::_androidRootSavePath()
+{
+    if (androidSaveToSDCard()->rawValue().toBool()) {
+        const QString sdCardPath = AndroidInterface::getSDCardPath();
+        qDebug() << "AndroidInterface::getSDCardPath();" << sdCardPath;
+        if (sdCardPath.isEmpty() || !QDir(sdCardPath).exists()) {
+            qgcApp()->showAppMessage(AppSettings::tr("Save to SD card specified for application data. But no SD card present. Using internal storage."));
+        } else if (!QFileInfo(sdCardPath).isWritable()) {
+            qgcApp()->showAppMessage(AppSettings::tr("Save to SD card specified for application data. But SD card is write protected. Using internal storage."));
+        } else {
+            return sdCardPath;
+        }
+    }
+
+    // With all files access, use shared Documents so users can reach the files with a file manager
+    if (AndroidInterface::isExternalStorageManager()) {
+        const QString documentsPath = AndroidInterface::getPublicDocumentsPath();
+        if (!documentsPath.isEmpty() && QDir().mkpath(documentsPath) && QFileInfo(documentsPath).isWritable()) {
+            return documentsPath;
+        }
+        qWarning() << "All files access granted but shared Documents is not writable:" << documentsPath;
+    }
+
+    // App specific external storage: Android/data/<package>/files
+    return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+}
+
+void AppSettings::_updateAndroidSavePath()
+{
+    const QString appName = QCoreApplication::applicationName();
+    const QString newSavePath = QDir(_androidRootSavePath()).filePath(appName);
+
+    qDebug() << "Android save path:" << newSavePath;
+    savePath()->setRawValue(newSavePath);
+}
+#endif
 
 DECLARE_SETTINGSFACT(AppSettings, offlineEditingFirmwareClass)
 DECLARE_SETTINGSFACT(AppSettings, offlineEditingVehicleClass)

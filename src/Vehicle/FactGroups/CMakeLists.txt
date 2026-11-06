@@ -30,6 +30,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         VehicleRPMFactGroup.h
         VehicleSetpointFactGroup.cc
         VehicleSetpointFactGroup.h
+        VehicleSystemInfoFactGroup.cc
+        VehicleSystemInfoFactGroup.h
         VehicleTemperatureFactGroup.cc
         VehicleTemperatureFactGroup.h
         VehicleVibrationFactGroup.cc

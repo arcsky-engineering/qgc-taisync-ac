@@ -196,6 +196,7 @@
         <file alias="SubFrameComponentIcon.png">src/AutoPilotPlugins/APM/Images/SubFrameComponentIcon.png</file>
         <file alias="ForwardingSupportIcon.svg">src/AutoPilotPlugins/APM/Images/ForwardingSupportIcon.svg</file>
         <file alias="ForwardingSupportIconGreen.svg">src/AutoPilotPlugins/APM/Images/ForwardingSupportIconGreen.svg</file>
+        <file alias="SystemStatusIcon.svg">src/AutoPilotPlugins/APM/Images/SystemStatusIcon.svg</file>
         <file alias="subMenuButtonImage.png">resources/CogWheels.png</file>
         <file alias="subVehicleArrowOpaque.png">src/FlightMap/Images/sub.png</file>
         <file alias="TelemRSSI.svg">src/UI/toolbar/Images/TelemRSSI.svg</file>

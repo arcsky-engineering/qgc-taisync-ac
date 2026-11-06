@@ -371,11 +371,23 @@ Item {
             // to 3s if the TAG-E doesn't ACK) — 202 is whitelisted in
             // Vehicle::_commandCanBeDuplicated so they all get through. showError=false
             // because this is a frequent gesture — no error dialogs on every tap.
-            _vehicle.sendCommand(compId, 202, false, 1101, xPct, yPct, 0, 0, 0, 0)
+            //
+            // If focus is locked (MF), the AF trigger would be ignored: drop to AF-S
+            // first, send the point on the timer's first tick so the mode change
+            // lands, then re-lock to MF once the AF burst has had time to settle.
+            relockTimer.stop()
+            _relock = _relock || _vehicle.apAFMode === 1    // stay pending across rapid re-taps
             _pendingCompId  = compId
             _afPulsesLeft   = _afPulseCount
+            if (_relock) {
+                _vehicle.apSetAFMode(2)
+                _pendingPoint = [xPct, yPct]
+            } else {
+                _vehicle.sendCommand(compId, 202, false, 1101, xPct, yPct, 0, 0, 0, 0)
+                _pendingPoint = null
+            }
             afTriggerTimer.restart()
-            console.log("[TAP_FOCUS] compId", compId, "point", xPct + "%," + yPct + "%")
+            console.log("[TAP_FOCUS] compId", compId, "point", xPct + "%," + yPct + "%", _relock ? "(relock)" : "")
 
             // Draw the reticle where the camera can actually focus (the inset band),
             // not at the raw finger, so it lines up with the camera's bracket.
@@ -391,8 +403,10 @@ Item {
         // prolongs the half-press. First pulse is delayed one interval so the point
         // move settles first (and isn't dropped as a rapid-fire duplicate).
         property int _pendingCompId:      0
-        readonly property int _afPulseCount: 2
+        property int _afPulseCount:       QGroundControl.settingsManager.flyViewSettings.afTriggerPulses.value   // Advanced > AF Repeats
         property int _afPulsesLeft:       0
+        property var  _pendingPoint:      null    // [x%, y%] sent on first tick when relocking
+        property bool _relock:            false   // return to MF after the AF burst
 
         // AF-field inset (percent) from each video edge — the reachable focus band.
         // Y is usually larger than X because the 16:9 video is a vertical crop of the
@@ -408,11 +422,27 @@ Item {
             onTriggered: {
                 if (tapToFocusArea._pendingCompId <= 0 || tapToFocusArea._afPulsesLeft <= 0) {
                     stop()
+                    if (tapToFocusArea._relock) relockTimer.restart()
+                    return
+                }
+                if (tapToFocusArea._pendingPoint) {
+                    var p = tapToFocusArea._pendingPoint
+                    tapToFocusArea._pendingPoint = null
+                    tapToFocusArea._vehicle.sendCommand(tapToFocusArea._pendingCompId, 202, false, 1101, p[0], p[1], 0, 0, 0, 0)
                     return
                 }
                 tapToFocusArea._vehicle.sendCommand(tapToFocusArea._pendingCompId, 202, false, 135, 0, 0, 0, 0, 0, 0)
                 tapToFocusArea._afPulsesLeft--
                 console.log("[TAP_FOCUS] AF pulse sent, remaining", tapToFocusArea._afPulsesLeft)
+            }
+        }
+        Timer {
+            id:         relockTimer
+            interval:   1200    // let AF settle before freezing the lens
+            onTriggered: {
+                tapToFocusArea._relock = false
+                if (tapToFocusArea._vehicle) tapToFocusArea._vehicle.apSetAFMode(1)
+                console.log("[TAP_FOCUS] focus re-locked (MF)")
             }
         }
     }

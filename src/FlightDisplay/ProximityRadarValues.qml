@@ -14,6 +14,8 @@ QtObject {
     property var    vehicle
 
     property bool   telemetryAvailable: vehicle && vehicle.distanceSensors.telemetryAvailable
+    // True only when a horizontal-facing sensor is reporting; a downward rangefinder alone does not count
+    property bool   horizontalSensorAvailable: telemetryAvailable && rgRotationValues.some(function(v) { return !isNaN(v) })
 
     signal rotationValueChanged ///< Signalled when any available rotation value changes
 

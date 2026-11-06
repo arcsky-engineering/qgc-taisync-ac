@@ -17,6 +17,7 @@
 #include "APMPowerComponent.h"
 #include "APMRadioComponent.h"
 #include "APMRemoteSupportComponent.h"
+#include "APMStatusComponent.h"
 #include "APMSafetyComponent.h"
 #include "APMSensorsComponent.h"
 #include "APMSubFrameComponent.h"
@@ -60,6 +61,11 @@ const QVariantList &APMAutoPilotPlugin::vehicleComponents()
 {
     if (_components.isEmpty() && !_incorrectParameterVersion) {
         if (_vehicle->parameterManager()->parametersReady()) {
+            // Arcsky: read-only System Status page, listed first in the setup sidebar
+            _statusComponent = new APMStatusComponent(_vehicle, this);
+            _statusComponent->setupTriggerSignals();
+            _components.append(QVariant::fromValue(qobject_cast<VehicleComponent*>(_statusComponent)));
+
             _airframeComponent = new APMAirframeComponent(_vehicle, this);
             _airframeComponent->setupTriggerSignals();
             _components.append(QVariant::fromValue(qobject_cast<VehicleComponent*>(_airframeComponent)));

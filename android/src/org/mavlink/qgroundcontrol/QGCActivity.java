@@ -1,10 +1,18 @@
 package org.mavlink.qgroundcontrol;
 
+import java.io.File;
 import java.util.List;
 import java.lang.reflect.Method;
 
+import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.os.PowerManager;
 import android.net.wifi.WifiManager;
 import android.util.Log;
@@ -117,12 +125,65 @@ public class QGCActivity extends QtActivity {
         }
     }
 
+    /**
+     * Returns true if the app can read/write shared storage with plain file paths.
+     * On Android 11+ this requires the "All files access" (MANAGE_EXTERNAL_STORAGE) grant.
+     */
+    public static boolean isExternalStorageManager() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return Environment.isExternalStorageManager();
+        }
+        return m_instance != null &&
+            m_instance.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * Opens the system "All files access" settings page for this app (Android 11+).
+     */
+    public static void requestExternalStorageManager() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || m_instance == null) {
+            return;
+        }
+        m_instance.runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                           Uri.parse("package:" + m_instance.getPackageName()));
+                m_instance.startActivity(intent);
+            } catch (Exception e) {
+                // Some ROMs don't implement the per-app page, fall back to the global list
+                Log.w(TAG, "Per-app all files access page unavailable, using global list", e);
+                try {
+                    m_instance.startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                } catch (Exception e2) {
+                    Log.e(TAG, "Unable to open all files access settings", e2);
+                }
+            }
+        });
+    }
+
+    /**
+     * Returns the public shared Documents directory (e.g. /storage/emulated/0/Documents).
+     */
+    public static String getPublicDocumentsPath() {
+        File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS);
+        return (dir != null) ? dir.getAbsolutePath() : "";
+    }
+
     public static String getSDCardPath() {
         StorageManager storageManager = (StorageManager)m_instance.getSystemService(Activity.STORAGE_SERVICE);
         List<StorageVolume> volumes = storageManager.getStorageVolumes();
         Method mMethodGetPath;
         String path = "";
         for (StorageVolume vol : volumes) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // StorageVolume.getPath() is a hidden API, use the public replacement when available
+                File dir = vol.getDirectory();
+                if (vol.isRemovable() && dir != null) {
+                    Log.i(TAG, "removable sd card mounted " + dir.getAbsolutePath());
+                    return dir.getAbsolutePath();
+                }
+                continue;
+            }
             try {
                 mMethodGetPath = vol.getClass().getMethod("getPath");
             } catch (NoSuchMethodException e) {

@@ -125,7 +125,16 @@ Item {
         id:                 streamSwitcher
         anchors.right:      parent.right
         anchors.rightMargin: _toolsMargin
-        y:                  parent.height * 0.68 - height / 2
+        // Nominally at 68% height, but pushed down below the photo/video column when that
+        // column grows (e.g. ILX quick controls expanded), never into the bottom-right row.
+        y: {
+            var nominal = parent.height * 0.68 - height / 2
+            var belowColumn = topRightColumnLayout.visible
+                    ? topRightColumnLayout.y + topRightColumnLayout.childrenRect.height + _toolsMargin
+                    : 0
+            var maxY = bottomRightRowLayout.y - height - _toolsMargin
+            return Math.min(Math.max(nominal, belowColumn), maxY)
+        }
         width:              streamRow.width + ScreenTools.defaultFontPixelWidth * 2
         height:             streamRow.height + ScreenTools.defaultFontPixelHeight
         radius:             ScreenTools.defaultFontPixelWidth
@@ -463,11 +472,23 @@ Item {
         z:                  QGroundControl.zOrderTopMost
     }
 
+    // Terrain load progress lives top-left (just under the toolbar) rather than at the head of
+    // the right-hand column, so a long or stalled terrain load doesn't shove the camera
+    // controls / stream switcher down.
+    TerrainProgress {
+        id:                 terrainProgress
+        anchors.margins:    _toolsMargin
+        anchors.left:       parent.left
+        anchors.top:        parent.top
+        width:              ScreenTools.defaultFontPixelWidth * 22
+        z:                  QGroundControl.zOrderWidgets
+    }
+
     MapScale {
         id:                 mapScale
         anchors.margins:    _toolsMargin
         anchors.left:       toolStrip.right
-        anchors.top:        parent.top
+        anchors.top:        terrainProgress.visible ? terrainProgress.bottom : parent.top
         mapControl:         _mapControl
         buttonsOnLeft:      true
         visible:            !ScreenTools.isTinyScreen && QGroundControl.corePlugin.options.flyView.showMapScale && !isViewer3DOpen && mapControl.pipState.state === mapControl.pipState.fullState

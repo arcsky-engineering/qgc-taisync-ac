@@ -38,6 +38,73 @@ Item {
     property var    squareButtonPadding:    ScreenTools.defaultFontPixelWidth
     property var    separatorHeight:        buttonHeight * 0.9
     property var    settingsPanelVisible:   false
+    property bool   tuningPanelVisible:     false   // ILX "Speed/Smooth" section, collapsed by default
+
+    // One labelled  -  value  +  row in the ILX Speed/Smooth section. Steps snap to multiples of 5
+    // within from..to. currentValue is the value last read back (-1 = unknown, row disabled).
+    // Taps are collected and commit() fires once after a short pause, so tapping + several
+    // times sends one param set instead of one per tap.
+    component TuningStepperRow: RowLayout {
+        id:         tuningRow
+        spacing:    margins
+
+        property string label
+        property int    from:           10
+        property int    to:             90
+        property int    currentValue:   -1
+        property int    _pending:       -1
+        property int    _shown:         _pending >= 0 ? _pending : currentValue
+
+        signal commit(int value)
+
+        function _step(dir) {
+            var base = _shown
+            var v = dir > 0 ? Math.floor(base / 5) * 5 + 5 : Math.ceil(base / 5) * 5 - 5
+            _pending = Math.max(from, Math.min(to, v))
+            commitTimer.restart()
+        }
+
+        Timer {
+            id:         commitTimer
+            interval:   600
+            onTriggered: {
+                var v = tuningRow._pending
+                tuningRow._pending = -1
+                if (v >= 0 && v !== tuningRow.currentValue) {
+                    tuningRow.commit(v)
+                }
+            }
+        }
+
+        QGCLabel {
+            text:                   tuningRow.label
+            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 14
+        }
+        QGCButton {
+            text:                   "-"
+            fontWeight:             Font.DemiBold
+            backRadius:             panelRadius * 0.5
+            enabled:                tuningRow._shown > tuningRow.from
+            Layout.preferredWidth:  Layout.preferredHeight
+            Layout.preferredHeight: buttonHeight * 1.26   // 0.7 * 1.8
+            onClicked:              tuningRow._step(-1)
+        }
+        QGCLabel {
+            text:                   tuningRow._shown >= 0 ? tuningRow._shown : "--"
+            font.weight:            Font.DemiBold
+            horizontalAlignment:    Text.AlignHCenter
+            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 5
+        }
+        QGCButton {
+            text:                   "+"
+            fontWeight:             Font.DemiBold
+            backRadius:             panelRadius * 0.5
+            enabled:                tuningRow._shown >= 0 && tuningRow._shown < tuningRow.to
+            Layout.preferredWidth:  Layout.preferredHeight
+            Layout.preferredHeight: buttonHeight * 1.26   // 0.7 * 1.8
+            onClicked:              tuningRow._step(1)
+        }
+    }
 
     // Popup panel, appears when clicking top toolbar gimbal indicator
     Component {
@@ -119,6 +186,75 @@ Item {
                         if (checked !== control.settingsPanelVisible) {
                             control.settingsPanelVisible = checked
                         }
+                    }
+                }
+
+                // Speed/Smooth toggle — ILX only. Takes the Settings button's slot.
+                QGCButton {
+                    Layout.leftMargin:      margins
+                    Layout.preferredWidth:  Layout.preferredHeight
+                    Layout.preferredHeight: buttonHeight
+                    Layout.alignment:       Qt.AlignHCenter | Qt.AlignBottom
+                    text:                   qsTr("Speed/<br>Smooth")
+                    fontWeight:             Font.DemiBold
+                    pointSize:              ScreenTools.smallFontPointSize
+                    backRadius:             panelRadius * 0.5
+                    checkable:              true
+                    checked:                control.tuningPanelVisible
+                    visible:                _selectedPayload === 0
+                    leftPadding:            squareButtonPadding
+                    rightPadding:           squareButtonPadding
+                    onCheckedChanged: {
+                        if (checked !== control.tuningPanelVisible) {
+                            control.tuningPanelVisible = checked
+                        }
+                        if (checked) {
+                            control.activeVehicle.gimbalRequestTuning()
+                        }
+                    }
+                }
+
+                // Speed/Smooth panel (ILX). Smooth = Gremsy RC_LPF_PAN/TILT on the gimbal (compid 154,
+                // sent out-of-band); Speed = autopilot MNT1_RC_RATE through the normal Fact system.
+                ColumnLayout {
+                    id:                 tuningPanel
+                    Layout.row:         3
+                    Layout.columnSpan:  8
+                    Layout.fillWidth:   true
+                    Layout.topMargin:   margins
+                    visible:            tuningPanelVisible && _selectedPayload === 0
+                    spacing:            margins
+
+                    property var  _rcRateFact: tuningController.getParameterFact(-1, "MNT1_RC_RATE", false)
+
+                    FactPanelController { id: tuningController }
+
+                    Component.onCompleted: {
+                        if (control.tuningPanelVisible && _selectedPayload === 0) {
+                            control.activeVehicle.gimbalRequestTuning()
+                        }
+                    }
+
+                    TuningStepperRow {
+                        label:          qsTr("Smooth - Yaw")
+                        from:           10
+                        to:             90
+                        currentValue:   control.activeVehicle.gimbalRcLpfPan
+                        onCommit:       (value) => control.activeVehicle.gimbalSetParam("RC_LPF_PAN", value)
+                    }
+                    TuningStepperRow {
+                        label:          qsTr("Smooth - Pitch")
+                        from:           10
+                        to:             90
+                        currentValue:   control.activeVehicle.gimbalRcLpfTilt
+                        onCommit:       (value) => control.activeVehicle.gimbalSetParam("RC_LPF_TILT", value)
+                    }
+                    TuningStepperRow {
+                        label:          qsTr("Speed")
+                        from:           10
+                        to:             100
+                        currentValue:   tuningPanel._rcRateFact ? Math.round(tuningPanel._rcRateFact.rawValue) : -1
+                        onCommit:       (value) => { tuningPanel._rcRateFact.rawValue = value }
                     }
                 }
 

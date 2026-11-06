@@ -22,6 +22,8 @@
     <!-- Needed for read/write to SD Card Path in AppSettings -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- Android 11+: "All files access" so data (Missions etc) can live in shared Documents. Sideload only, not Play Store compliant -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
     <!-- Needed to upload telemetry logs to AirData -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

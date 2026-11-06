@@ -238,7 +238,57 @@ ToolIndicatorPage {
                     property var _ptrnShape:   activeVehicle ? controller.getParameterFact(-1, "PTRN_SHAPE",   false) : null
                     property var _ptrnTrigger: activeVehicle ? controller.getParameterFact(-1, "PTRN_TRIGGER", false) : null
                     property var _ptrnToAuto:  activeVehicle ? controller.getParameterFact(-1, "PTRN_TOAUTO",  false) : null
+                    property var _ptrnMinAlt:  activeVehicle ? controller.getParameterFact(-1, "PTRN_MINALT",  false) : null
                     property bool _paramsOk:   !!_ptrnPnum
+
+                    // Script refuses to start below PTRN_MINALT (above home, clamped 10-120 m); absent on older scripts
+                    property var  _minAltValues: [10, 20, 30, 50]
+                    property real _minAlt:       _ptrnMinAlt ? Math.max(10, Math.min(120, _ptrnMinAlt.value)) : 0
+                    property bool _altOk:        !_ptrnMinAlt || (!!activeVehicle && activeVehicle.altitudeRelative.rawValue > _minAlt)
+                    property bool _canStart:     !!activeVehicle && activeVehicle.armed && _altOk
+
+                    // Xplorer: Guided mode flies the pattern under WPNAV_SPEED / WPNAV_ACCEL, so only
+                    // speeds it can actually hold are offered. Mirrors apply_speed_limits() in
+                    // copter-fly-figure-8-v2.lua (which caps anything set by other means) — keep in sync.
+                    property bool _isXplorer:   QGroundControl.settingsManager.appSettings.vehicleVariant.rawValue === 1
+                    property var  _wpnavSpeed:  activeVehicle ? controller.getParameterFact(-1, "WPNAV_SPEED", false) : null
+                    property var  _wpnavAccel:  activeVehicle ? controller.getParameterFact(-1, "WPNAV_ACCEL", false) : null
+                    property bool _limitsOk:    _isXplorer && _paramsOk && !!_wpnavSpeed && !!_wpnavAccel && !!_ptrnRadius && !!_ptrnShape
+                    property real _wpSpeed:     _limitsOk ? _wpnavSpeed.value / 100 : 0
+                    property real _wpAccel:     _limitsOk && _wpnavAccel.value > 0 ? _wpnavAccel.value / 100 : 2.5
+                    // U-turn is always a circle of PTRN_RADIUS; the lemniscate's tightest radius is 0.75 R
+                    property real _rMin:        _limitsOk ? Math.max(25, Math.min(150, _ptrnRadius.value))
+                                                            * ((_ptrnShape.value === 0 && _ptrnPnum.value !== 3) ? 0.75 : 1.0) : 0
+                    property real _speedLimit:  Math.min(Math.sqrt(0.8 * _wpAccel * _rMin), _wpSpeed)
+
+                    property var _speedValues:  _achievable([5, 6, 7], _speedLimit)
+                    property var _slspdValues:  _achievable([5, 6, 7, 10], _wpSpeed)
+
+                    function _achievable(options, limit) {
+                        if (!_limitsOk) return options
+                        var ok = options.filter(function(v) { return v <= limit })
+                        return ok.length > 0 ? ok : [options[0]]
+                    }
+
+                    // Index of the stored value; an out-of-list value above the range shows as the
+                    // fastest option, which is what the script will fly it as.
+                    function _valueIndex(values, fact) {
+                        if (!fact) return 0
+                        var v = fact.value
+                        for (var i = 0; i < values.length; i++)
+                            if (Math.abs(v - values[i]) < 0.5) return i
+                        return v > values[values.length - 1] ? values.length - 1 : 0
+                    }
+
+                    // After a radius / style / type change, pull stored speeds down to the fastest
+                    // option still on offer so the settings never hold an unflyable value.
+                    function _clampSpeeds() {
+                        if (!_limitsOk) return
+                        var maxSpd = _speedValues[_speedValues.length - 1]
+                        var maxSl  = _slspdValues[_slspdValues.length - 1]
+                        if (_ptrnSpeed && _ptrnSpeed.value > maxSpd) _ptrnSpeed.value = maxSpd
+                        if (_ptrnSlspd && _ptrnSlspd.value > maxSl)  _ptrnSlspd.value = maxSl
+                    }
 
                     QGCLabel {
                         text:               "PTRN_ parameters not found.\nEnsure the LiDAR pattern script is loaded."
@@ -257,7 +307,10 @@ ToolIndicatorPage {
                             Layout.fillWidth:   true
                             model:              ["Figure-8 Continuous", "Figure-8 Decel", "U-Turn"]
                             currentIndex:       lidarCol._ptrnPnum ? lidarCol._ptrnPnum.value - 1 : 0
-                            onActivated: function(index) { if (lidarCol._ptrnPnum) lidarCol._ptrnPnum.value = index + 1 }
+                            onActivated: function(index) {
+                                if (lidarCol._ptrnPnum) lidarCol._ptrnPnum.value = index + 1
+                                Qt.callLater(lidarCol._clampSpeeds)
+                            }
                         }
                     }
 
@@ -278,7 +331,10 @@ ToolIndicatorPage {
                                     if (Math.abs(v - _values[i]) < 0.5) return i
                                 return 2
                             }
-                            onActivated: function(index) { if (lidarCol._ptrnRadius) lidarCol._ptrnRadius.value = _values[index] }
+                            onActivated: function(index) {
+                                if (lidarCol._ptrnRadius) lidarCol._ptrnRadius.value = _values[index]
+                                Qt.callLater(lidarCol._clampSpeeds)
+                            }
                         }
                     }
 
@@ -290,16 +346,9 @@ ToolIndicatorPage {
 
                         QGCComboBox {
                             Layout.fillWidth:   true
-                            model:              ["5 m/s", "6 m/s", "7 m/s"]
-                            property var _values: [5, 6, 7]
-                            currentIndex: {
-                                if (!lidarCol._ptrnSpeed) return 0
-                                var v = lidarCol._ptrnSpeed.value
-                                for (var i = 0; i < _values.length; i++)
-                                    if (Math.abs(v - _values[i]) < 0.5) return i
-                                return 0
-                            }
-                            onActivated: function(index) { if (lidarCol._ptrnSpeed) lidarCol._ptrnSpeed.value = _values[index] }
+                            model:              lidarCol._speedValues.map(function(v) { return v + " m/s" })
+                            currentIndex:       lidarCol._valueIndex(lidarCol._speedValues, lidarCol._ptrnSpeed)
+                            onActivated: function(index) { if (lidarCol._ptrnSpeed) lidarCol._ptrnSpeed.value = lidarCol._speedValues[index] }
                         }
                     }
 
@@ -311,16 +360,9 @@ ToolIndicatorPage {
 
                         QGCComboBox {
                             Layout.fillWidth:   true
-                            model:              ["5 m/s", "6 m/s", "7 m/s", "10 m/s"]
-                            property var _values: [5, 6, 7, 10]
-                            currentIndex: {
-                                if (!lidarCol._ptrnSlspd) return 0
-                                var v = lidarCol._ptrnSlspd.value
-                                for (var i = 0; i < _values.length; i++)
-                                    if (Math.abs(v - _values[i]) < 0.5) return i
-                                return 0
-                            }
-                            onActivated: function(index) { if (lidarCol._ptrnSlspd) lidarCol._ptrnSlspd.value = _values[index] }
+                            model:              lidarCol._slspdValues.map(function(v) { return v + " m/s" })
+                            currentIndex:       lidarCol._valueIndex(lidarCol._slspdValues, lidarCol._ptrnSlspd)
+                            onActivated: function(index) { if (lidarCol._ptrnSlspd) lidarCol._ptrnSlspd.value = lidarCol._slspdValues[index] }
                         }
                     }
 
@@ -334,7 +376,24 @@ ToolIndicatorPage {
                             Layout.fillWidth:   true
                             model:              ["Figure-8", "Circular"]
                             currentIndex:       lidarCol._ptrnShape ? lidarCol._ptrnShape.value : 0
-                            onActivated: function(index) { if (lidarCol._ptrnShape) lidarCol._ptrnShape.value = index }
+                            onActivated: function(index) {
+                                if (lidarCol._ptrnShape) lidarCol._ptrnShape.value = index
+                                Qt.callLater(lidarCol._clampSpeeds)
+                            }
+                        }
+                    }
+
+                    // ── Minimum Start Altitude (PTRN_MINALT) ──
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: 2; visible: lidarCol._paramsOk && !!lidarCol._ptrnMinAlt
+
+                        QGCLabel { text: "Minimum Start Altitude"; font.pointSize: ScreenTools.smallFontPointSize }
+
+                        QGCComboBox {
+                            Layout.fillWidth:   true
+                            model:              lidarCol._minAltValues.map(function(v) { return v + " m" })
+                            currentIndex:       lidarCol._valueIndex(lidarCol._minAltValues, lidarCol._ptrnMinAlt)
+                            onActivated: function(index) { if (lidarCol._ptrnMinAlt) lidarCol._ptrnMinAlt.value = lidarCol._minAltValues[index] }
                         }
                     }
 
@@ -365,7 +424,7 @@ ToolIndicatorPage {
                         QGCButton {
                             text:               "Start Pattern 1"
                             Layout.fillWidth:   true
-                            enabled:            activeVehicle && activeVehicle.armed
+                            enabled:            lidarCol._canStart
                             onClicked: {
                                 if (lidarCol._ptrnTrigger) lidarCol._ptrnTrigger.value = 1
                             }
@@ -375,7 +434,7 @@ ToolIndicatorPage {
                             text:               "Start Pattern 2"
                             Layout.fillWidth:   true
                             visible:            lidarCol._ptrnPnum && lidarCol._ptrnPnum.value === 1
-                            enabled:            activeVehicle && activeVehicle.armed
+                            enabled:            lidarCol._canStart
                             onClicked: {
                                 if (lidarCol._ptrnTrigger) lidarCol._ptrnTrigger.value = 2
                             }
@@ -385,6 +444,14 @@ ToolIndicatorPage {
                     QGCLabel {
                         text:               "Arm the vehicle to start a pattern"
                         visible:            lidarCol._paramsOk && activeVehicle && !activeVehicle.armed
+                        font.pointSize:     ScreenTools.smallFontPointSize
+                        color:              qgcPal.colorOrange
+                        Layout.fillWidth:   true
+                    }
+
+                    QGCLabel {
+                        text:               qsTr("Climb above %1 m to start a pattern").arg(lidarCol._minAlt.toFixed(0))
+                        visible:            lidarCol._paramsOk && activeVehicle && activeVehicle.armed && !lidarCol._altOk
                         font.pointSize:     ScreenTools.smallFontPointSize
                         color:              qgcPal.colorOrange
                         Layout.fillWidth:   true

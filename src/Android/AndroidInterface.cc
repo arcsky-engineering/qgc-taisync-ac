@@ -108,6 +108,11 @@ void jniLogWarning(JNIEnv *envA, jobject thizA, jstring messageA)
 
 bool checkStoragePermissions()
 {
+    // READ/WRITE_EXTERNAL_STORAGE are always denied when targeting Android 13+, all files access supersedes them
+    if (isExternalStorageManager()) {
+        return true;
+    }
+
     const QString readPermission("android.permission.READ_EXTERNAL_STORAGE");
     const QString writePermission("android.permission.WRITE_EXTERNAL_STORAGE");
 
@@ -137,6 +142,31 @@ QString getSDCardPath()
     const QJniObject result = QJniObject::callStaticObjectMethod(kJniQGCActivityClassName, "getSDCardPath", "()Ljava/lang/String;");
     if (!result.isValid()) {
         qCWarning(AndroidInterfaceLog) << "Call to java getSDCardPath failed: Invalid Result";
+        return QString();
+    }
+
+    return result.toString();
+}
+
+bool isExternalStorageManager()
+{
+    const jboolean result = QJniObject::callStaticMethod<jboolean>(kJniQGCActivityClassName, "isExternalStorageManager", "()Z");
+    (void) cleanJavaException();
+    return result;
+}
+
+void requestExternalStorageManager()
+{
+    QJniObject::callStaticMethod<void>(kJniQGCActivityClassName, "requestExternalStorageManager", "()V");
+    (void) cleanJavaException();
+}
+
+QString getPublicDocumentsPath()
+{
+    const QJniObject result = QJniObject::callStaticObjectMethod(kJniQGCActivityClassName, "getPublicDocumentsPath", "()Ljava/lang/String;");
+    (void) cleanJavaException();
+    if (!result.isValid()) {
+        qCWarning(AndroidInterfaceLog) << "Call to java getPublicDocumentsPath failed: Invalid Result";
         return QString();
     }
 

@@ -163,6 +163,18 @@ private:
     void _handleParamMapRC(const mavlink_message_t &msg);
     bool _handleRequestMessage(const mavlink_command_long_t &request, bool &noAck);
 
+    // TAG-E (AirPixel, component 100) camera control simulation. Like the real TAG-E it never
+    // publishes its TG_* settings on its own: PARAM_EXT_VALUE goes out only in answer to
+    // PARAM_EXT_REQUEST_LIST / PARAM_EXT_REQUEST_READ, PARAM_EXT_SET is answered with
+    // PARAM_EXT_ACK, and DO_DIGICAM_CONFIGURE steps change state silently (COMMAND_ACK only).
+    // Status/geotag packets (DATA32/DATA16) are in _sendVibration().
+    void _handleTagEParamExtSet(const mavlink_message_t &msg);
+    void _handleTagEParamExtRequestList(const mavlink_message_t &msg);
+    void _handleTagEParamExtRequestRead(const mavlink_message_t &msg);
+    void _handleTagECommand(const mavlink_command_long_t &request);
+    bool _tagEParamValue(int index, const char *&name, uint32_t &raw, uint8_t &type) const;
+    void _sendTagEParamValue(int index);
+
     void _sendHeartBeat();
     void _sendHighLatency2();
     void _sendDistanceSensor();
@@ -174,6 +186,13 @@ private:
     void _sendSysStatus();
     void _sendBatteryStatus();
     void _sendChunkedStatusText(uint16_t chunkId, bool missingChunks);
+
+    // Arcsky metadata simulation (System Status page). Xplorer: boot banner, "~" STATUSTEXT
+    // rotation and BMS online notices. X55: boot banner plus DATA64 200/201 (META_TX=2 default).
+    void _sendArcskyBanner();
+    void _sendArcskyMetadata();
+    void _sendArcskyStatusText(MAV_SEVERITY severity, const QString &text);
+    void _sendArcskyData64(uint8_t type, const QString &text);
     void _sendStatusTextMessages();
     void _respondWithAutopilotVersion();
     void _sendRCChannels();
@@ -289,6 +308,22 @@ private:
     static constexpr const char *_failParam = "COM_FLTMODE6";
 
     static constexpr uint8_t _vehicleComponentId = MAV_COMP_ID_AUTOPILOT1;
+
+    static constexpr uint8_t _tagECompId = 100;
+    int      _tgExpMode       = 1;      // 1=M 2=P 3=A 4=S
+    int      _tgShutterIdx    = 15;     // index into kTagEShutter (1/1000)
+    int      _tgApertureIdx   = 13;     // index into kTagEAperture (f/8)
+    int      _tgIsoIdx        = 6;      // index into kTagEIso (400)
+    bool     _tgIsoAuto       = false;
+    int      _tgExpCorrThirds = 0;      // -9..9 (1/3 EV steps)
+    uint32_t _tgAfMode        = 2;      // 1=MF 2=AF-S 32772=AF-C 32773=AF-A
+    uint8_t  _tgLandDet       = 1;
+
+    bool     _arcskyXplorer           = false;  // vehicleVariant cached on the main thread at construction
+    int      _arcskyMetadataTick      = 0;
+    int      _arcskyMetadataSlot      = 0;
+    int      _arcskyUptimeSecs        = 0;
+    static constexpr int _arcskyMetadataPeriodSecs = 10;    // firmware uses 30s; faster here for testing
 
     static constexpr uint16_t _logDownloadLogId = 0;        ///< Id of siumulated log file
     static constexpr uint32_t _logDownloadFileSize = 1000;  ///< Size of simulated log file

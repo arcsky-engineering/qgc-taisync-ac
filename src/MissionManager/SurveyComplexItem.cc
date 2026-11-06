@@ -29,7 +29,7 @@ QGC_LOGGING_CATEGORY(SurveyComplexItemLog, "SurveyComplexItemLog")
 const QString SurveyComplexItem::name(SurveyComplexItem::tr("Survey"));
 
 SurveyComplexItem::SurveyComplexItem(PlanMasterController* masterController, bool flyView, const QString& kmlOrShpFile)
-    : TransectStyleComplexItem  (masterController, flyView, settingsGroup)
+    : TransectStyleComplexItem  (masterController, flyView, payloadSettingsGroup(settingsGroup))
     , _metaDataMap              (FactMetaData::createMapFromJsonFile(QStringLiteral(":/json/Survey.SettingsGroup.json"), this))
     , _gridAngleFact            (settingsGroup, _metaDataMap[gridAngleName])
     , _flyAlternateTransectsFact(settingsGroup, _metaDataMap[flyAlternateTransectsName])

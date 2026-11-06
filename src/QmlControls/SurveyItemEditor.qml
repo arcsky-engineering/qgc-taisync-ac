@@ -25,6 +25,10 @@ TransectStyleComplexItemEditor {
 
     property real   _margin:        ScreenTools.defaultFontPixelWidth / 2
     property var    _missionItem:   missionItem
+    // Xplorer fork: no camera behaviour options for a LiDAR survey with no camera selected
+    property bool   _lidarNoCamera: QGroundControl.settingsManager.flyViewSettings.showPayloadIndicator.rawValue
+                                    && QGroundControl.settingsManager.flyViewSettings.payloadSelection.rawValue === 2
+                                    && missionItem.cameraCalc.isManualCamera
 
     Component {
         id: _transectValuesComponent
@@ -76,7 +80,7 @@ TransectStyleComplexItemEditor {
                         text:       qsTr("Hover and capture image"),
                         fact:       missionItem.hoverAndCapture,
                         enabled:    missionItem.cameraCalc.distanceMode === QGroundControl.AltitudeModeRelative || missionItem.cameraCalc.distanceMode === QGroundControl.AltitudeModeAbsolute,
-                        visible:    missionItem.hoverAndCaptureAllowed
+                        visible:    missionItem.hoverAndCaptureAllowed && !_lidarNoCamera
                     },
                     {
                         text:       qsTr("Refly at 90 deg offset"),
@@ -88,7 +92,7 @@ TransectStyleComplexItemEditor {
                         text:       qsTr("Images in turnarounds"),
                         fact:       missionItem.cameraTriggerInTurnAround,
                         enabled:    missionItem.hoverAndCaptureAllowed ? !missionItem.hoverAndCapture.rawValue : true,
-                        visible:    true
+                        visible:    !_lidarNoCamera
                     },
                     {
                         text:       qsTr("Fly alternate transects"),

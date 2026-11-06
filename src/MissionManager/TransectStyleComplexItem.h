@@ -73,6 +73,10 @@ public:
     // Used internally only by unit tests
     int _transectCount(void) const { return _transects.count(); }
 
+    /// Xplorer fork: LiDAR payload keeps its own remembered transect settings (separate QSettings
+    /// group) so LiDAR defaults never leak into camera surveys and vice versa.
+    static QString payloadSettingsGroup(const QString& baseGroup);
+
     // Overrides from ComplexMissionItem
     int     lastSequenceNumber  (void) const final;
     QString mapVisualQML        (void) const override = 0;

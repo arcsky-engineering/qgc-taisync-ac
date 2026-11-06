@@ -53,6 +53,13 @@ Rectangle {
     property bool _showCal1: !!_ptrnTrigger
     property bool _showCal2: !!_ptrnTrigger && !!_ptrnPnum && _ptrnPnum.value === 1
 
+    // PTRN_MINALT (Xplorer script): the script refuses to start below it (altitude above home,
+    // clamped 10-120 m), so hold the Start buttons off until we're above it. Absent on older scripts.
+    property Fact _ptrnMinAlt:  (_factReloadTrigger, _activeVehicle) ? controller.getParameterFact(-1, "PTRN_MINALT", false) : null
+    property real _minAlt:      _ptrnMinAlt ? Math.max(10, Math.min(120, _ptrnMinAlt.value)) : 0
+    property bool _altOk:       !_ptrnMinAlt || (!!_activeVehicle && _activeVehicle.altitudeRelative.rawValue > _minAlt)
+    property bool _canStart:    !!_activeVehicle && _activeVehicle.armed && !!_ptrnTrigger && _altOk
+
     DeadMouseArea { anchors.fill: parent }
 
     ColumnLayout {
@@ -85,7 +92,7 @@ Rectangle {
             Layout.fillWidth:       true
             Layout.preferredHeight: _buttonHeight
             text:                   qsTr("Start Pattern 1")
-            enabled:                _activeVehicle && _activeVehicle.armed && _ptrnTrigger
+            enabled:                _canStart
             visible:                _showCal1
             onClicked:              { if (_ptrnTrigger) _ptrnTrigger.value = 1 }
         }
@@ -95,7 +102,7 @@ Rectangle {
             Layout.fillWidth:       true
             Layout.preferredHeight: _buttonHeight
             text:                   qsTr("Start Pattern 2")
-            enabled:                _activeVehicle && _activeVehicle.armed && _ptrnTrigger
+            enabled:                _canStart
             visible:                _showCal2
             onClicked:              { if (_ptrnTrigger) _ptrnTrigger.value = 2 }
         }
@@ -106,6 +113,18 @@ Rectangle {
             Layout.fillWidth:   true
             visible:            _showCal1 && _activeVehicle && !_activeVehicle.armed
             text:               qsTr("Arm the vehicle to start a pattern")
+            font.pointSize:     ScreenTools.smallFontPointSize
+            color:              qgcPal.colorOrange
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode:           Text.WordWrap
+        }
+
+        // ── Altitude hint ──
+        QGCLabel {
+            Layout.alignment:   Qt.AlignHCenter
+            Layout.fillWidth:   true
+            visible:            _showCal1 && _activeVehicle && _activeVehicle.armed && !_altOk
+            text:               qsTr("Climb above %1 m to start a pattern").arg(_minAlt.toFixed(0))
             font.pointSize:     ScreenTools.smallFontPointSize
             color:              qgcPal.colorOrange
             horizontalAlignment: Text.AlignHCenter

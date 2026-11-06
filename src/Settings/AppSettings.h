@@ -72,6 +72,9 @@ public:
     Q_PROPERTY(QString mavlinkActionsSavePath    READ mavlinkActionsSavePath      NOTIFY savePathsChanged)
     Q_PROPERTY(QString linkLogSavePath          READ linkLogSavePath            NOTIFY savePathsChanged)
 
+    /// Android: true when "All files access" is granted and data is saved to shared Documents
+    Q_PROPERTY(bool    androidAllFilesAccess    READ androidAllFilesAccess      NOTIFY androidAllFilesAccessChanged)
+
     Q_PROPERTY(QString planFileExtension        MEMBER planFileExtension        CONSTANT)
     Q_PROPERTY(QString missionFileExtension     MEMBER missionFileExtension     CONSTANT)
     Q_PROPERTY(QString waypointsFileExtension   MEMBER waypointsFileExtension   CONSTANT)
@@ -91,6 +94,10 @@ public:
     QString crashSavePath         ();
     QString mavlinkActionsSavePath ();
     QString linkLogSavePath       ();
+
+    bool androidAllFilesAccess() const { return _androidAllFilesAccess; }
+    /// Android: opens the system "All files access" page. Save path updates when the app becomes active again.
+    Q_INVOKABLE void requestAndroidAllFilesAccess();
 
     // Helper methods for working with firstRunPromptIds QVariant settings string list
     static QList<int> firstRunPromptsIdsVariantToList   (const QVariant& firstRunPromptIds);
@@ -123,6 +130,7 @@ public:
 
 signals:
     void savePathsChanged();
+    void androidAllFilesAccessChanged();
 
 private slots:
     void _indoorPaletteChanged();
@@ -131,6 +139,13 @@ private slots:
 
 private:
     static QLocale::Language _qLocaleLanguageEarlyAccess(void);
+
+#ifdef Q_OS_ANDROID
+    QString _androidRootSavePath();
+    void    _updateAndroidSavePath();
+#endif
+
+    bool _androidAllFilesAccess = false;
 
     static QList<QLocale::Language> _rgReleaseLanguages;
     static QList<QLocale::Language> _rgPartialLanguages;

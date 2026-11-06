@@ -167,6 +167,36 @@ SettingsPage {
             property Fact _androidSaveToSDCard: _appSettings.androidSaveToSDCard
         }
 
+        // Android: "All files access" moves data (Missions etc) to shared Documents so file managers can reach it
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: ScreenTools.defaultFontPixelWidth * 2
+            visible: ScreenTools.isAndroid
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                QGCLabel {
+                    text: _appSettings.androidAllFilesAccess ?
+                              qsTr("Files are saved to shared storage") :
+                              qsTr("Files are saved to app-private storage")
+                }
+                QGCLabel {
+                    Layout.fillWidth: true
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    text: _appSavePath.rawValue
+                    elide: Text.ElideMiddle
+                }
+            }
+
+            QGCButton {
+                text: qsTr("Allow File Access")
+                visible: !_appSettings.androidAllFilesAccess
+                onClicked: _appSettings.requestAndroidAllFilesAccess()
+            }
+        }
+
         QGCCheckBoxSlider {
             Layout.fillWidth: true
             text:       qsTr("Clear all settings on next start")
@@ -306,6 +336,12 @@ SettingsPage {
             visible: ntripSettings ? ntripSettings.ntripEnableVRS.visible : false
         }
 
+        FactCheckBox {
+            text:    ntripSettings ? ntripSettings.ntripForceNtripV1.shortDescription : ""
+            fact:    ntripSettings ? ntripSettings.ntripForceNtripV1 : null
+            visible: ntripSettings ? ntripSettings.ntripForceNtripV1.visible : false
+        }
+
         LabelledFactTextField {
             label:   ntripSettings ? ntripSettings.ntripServerHostAddress.shortDescription : ""
             fact:    ntripSettings ? ntripSettings.ntripServerHostAddress : null
@@ -375,5 +411,20 @@ SettingsPage {
             }
         }
 
+    }
+
+    // ────────────────────────────────
+    // Version
+    // ────────────────────────────────
+    // Last section on purpose: it's the first thing support asks for, so it lives at a
+    // predictable place. Same placement as Arcsky Control on Herelink (QGCHL-Cstm).
+    SettingsGroupLayout {
+        Layout.fillWidth: true
+        heading: qsTr("App Version")
+
+        QGCLabel {
+            text:               QGroundControl.qgcVersion
+            Layout.alignment:   Qt.AlignHCenter
+        }
     }
 }

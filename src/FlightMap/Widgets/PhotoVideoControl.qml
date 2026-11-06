@@ -55,7 +55,8 @@ Rectangle {
 
     // Sizing constants
     property real   _buttonHeight:              ScreenTools.defaultFontPixelHeight * 3
-    property real   _captureButtonSize:         ScreenTools.defaultFontPixelHeight * 5
+    property real   _modeButtonHeight:          ScreenTools.defaultFontPixelHeight * 2     // PHOTO / VIDEO (icon beside label)
+    property real   _captureButtonSize:         ScreenTools.defaultFontPixelHeight * 3.75
     property real   _panelWidth:                ScreenTools.defaultFontPixelWidth * 30
 
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
@@ -84,6 +85,17 @@ Rectangle {
             function() { _activeVehicle.sendCommand(_apCompId, 202, false, 180, 0, 0, 0, 0, 0, 1) } // Wide AF area (mapping)
         ]
         presetTimer.restart()
+    }
+
+    // ── ILX command helpers ──
+    // Implemented on Vehicle so the on-screen IlxQuickControls widget sends the exact same
+    // commands (and gets the same TAG-E readback) as this panel.
+    function _focusAndLock() { if (_activeVehicle) _activeVehicle.apFocusAndLock() }
+    function _apCfg(p1)      { _activeVehicle.apCameraCommand(p1) }
+    // Steps: p2 aperture, p3 ISO, p4 shutter; 99 = step down, 101 = step up.
+    function _apStep(p1, p2, p3, p4) {
+        var dir = function(v) { return v === 101 ? 1 : (v === 99 ? -1 : 0) }
+        _activeVehicle.apStepExposure(dir(p2), dir(p3), dir(p4))
     }
 
     // ════════════════════════════════════════════
@@ -168,19 +180,19 @@ Rectangle {
             // Photo mode button (first/left)
             Rectangle {
                 Layout.fillWidth:       true
-                Layout.preferredHeight: _buttonHeight
+                Layout.preferredHeight: _modeButtonHeight
                 radius:                 ScreenTools.defaultFontPixelWidth
                 color:                  _cameraInPhotoMode ? qgcPal.brandingPurple : qgcPal.windowShadeLight
                 border.color:           _cameraInPhotoMode ? Qt.lighter(qgcPal.brandingPurple, 1.3) : qgcPal.groupBorder
                 border.width:           _cameraInPhotoMode ? 2 : 1
 
-                ColumnLayout {
+                RowLayout {
                     anchors.centerIn:   parent
-                    spacing:            2
+                    spacing:            _smallMargins
 
                     QGCColoredImage {
-                        Layout.alignment:       Qt.AlignHCenter
-                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.5
+                        Layout.alignment:       Qt.AlignVCenter
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.1
                         Layout.preferredWidth:  Layout.preferredHeight
                         source:                 "/qmlimages/camera_photo.svg"
                         fillMode:               Image.PreserveAspectFit
@@ -189,7 +201,7 @@ Rectangle {
                     }
 
                     QGCLabel {
-                        Layout.alignment:   Qt.AlignHCenter
+                        Layout.alignment:   Qt.AlignVCenter
                         text:               qsTr("PHOTO")
                         font.pointSize:     ScreenTools.smallFontPointSize
                         font.bold:          true
@@ -208,19 +220,19 @@ Rectangle {
             // Video mode button (second/right)
             Rectangle {
                 Layout.fillWidth:       true
-                Layout.preferredHeight: _buttonHeight
+                Layout.preferredHeight: _modeButtonHeight
                 radius:                 ScreenTools.defaultFontPixelWidth
                 color:                  _cameraInVideoMode ? qgcPal.brandingPurple : qgcPal.windowShadeLight
                 border.color:           _cameraInVideoMode ? Qt.lighter(qgcPal.brandingPurple, 1.3) : qgcPal.groupBorder
                 border.width:           _cameraInVideoMode ? 2 : 1
 
-                ColumnLayout {
+                RowLayout {
                     anchors.centerIn:   parent
-                    spacing:            2
+                    spacing:            _smallMargins
 
                     QGCColoredImage {
-                        Layout.alignment:       Qt.AlignHCenter
-                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.5
+                        Layout.alignment:       Qt.AlignVCenter
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.1
                         Layout.preferredWidth:  Layout.preferredHeight
                         source:                 "/qmlimages/camera_video.svg"
                         fillMode:               Image.PreserveAspectFit
@@ -229,7 +241,7 @@ Rectangle {
                     }
 
                     QGCLabel {
-                        Layout.alignment:   Qt.AlignHCenter
+                        Layout.alignment:   Qt.AlignVCenter
                         text:               qsTr("VIDEO")
                         font.pointSize:     ScreenTools.smallFontPointSize
                         font.bold:          true
@@ -524,6 +536,10 @@ Rectangle {
         y:              0
         width:          _panelWidth + (_margins * 2)
         padding:        _margins
+        // Non-negative margins keep the popup inside the window: Qt pushes it up and, if it
+        // is still too tall, shrinks it — the Flickable below then scrolls the rest. Without
+        // this the popup ran off the bottom of the screen and its last items were unreachable.
+        margins:        _margins
         closePolicy:    Popup.CloseOnPressOutside | Popup.CloseOnEscape
 
         background: Rectangle {
@@ -591,7 +607,6 @@ Rectangle {
                 Layout.fillWidth:       true
                 Layout.fillHeight:      true
                 Layout.preferredHeight: settingsPanelContent.height
-                Layout.maximumHeight:   _root.height * 1.5
                 contentHeight:          settingsPanelContent.height
                 clip:                   true
                 flickableDirection:     Flickable.VerticalFlick
@@ -648,8 +663,8 @@ Rectangle {
                         }
 
                         // ── command helpers ──
-                        function cfg(p1)              { _activeVehicle.sendCommand(_apCompId, 202, true, p1, 0, 0, 0, 0, 0, 0) }
-                        function step(p1, p2, p3, p4) { _activeVehicle.sendCommand(_apCompId, 202, true, p1, p2, p3, p4, 0, 0, 0) }
+                        function cfg(p1)              { _apCfg(p1) }
+                        function step(p1, p2, p3, p4) { _apStep(p1, p2, p3, p4) }
                         // AF area mode: DO_DIGICAM_CONFIGURE p1=180, p7=mode (Sony AF area).
                         // 1=Wide, 262=Spot XS, 257=S, 258=M, 259=L, 263=XL (per AirPixel).
                         function afArea(mode)         { _activeVehicle.sendCommand(_apCompId, 202, false, 180, 0, 0, 0, 0, 0, mode) }
@@ -736,7 +751,7 @@ Rectangle {
                                 MessageDialog {
                                     id:         resetSessionConfirm
                                     title:      qsTr("Reset Geotagging Session")
-                                    text:       qsTr("This drops all logged geotag data and starts a fresh session on the TAG-E. Continue?")
+                                    text:       qsTr("This drops all logged geotag data and starts a fresh session on the camera. Continue?")
                                     buttons:    MessageDialog.Yes | MessageDialog.No
                                     onButtonClicked: function (button) {
                                         if (button === MessageDialog.Yes) apControls.cfg(260)
@@ -855,7 +870,25 @@ Rectangle {
                         QGCButton {
                             Layout.fillWidth:   true
                             text:               qsTr("Autofocus Now")
-                            onClicked:          apControls.cfg(135)
+                            enabled:            !presetTimer.running
+                            // In MF the AF trigger is ignored, so refocus and re-lock instead.
+                            onClicked:          (_activeVehicle && _activeVehicle.apAFMode === 1) ? _focusAndLock() : apControls.cfg(135)
+                        }
+
+                        QGCButton {
+                            Layout.fillWidth:   true
+                            text:               qsTr("Focus & Lock")
+                            enabled:            !presetTimer.running
+                            onClicked:          _focusAndLock()
+                        }
+
+                        QGCLabel {
+                            Layout.fillWidth:   true
+                            visible:            _activeVehicle && _activeVehicle.apAFMode === 1
+                            text:               qsTr("Focus locked (MF) — tap, Autofocus Now or the on-screen controls refocus and re-lock")
+                            font.pointSize:     ScreenTools.smallFontPointSize
+                            color:              qgcPal.colorOrange
+                            wrapMode:           Text.WordWrap
                         }
 
                         // ── ADVANCED TOGGLE ──
@@ -983,6 +1016,38 @@ Rectangle {
                                 backgroundColor: _activeVehicle && _activeVehicle.apAFMode === 32772 ? "green" : "gray"
                                 onClicked: _activeVehicle.apSetAFMode(32772)
                             }
+                            QGCButton {
+                                text: "MF"; Layout.fillWidth: true
+                                backgroundColor: _activeVehicle && _activeVehicle.apAFMode === 1 ? "green" : "gray"
+                                onClicked: _activeVehicle.apSetAFMode(1)
+                            }
+                        }
+
+                        // AF trigger repeats: how many p1=135 half-presses a tap-to-focus /
+                        // Focus & Lock sends. Repeats sustain the half-press after a point
+                        // move and cover dropped commands; drop to 1 to test without them.
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _smallMargins
+                            visible: apControls._showAdvanced
+                            QGCLabel { text: qsTr("AF Repeats"); Layout.preferredWidth: apControls._lblW }
+                            QGCLabel {
+                                text:                   QGroundControl.settingsManager.flyViewSettings.afTriggerPulses.value
+                                Layout.fillWidth:       true
+                                horizontalAlignment:    Text.AlignRight
+                            }
+                            QGCButton { text: "−"; Layout.preferredWidth: apControls._stepBtnW
+                                onClicked: { var f = QGroundControl.settingsManager.flyViewSettings.afTriggerPulses; f.value = Math.max(1, f.value - 1) } }
+                            QGCButton { text: "+";      Layout.preferredWidth: apControls._stepBtnW
+                                onClicked: { var f = QGroundControl.settingsManager.flyViewSettings.afTriggerPulses; f.value = Math.min(5, f.value + 1) } }
+                        }
+
+                        // Manual focus near/far in the on-screen quick controls — off until the
+                        // TAG-E manual focus command (p1=111) is confirmed working.
+                        FactCheckBox {
+                            Layout.fillWidth:   true
+                            visible:            apControls._showAdvanced
+                            text:               qsTr("Show manual focus near/far controls")
+                            fact:               QGroundControl.settingsManager.flyViewSettings.ilxManualFocusControls
                         }
 
                         // ── IMAGE RESOLUTION ──
