@@ -11,7 +11,7 @@
 #
 # Release checklist:
 #   1. bump the version below and commit
-#   2. tag that commit:  git tag -a v<X.Y.Z> -m "Arcsky Control v<X.Y.Z>"
+#   2. tag that commit:  git tag -a arcsky-v<X.Y.Z> -m "Arcsky Control v<X.Y.Z>"
 #   3. re-run CMake configure (the version is captured at configure time) and build
 
 set(ARCSKY_VER_MAJOR 1)
@@ -26,8 +26,9 @@ set(ARCSKY_QGC_BASE_VERSION "5.0.6")
 set(ARCSKY_VERSION "${ARCSKY_VER_MAJOR}.${ARCSKY_VER_MINOR}.${ARCSKY_VER_PATCH}")
 
 # A build counts as a release build only when HEAD sits exactly on its own
-# v<version> tag. Everything else is a dev build and carries branch + short hash
-# so any field APK can be traced back to a commit.
+# arcsky-v<version> tag (prefixed because the inherited upstream QGC history
+# already has plain v1.0.0 .. v1.3.15 tags). Everything else is a dev build and
+# carries branch + short hash so any field APK can be traced back to a commit.
 set(ARCSKY_GIT_TAGS_AT_HEAD "")
 if(GIT_FOUND)
     execute_process(
@@ -40,7 +41,9 @@ if(GIT_FOUND)
     string(REPLACE "\n" ";" ARCSKY_GIT_TAGS_AT_HEAD "${ARCSKY_GIT_TAGS_AT_HEAD}")
 endif()
 
-if("v${ARCSKY_VERSION}" IN_LIST ARCSKY_GIT_TAGS_AT_HEAD)
+set(ARCSKY_RELEASE_TAG "arcsky-v${ARCSKY_VERSION}")
+
+if(ARCSKY_RELEASE_TAG IN_LIST ARCSKY_GIT_TAGS_AT_HEAD)
     set(ARCSKY_RELEASE_BUILD ON)
     set(ARCSKY_VERSION_STR "${ARCSKY_VERSION}")
     message(STATUS "Arcsky release build: v${ARCSKY_VERSION_STR} (QGC ${ARCSKY_QGC_BASE_VERSION})")
