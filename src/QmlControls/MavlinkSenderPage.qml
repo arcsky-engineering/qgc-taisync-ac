@@ -186,10 +186,16 @@ ToolIndicatorPage {
                     QGCComboBox {
                         id:                 payloadCombo
                         Layout.fillWidth:   true
+                        // Wide enough for the longest entry, not just the one currently shown
+                        Layout.minimumWidth: model.concat([qsTr("Not configured")])
+                                                  .reduce(function(w, t) { return Math.max(w, comboFontMetrics.advanceWidth(t)) }, 0)
+                                             + leftPadding + rightPadding
                         model:              ["ILX-LR1", "VIO", "LiDAR", "MAVLink Camera"]
                         currentIndex:       _pendingPayload
-                        alternateText:      _pendingPayload < 0 ? qsTr("Not configured - select payload") : ""
+                        alternateText:      _pendingPayload < 0 ? qsTr("Not configured") : ""
                         onActivated: function(index) { _pendingPayload = index }
+
+                        FontMetrics { id: comboFontMetrics; font: payloadCombo.font }
                     }
 
                     // preferredWidth stops the unwrapped text from widening the whole drawer
