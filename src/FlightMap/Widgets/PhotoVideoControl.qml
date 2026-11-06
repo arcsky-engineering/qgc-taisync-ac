@@ -77,11 +77,13 @@ Rectangle {
     }
     function _applyMappingDefaults() {
         if (!_activeVehicle) return
+        // TG_SHTTERSPD is numerator << 16 | denominator; a bare 2000 decodes as 0/2000 and the
+        // TAG-E drops it. Shutter goes after AF/ISO so the switch into S mode has time to land.
         _presetQueue = [
-            function() { _activeVehicle.apSetExpMode(4) },                        // S (shutter priority)
-            function() { _activeVehicle.apSetParamUint("TG_SHTTERSPD", 2000) },   // 1/2000
-            function() { _activeVehicle.apSetAFMode(32772) },                     // AF-C
-            function() { _activeVehicle.apSetParamUint("TG_ISO", 16777215) },     // Auto ISO
+            function() { _activeVehicle.apSetExpMode(4) },                                // S (shutter priority)
+            function() { _activeVehicle.apSetAFMode(32772) },                             // AF-C
+            function() { _activeVehicle.apSetParamUint("TG_ISO", 16777215) },             // Auto ISO
+            function() { _activeVehicle.apSetParamUint("TG_SHTTERSPD", (1 << 16) | 2000) }, // 1/2000
             function() { _activeVehicle.sendCommand(_apCompId, 202, false, 180, 0, 0, 0, 0, 0, 1) } // Wide AF area (mapping)
         ]
         presetTimer.restart()
