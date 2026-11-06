@@ -41,10 +41,32 @@ ToolIndicatorPage {
     // _pendingPayload is the combo-box in-flight choice; only persisted when user hits Apply.
     // Closing the drawer without applying discards _pendingPayload (property is re-initialised on reopen).
     property int _selectedPayload: _flyViewSettings.payloadSelection.value
-    property int _pendingPayload:  _selectedPayload
+    // A fresh/unconfigured airframe still has the default selection persisted (ILX on Xplorer),
+    // so don't present it as the active payload unless the drone's params actually match it.
+    // -1 = nothing chosen yet; the combo shows "Not configured" and no Apply button.
+    property bool _selectedConfigured: _payloadConfigured(_selectedPayload)
+    property int  _pendingPayload:     _selectedConfigured ? _selectedPayload : -1
 
     function _savePayloadSelection(index) {
         _flyViewSettings.payloadSelection.value = index
+    }
+
+    // True when CAM1_TYPE / SERIALx_BAUD match what Apply writes for payload `index`.
+    // Params not loaded yet counts as configured so we don't flag a vehicle we can't read.
+    function _payloadConfigured(index) {
+        if (!_serialBaudFact || !_camTypeFact)
+            return true
+
+        const baud = _serialBaudFact.value
+        const cam  = _camTypeFact.value
+
+        switch (index) {
+            case 0: return baud === _ilxBaud && cam === 5
+            case 1: return baud === _vioBaud && cam === 6
+            case 2: return cam === 0
+            case 3: return baud === _mavCamBaud && cam === _mavCamType
+        }
+        return false
     }
 
     //--------------------------------------
@@ -166,13 +188,28 @@ ToolIndicatorPage {
                         Layout.fillWidth:   true
                         model:              ["ILX-LR1", "VIO", "LiDAR", "MAVLink Camera"]
                         currentIndex:       _pendingPayload
+                        alternateText:      _pendingPayload < 0 ? qsTr("Not configured - select payload") : ""
                         onActivated: function(index) { _pendingPayload = index }
+                    }
+
+                    // preferredWidth stops the unwrapped text from widening the whole drawer
+                    QGCLabel {
+                        Layout.fillWidth:       true
+                        Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 25
+                        visible:                !_selectedConfigured
+                        wrapMode:               Text.WordWrap
+                        font.pointSize:         ScreenTools.smallFontPointSize
+                        color:                  qgcPal.colorOrange
+                        text:                   qsTr("Drone is not configured for a payload.\n%1=%2, CAM1_TYPE=%3\nSelect the payload and tap Apply.")
+                                                .arg(_serialParamName)
+                                                .arg(_serialBaudFact ? _serialBaudFact.value : "?")
+                                                .arg(_camTypeFact ? _camTypeFact.value : "?")
                     }
 
                     QGCButton {
                         text:               "Apply"
                         Layout.fillWidth:   true
-                        visible:            _pendingPayload < 2   // ILX or VIO
+                        visible:            _pendingPayload === 0 || _pendingPayload === 1   // ILX or VIO
                         onClicked: {
                             _savePayloadSelection(_pendingPayload)
                             if (_pendingPayload === 0)

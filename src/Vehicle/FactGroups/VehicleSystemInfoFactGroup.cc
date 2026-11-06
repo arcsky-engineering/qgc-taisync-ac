@@ -294,7 +294,7 @@ void VehicleSystemInfoFactGroup::_handlePayloadMessage(Vehicle *vehicle, const m
         if (fromCamera) {
             // Camera controller boot line, e.g. "...: HW:3.1 | SW:0.193". Only sent at its
             // boot, so CAMERA_INFORMATION covers the usual connect-after-boot case.
-            static const QRegularExpression swRe(QStringLiteral("\bSW:\s*v?(\d+(?:\.\d+)+)"));
+            static const QRegularExpression swRe(QStringLiteral("\\bSW:\\s*v?(\\d+(?:\\.\\d+)+)"));
             const QRegularExpressionMatch match = swRe.match(StatusTextHandler::getMessageText(message));
             if (match.hasMatch()) {
                 _cameraFirmwareVersionFact.setRawValue(match.captured(1));

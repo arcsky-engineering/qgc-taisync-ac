@@ -16,7 +16,7 @@
 
 set(ARCSKY_VER_MAJOR 1)
 set(ARCSKY_VER_MINOR 0)
-set(ARCSKY_VER_PATCH 0)
+set(ARCSKY_VER_PATCH 1)
 
 # The upstream QGroundControl release this fork is based on (Taisync's QGC 5.0.6
 # branch). Displayed next to our version for support purposes. Update this when

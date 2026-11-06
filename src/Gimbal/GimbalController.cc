@@ -84,6 +84,25 @@ void GimbalController::_handleHeartbeat(const mavlink_message_t &message)
 
     PotentialGimbalManager &gimbalManager = _potentialGimbalManagers[message.compid];
 
+    // A heartbeat gap means the component rebooted (e.g. payload change + reboot while the
+    // telemetry link stayed up, so this controller survives). Re-arm discovery: retries spent
+    // before the gimbal existed would otherwise leave it undiscovered until the app restarts.
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (!gimbalManager.receivedInformation && (gimbalManager.lastHeartbeatMs != 0) &&
+        ((now - gimbalManager.lastHeartbeatMs) > _rediscoverHeartbeatGapMs)) {
+        qCDebug(GimbalControllerLog) << "heartbeat resumed after gap, re-arming gimbal discovery for compid:" << message.compid;
+        gimbalManager.requestGimbalManagerInformationRetries = PotentialGimbalManager{}.requestGimbalManagerInformationRetries;
+        for (auto it = _potentialGimbals.begin(); it != _potentialGimbals.end(); ++it) {
+            Gimbal *const gimbal = it.value();
+            if ((it.key().managerCompid == message.compid) && !gimbal->_isComplete) {
+                gimbal->_requestInformationRetries = 3;
+                gimbal->_requestStatusRetries = 6;
+                gimbal->_requestAttitudeRetries = 3;
+            }
+        }
+    }
+    gimbalManager.lastHeartbeatMs = now;
+
     // Note that we are working over potential gimbal managers here, instead of potential gimbals.
     // This is because we address the gimbal manager by compid, but a gimbal device might have an
     // id different than the message compid it comes from. For more information see https://mavlink.io/en/services/gimbal_v2.html

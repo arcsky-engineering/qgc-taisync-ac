@@ -108,7 +108,9 @@ private:
     struct PotentialGimbalManager {
         unsigned requestGimbalManagerInformationRetries = 6;
         bool receivedInformation = false;
+        qint64 lastHeartbeatMs = 0;
     };
+    static constexpr qint64 _rediscoverHeartbeatGapMs = 3000;
     QMap<uint8_t, PotentialGimbalManager> _potentialGimbalManagers; // key is compid
 
     QMap<GimbalPairId, Gimbal*> _potentialGimbals;

@@ -2371,6 +2371,10 @@ void Vehicle::_handleHeartbeat(mavlink_message_t& message)
         _updateArmed(newArmed);
     }
 
+    // ArduPilot heartbeats during boot (gyro cal) carry the default mode (Stabilize) before
+    // INITIAL_MODE is applied, so don't announce flight modes while the vehicle is booting.
+    _vehicleBooting = (heartbeat.system_status == MAV_STATE_BOOT);
+
     if (heartbeat.base_mode != _base_mode || heartbeat.custom_mode != _custom_mode) {
         QString previousFlightMode;
         if (_base_mode != 0 || _custom_mode != 0){
@@ -3057,7 +3061,9 @@ QString Vehicle::_vehicleIdSpeech()
 
 void Vehicle::_handleFlightModeChanged(const QString& flightMode)
 {
-    _say(tr("%1 %2 flight mode").arg(_vehicleIdSpeech()).arg(flightMode));
+    if (!_vehicleBooting) {
+        _say(tr("%1 %2 flight mode").arg(_vehicleIdSpeech()).arg(flightMode));
+    }
     emit guidedModeChanged(_firmwarePlugin->isGuidedMode(this));
 }
 

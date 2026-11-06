@@ -1313,6 +1313,7 @@ private:
     uint32_t _custom_mode = 0;  ///< custom_mode from HEARTBEAT
     uint32_t _custom_mode_user_intention = 0;  ///< custom_mode_user_intention from CURRENT_MODE
     bool _has_custom_mode_user_intention = false;
+    bool _vehicleBooting = false;   ///< true: last HEARTBEAT reported MAV_STATE_BOOT
 
     /// Used to store a message being sent by sendMessageMultiple
     typedef struct {
